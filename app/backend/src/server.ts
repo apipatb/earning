@@ -26,6 +26,7 @@ import socialRoutes from './routes/social.routes';
 import securityRoutes from './routes/security.routes';
 import schedulerRoutes from './routes/scheduler.routes';
 import notificationRoutes from './routes/notification.routes';
+import analyticsAdvancedRoutes from './routes/analytics-advanced.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -80,6 +81,7 @@ app.use('/api/v1/social', socialRoutes);
 app.use('/api/v1/security', securityRoutes);
 app.use('/api/v1/scheduler', schedulerRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/analytics-advanced', analyticsAdvancedRoutes);
 
 // Error handling
 app.use(notFound);
