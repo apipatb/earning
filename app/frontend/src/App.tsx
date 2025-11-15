@@ -15,6 +15,9 @@ import TimeTracking from './pages/TimeTracking';
 import ClientManagement from './pages/ClientManagement';
 import BudgetPlanning from './pages/BudgetPlanning';
 import Settings from './pages/Settings';
+import PassiveIncome from './pages/PassiveIncome';
+import AffiliateLinks from './pages/AffiliateLinks';
+import Opportunities from './pages/Opportunities';
 import Layout from './components/Layout';
 
 function App() {
@@ -46,6 +49,9 @@ function App() {
           <Route path="clients" element={<ClientManagement />} />
           <Route path="goals" element={<Goals />} />
           <Route path="budget" element={<BudgetPlanning />} />
+          <Route path="passive-income" element={<PassiveIncome />} />
+          <Route path="affiliate-links" element={<AffiliateLinks />} />
+          <Route path="opportunities" element={<Opportunities />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="reports" element={<Reports />} />
           <Route path="invoices" element={<Invoices />} />

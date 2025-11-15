@@ -13,6 +13,9 @@ import platformRoutes from './routes/platform.routes';
 import earningRoutes from './routes/earning.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import goalRoutes from './routes/goal.routes';
+import passiveIncomeRoutes from './routes/passive-income.routes';
+import affiliateLinkRoutes from './routes/affiliate-link.routes';
+import opportunityRoutes from './routes/opportunity.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -49,6 +52,9 @@ app.use('/api/v1/platforms', platformRoutes);
 app.use('/api/v1/earnings', earningRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/goals', goalRoutes);
+app.use('/api/v1/passive-incomes', passiveIncomeRoutes);
+app.use('/api/v1/affiliate-links', affiliateLinkRoutes);
+app.use('/api/v1/opportunities', opportunityRoutes);
 
 // Error handling
 app.use(notFound);

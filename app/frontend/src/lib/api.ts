@@ -67,3 +67,28 @@ export const goalsAPI = {
   deleteGoal: (id: string) => api.delete(`/goals/${id}`).then(res => res.data),
   updateGoalProgress: (id: string) => api.post(`/goals/${id}/update-progress`).then(res => res.data),
 };
+
+export const passiveIncomeAPI = {
+  getPassiveIncomes: (filters?: any) => api.get('/passive-incomes', { params: filters }).then(res => res.data),
+  createPassiveIncome: (data: any) => api.post('/passive-incomes', data).then(res => res.data),
+  updatePassiveIncome: (id: string, data: any) => api.put(`/passive-incomes/${id}`, data).then(res => res.data),
+  deletePassiveIncome: (id: string) => api.delete(`/passive-incomes/${id}`).then(res => res.data),
+};
+
+export const affiliateLinkAPI = {
+  getAffiliateLinks: (filters?: any) => api.get('/affiliate-links', { params: filters }).then(res => res.data),
+  createAffiliateLink: (data: any) => api.post('/affiliate-links', data).then(res => res.data),
+  updateAffiliateLink: (id: string, data: any) => api.put(`/affiliate-links/${id}`, data).then(res => res.data),
+  deleteAffiliateLink: (id: string) => api.delete(`/affiliate-links/${id}`).then(res => res.data),
+  recordClick: (id: string, data?: any) => api.post(`/affiliate-links/${id}/click`, data || {}).then(res => res.data),
+  addEarning: (id: string, data: any) => api.post(`/affiliate-links/${id}/earnings`, data).then(res => res.data),
+  getStats: (id: string) => api.get(`/affiliate-links/${id}/stats`).then(res => res.data),
+};
+
+export const opportunityAPI = {
+  getOpportunities: (filters?: any) => api.get('/opportunities', { params: filters }).then(res => res.data),
+  createOpportunity: (data: any) => api.post('/opportunities', data).then(res => res.data),
+  updateOpportunity: (id: string, data: any) => api.put(`/opportunities/${id}`, data).then(res => res.data),
+  deleteOpportunity: (id: string) => api.delete(`/opportunities/${id}`).then(res => res.data),
+  getStatsByStatus: () => api.get('/opportunities/stats/by-status').then(res => res.data),
+};

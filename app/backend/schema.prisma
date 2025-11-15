@@ -20,9 +20,12 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  platforms    Platform[]
-  earnings     Earning[]
-  goals        Goal[]
+  platforms       Platform[]
+  earnings        Earning[]
+  goals           Goal[]
+  passiveIncomes  PassiveIncome[]
+  affiliateLinks  AffiliateLink[]
+  opportunities   Opportunity[]
 
   @@map("users")
 }
@@ -78,4 +81,97 @@ model Goal {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("goals")
+}
+
+model PassiveIncome {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  name         String   @db.VarChar(100) // e.g., "Dividend Income", "Interest", "Stock Gains"
+  category     String   @db.VarChar(50) // dividend, interest, rental, ad_revenue, royalty, investment, other
+  amount       Decimal  @db.Decimal(10, 2)
+  date         DateTime @db.Date
+  source       String?  @db.VarChar(100) // e.g., "Vanguard", "Bank Account", "YouTube"
+  frequency    String   @db.VarChar(50) @default("one_time") // one_time, monthly, quarterly, annual
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date(sort: Desc)])
+  @@index([userId, category])
+  @@map("passive_incomes")
+}
+
+model AffiliateLink {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  name         String   @db.VarChar(100) // e.g., "AWS Affiliate"
+  description  String?  @db.Text
+  url          String   @db.Text
+  category     String   @db.VarChar(50) // tech, finance, products, services, other
+  clickCount   Int      @default(0) @map("click_count")
+  earnings     Decimal  @default(0) @db.Decimal(10, 2)
+  conversionRate Decimal? @db.Decimal(5, 2) // percentage
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clicks       AffiliateClick[]
+  earnings_log AffiliateEarning[]
+
+  @@index([userId, isActive])
+  @@map("affiliate_links")
+}
+
+model AffiliateClick {
+  id           String   @id @default(uuid())
+  linkId       String   @map("link_id")
+  timestamp    DateTime @default(now())
+  country      String?  @db.VarChar(2)
+  device       String?  @db.VarChar(50) // mobile, desktop, tablet
+  referrer     String?  @db.Text
+
+  link         AffiliateLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@index([linkId, timestamp(sort: Desc)])
+  @@map("affiliate_clicks")
+}
+
+model AffiliateEarning {
+  id           String   @id @default(uuid())
+  linkId       String   @map("link_id")
+  amount       Decimal  @db.Decimal(10, 2)
+  date         DateTime @db.Date
+  description  String?  @db.VarChar(100) // commission, sale, referral
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  link         AffiliateLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@index([linkId, date(sort: Desc)])
+  @@map("affiliate_earnings")
+}
+
+model Opportunity {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  title        String   @db.VarChar(100)
+  description  String?  @db.Text
+  platform     String   @db.VarChar(50) // fiverr, upwork, freelancer, etc.
+  category     String   @db.VarChar(50) // writing, design, coding, etc.
+  estimatedPay Decimal? @map("estimated_pay") @db.Decimal(10, 2)
+  difficulty   String   @db.VarChar(20) @default("medium") // easy, medium, hard
+  deadline     DateTime? @db.Date
+  url          String?  @db.Text
+  status       String   @db.VarChar(20) @default("new") // new, interested, applied, won, rejected
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("opportunities")
 }
