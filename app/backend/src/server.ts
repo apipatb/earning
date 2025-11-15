@@ -44,6 +44,7 @@ import timesheetRoutes from './routes/timesheet.routes';
 import clientRoutes from './routes/client.routes';
 import supportRoutes from './routes/support.routes';
 import leadRoutes from './routes/lead.routes';
+import projectRoutes from './routes/project.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -116,6 +117,7 @@ app.use('/api/v1/timesheets', timesheetRoutes);
 app.use('/api/v1/clients', clientRoutes);
 app.use('/api/v1/support', supportRoutes);
 app.use('/api/v1/leads', leadRoutes);
+app.use('/api/v1/projects', projectRoutes);
 
 // Error handling
 app.use(notFound);

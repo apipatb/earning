@@ -123,6 +123,11 @@ model User {
   leads Lead[] @relation("Leads")
   leadCommunications LeadCommunication[] @relation("LeadCommunications")
   leadActivities LeadActivity[] @relation("LeadActivities")
+  projects Project[] @relation("Projects")
+  tasks Task[] @relation("Tasks")
+  subtasks Subtask[] @relation("Subtasks")
+  milestones Milestone[] @relation("Milestones")
+  taskComments TaskComment[] @relation("TaskComments")
 
   @@map("users")
 }
@@ -2629,4 +2634,147 @@ model LeadActivity {
   @@index([leadId])
   @@index([createdAt(sort: Desc)])
   @@map("lead_activities")
+}
+
+model Project {
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  clientId          String?          @map("client_id")
+  name              String
+  description       String?          @db.Text
+  status            String           @default("planning") // planning, active, on-hold, completed, archived
+  priority          String           @default("medium") // low, medium, high, critical
+  category          String           @default("other")
+  budget            Decimal?         @db.Decimal(10, 2)
+  startDate         DateTime         @map("start_date")
+  endDate           DateTime?        @map("end_date")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  user              User             @relation("Projects", fields: [userId], references: [id], onDelete: Cascade)
+  client            Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  tasks             Task[]
+  milestones        Milestone[]
+  documents         ProjectDocument[]
+  team              ProjectTeamMember[]
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt(sort: Desc)])
+  @@map("projects")
+}
+
+model Task {
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  projectId         String           @map("project_id")
+  title             String
+  description       String?          @db.Text
+  status            String           @default("todo") // todo, in-progress, review, blocked, completed
+  priority          String           @default("medium") // low, medium, high
+  assignedTo        String?          @map("assigned_to")
+  dueDate           DateTime?        @map("due_date")
+  estimatedHours    Decimal?         @map("estimated_hours") @db.Decimal(5, 2)
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  user              User             @relation("Tasks", fields: [userId], references: [id], onDelete: Cascade)
+  project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subtasks          Subtask[]
+  comments          TaskComment[]
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model Subtask {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  taskId            String   @map("task_id")
+  title             String
+  completed         Boolean  @default(false)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("Subtasks", fields: [userId], references: [id], onDelete: Cascade)
+  task              Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([taskId])
+  @@map("subtasks")
+}
+
+model Milestone {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  projectId         String   @map("project_id")
+  name              String
+  description       String?  @db.Text
+  dueDate           DateTime @map("due_date")
+  deliverables      String?  @db.Text
+  completed         Boolean  @default(false)
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("Milestones", fields: [userId], references: [id], onDelete: Cascade)
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([dueDate(sort: Asc)])
+  @@map("milestones")
+}
+
+model TaskComment {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  taskId            String   @map("task_id")
+  comment           String   @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("TaskComments", fields: [userId], references: [id], onDelete: Cascade)
+  task              Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([taskId])
+  @@index([createdAt(sort: Desc)])
+  @@map("task_comments")
+}
+
+model ProjectDocument {
+  id                String   @id @default(uuid())
+  projectId         String   @map("project_id")
+  fileName          String   @map("file_name")
+  fileUrl           String   @map("file_url") @db.Text
+  fileType          String   @map("file_type")
+  fileSize          Int      @map("file_size")
+  uploadedAt        DateTime @map("uploaded_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_documents")
+}
+
+model ProjectTeamMember {
+  id                String   @id @default(uuid())
+  projectId         String   @map("project_id")
+  userId            String   @map("user_id")
+  role              String   @default("member") // manager, lead, member, viewer
+  joinedAt          DateTime @map("joined_at")
+
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@map("project_team_members")
 }
