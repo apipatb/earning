@@ -20,6 +20,7 @@ import apiManagementRoutes from './routes/api-management.routes';
 import reportRoutes from './routes/report.routes';
 import integrationRoutes from './routes/integration.routes';
 import teamRoutes from './routes/team.routes';
+import aiRoutes from './routes/ai.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -68,6 +69,7 @@ app.use('/api/v1/api-management', apiManagementRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/integrations', integrationRoutes);
 app.use('/api/v1/team', teamRoutes);
+app.use('/api/v1/ai', aiRoutes);
 
 // Error handling
 app.use(notFound);

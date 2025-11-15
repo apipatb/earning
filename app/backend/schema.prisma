@@ -28,6 +28,7 @@ model User {
   affiliateProfile AffiliateProfile?
   workspaceMembers WorkspaceMember[]
   auditLogs      AuditLog[]
+  aiInsights     AIInsight[]
 
   @@map("users")
 }
@@ -421,4 +422,22 @@ model AuditLog {
   @@index([workspaceId, createdAt(sort: Desc)])
   @@index([userId])
   @@map("audit_logs")
+}
+
+model AIInsight {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  title             String
+  content           String   @db.Text
+  category          String   // anomaly, forecast, recommendation, pattern
+  insights          Json?    // Detailed insights data
+  isSaved           Boolean  @default(false)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([category])
+  @@map("ai_insights")
 }
