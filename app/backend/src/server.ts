@@ -31,6 +31,7 @@ import reportsAdvancedRoutes from './routes/reports-advanced.routes';
 import budgetingRoutes from './routes/budgeting.routes';
 import localizationRoutes from './routes/localization.routes';
 import collaborationRoutes from './routes/collaboration.routes';
+import automationRoutes from './routes/automation.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -90,6 +91,7 @@ app.use('/api/v1/reports-advanced', reportsAdvancedRoutes);
 app.use('/api/v1/budgets', budgetingRoutes);
 app.use('/api/v1/localization', localizationRoutes);
 app.use('/api/v1/workspaces', collaborationRoutes);
+app.use('/api/v1/automation', automationRoutes);
 
 // Error handling
 app.use(notFound);

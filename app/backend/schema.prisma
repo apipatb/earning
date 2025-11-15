@@ -66,6 +66,10 @@ model User {
   assignedTasks WorkspaceTask[] @relation("AssignedTasks")
   sharedDashboards SharedDashboard[] @relation("SharedDashboards")
   workspaceActivityLog WorkspaceActivity[] @relation("WorkspaceActivityLog")
+  automationRules AutomationRule[] @relation("AutomationRules")
+  workflows Workflow[] @relation("Workflows")
+  scheduledAutomations ScheduledAutomation[] @relation("ScheduledAutomations")
+  automationHistory AutomationHistory[] @relation("AutomationHistory")
 
   @@map("users")
 }
@@ -1238,4 +1242,136 @@ model WorkspaceActivity {
   @@index([userId])
   @@index([timestamp(sort: Desc)])
   @@map("workspace_activities")
+}
+
+// Phase 28: Advanced Automation & Smart Workflows
+model AutomationRule {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  description       String?  @db.Text
+  trigger           String   @db.Text // JSON: type, condition, value
+  conditions        String   @db.Text // JSON: array of conditions
+  actions           String   @db.Text // JSON: array of actions
+  enabled           Boolean  @default(true)
+  executionCount    Int      @default(0)
+  lastExecutedAt    DateTime? @map("last_executed_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("AutomationRules", fields: [userId], references: [id], onDelete: Cascade)
+  executions        AutomationExecution[]
+
+  @@index([userId])
+  @@index([enabled])
+  @@map("automation_rules")
+}
+
+model AutomationExecution {
+  id                String   @id @default(uuid())
+  ruleId            String   @map("rule_id")
+  status            String   // success, failed, skipped
+  result            String?  @db.Text
+  error             String?  @db.Text
+  executedAt        DateTime @default(now()) @map("executed_at")
+
+  rule              AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([executedAt(sort: Desc)])
+  @@map("automation_executions")
+}
+
+model Workflow {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  description       String?  @db.Text
+  steps             String   @db.Text // JSON: array of workflow steps
+  triggerType       String   // manual, scheduled, event-based
+  enabled           Boolean  @default(true)
+  version           Int      @default(1)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("Workflows", fields: [userId], references: [id], onDelete: Cascade)
+  executions        WorkflowExecution[]
+
+  @@index([userId])
+  @@index([triggerType])
+  @@map("workflows")
+}
+
+model WorkflowExecution {
+  id                String   @id @default(uuid())
+  workflowId        String   @map("workflow_id")
+  status            String   // running, completed, failed
+  variables         String?  @db.Text // JSON: execution variables
+  output            String?  @db.Text // JSON: execution output
+  error             String?  @db.Text
+  startedAt         DateTime @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+  durationMs        Int?     @map("duration_ms")
+
+  workflow          Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([status])
+  @@index([startedAt(sort: Desc)])
+  @@map("workflow_executions")
+}
+
+model WorkflowTemplate {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  description       String?  @db.Text
+  category          String   // notifications, data, integrations
+  steps             String   @db.Text // JSON: workflow steps
+  triggerType       String   // manual, scheduled, event-based
+  icon              String   @default("⚙️")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([category])
+  @@map("workflow_templates")
+}
+
+model ScheduledAutomation {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  description       String?  @db.Text
+  schedule          String   // cron expression
+  action            String   @db.Text // JSON: action configuration
+  enabled           Boolean  @default(true)
+  nextRun           DateTime @map("next_run")
+  lastRun           DateTime? @map("last_run")
+  executionCount    Int      @default(0)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("ScheduledAutomations", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([enabled])
+  @@index([nextRun])
+  @@map("scheduled_automations")
+}
+
+model AutomationHistory {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  automationType    String   // rule, workflow, scheduled
+  automationId      String   @map("automation_id")
+  automationName    String   @map("automation_name")
+  action            String   // triggered, executed, failed
+  result            String?  @db.Text
+  error             String?  @db.Text
+  executedAt        DateTime @default(now()) @map("executed_at")
+
+  user              User     @relation("AutomationHistory", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([automationType])
+  @@index([executedAt(sort: Desc)])
+  @@map("automation_history")
 }
