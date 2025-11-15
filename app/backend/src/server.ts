@@ -21,6 +21,7 @@ import reportRoutes from './routes/report.routes';
 import integrationRoutes from './routes/integration.routes';
 import teamRoutes from './routes/team.routes';
 import aiRoutes from './routes/ai.routes';
+import marketplaceRoutes from './routes/marketplace.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -70,6 +71,7 @@ app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/integrations', integrationRoutes);
 app.use('/api/v1/team', teamRoutes);
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/marketplace', marketplaceRoutes);
 
 // Error handling
 app.use(notFound);
