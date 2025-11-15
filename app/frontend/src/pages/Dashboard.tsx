@@ -4,6 +4,8 @@ import { analyticsAPI, earningsAPI } from '../lib/api';
 import { format } from 'date-fns';
 import { useWidgetStore } from '../store/widget.store';
 import { notify } from '../store/notification.store';
+import BudgetOverviewWidget from '../components/widgets/BudgetOverviewWidget';
+import UpcomingGoalsWidget from '../components/widgets/UpcomingGoalsWidget';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
@@ -205,15 +207,21 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Budget & Goals Widgets */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <BudgetOverviewWidget />
+        <UpcomingGoalsWidget />
+      </div>
+
       {/* Recent Earnings */}
       {isWidgetEnabled('recent-earnings') && (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-medium text-gray-900">Recent Entries</h2>
+        <div className="bg-white dark:bg-gray-800 shadow-soft rounded-lg animate-fade-in-up">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Recent Entries</h2>
         </div>
-        <ul className="divide-y divide-gray-200">
+        <ul className="divide-y divide-gray-200 dark:divide-gray-700">
           {recentEarnings.map((earning) => (
-            <li key={earning.id} className="px-6 py-4">
+            <li key={earning.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <div
@@ -221,18 +229,18 @@ export default function Dashboard() {
                     style={{ backgroundColor: earning.platform.color || '#3b82f6' }}
                   />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
                       {earning.platform.name}
                     </p>
-                    <p className="text-sm text-gray-500">{earning.date}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{earning.date}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
                     ${earning.amount.toFixed(2)}
                   </p>
                   {earning.hours && (
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       {earning.hours}h · ${earning.hourly_rate?.toFixed(2)}/h
                     </p>
                   )}

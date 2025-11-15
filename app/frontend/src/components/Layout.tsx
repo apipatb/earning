@@ -6,6 +6,8 @@ import { useCurrencyStore } from '../store/currency.store';
 import { useI18nStore } from '../store/i18n.store';
 import { SUPPORTED_CURRENCIES } from '../lib/currency';
 import NotificationContainer from './NotificationContainer';
+import QuickActionsMenu from './QuickActionsMenu';
+import GlobalSearch from './GlobalSearch';
 
 export default function Layout() {
   const location = useLocation();
@@ -35,6 +37,9 @@ export default function Layout() {
             </div>
             <div className="flex items-center space-x-3">
               <span className="text-sm text-gray-700 dark:text-gray-300 hidden md:block">{user?.email}</span>
+
+              {/* Global Search */}
+              <GlobalSearch />
 
               {/* Language Selector */}
               <select
@@ -236,6 +241,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Quick Actions Menu */}
+      <QuickActionsMenu />
 
       {/* Notification Container */}
       <NotificationContainer />
