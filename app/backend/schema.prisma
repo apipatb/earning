@@ -59,6 +59,13 @@ model User {
   financialPlans FinancialPlan[]
   languagePreference LanguagePreference? @relation("UserLanguagePreference")
   languageStats LanguageStatistic[] @relation("UserLanguageStats")
+  ownedWorkspaces Workspace[] @relation("WorkspaceOwner")
+  workspaces WorkspaceMember[] @relation("WorkspaceMembers")
+  invitedWorkspaces WorkspaceInvitation[] @relation("InvitedWorkspaces")
+  createdProjects WorkspaceProject[] @relation("CreatedProjects")
+  assignedTasks WorkspaceTask[] @relation("AssignedTasks")
+  sharedDashboards SharedDashboard[] @relation("SharedDashboards")
+  workspaceActivityLog WorkspaceActivity[] @relation("WorkspaceActivityLog")
 
   @@map("users")
 }
@@ -1094,4 +1101,141 @@ model LanguageStatistic {
   @@unique([userId, language])
   @@index([userId])
   @@map("language_statistics")
+}
+
+// Phase 27: Advanced Collaboration & Workspace Management
+model Workspace {
+  id                String   @id @default(uuid())
+  name              String
+  description       String?  @db.Text
+  icon              String   @default("📊")
+  color             String   @default("#3B82F6")
+  ownerId           String   @map("owner_id")
+  isPublic          Boolean  @default(false)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  owner             User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members           WorkspaceMember[]
+  invitations       WorkspaceInvitation[]
+  projects          WorkspaceProject[]
+  sharedDashboards  SharedDashboard[]
+  activity          WorkspaceActivity[]
+
+  @@index([ownerId])
+  @@index([isPublic])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id                String   @id @default(uuid())
+  workspaceId       String   @map("workspace_id")
+  userId            String   @map("user_id")
+  role              String   @default("member") // owner, admin, member, viewer
+  joinedAt          DateTime @default(now()) @map("joined_at")
+
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user              User     @relation("WorkspaceMembers", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+model WorkspaceInvitation {
+  id                String   @id @default(uuid())
+  workspaceId       String   @map("workspace_id")
+  email             String
+  role              String   @default("member")
+  invitedBy         String   @map("invited_by")
+  expiresAt         DateTime @map("expires_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter           User     @relation("InvitedWorkspaces", fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId])
+  @@index([email])
+  @@map("workspace_invitations")
+}
+
+model WorkspaceProject {
+  id                String   @id @default(uuid())
+  workspaceId       String   @map("workspace_id")
+  name              String
+  description       String?  @db.Text
+  icon              String   @default("📁")
+  color             String   @default("#10B981")
+  status            String   @default("active") // active, archived, completed
+  createdBy         String   @map("created_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdByUser     User     @relation("CreatedProjects", fields: [createdBy], references: [id], onDelete: SetNull)
+  tasks             WorkspaceTask[]
+
+  @@index([workspaceId])
+  @@index([status])
+  @@map("workspace_projects")
+}
+
+model WorkspaceTask {
+  id                String   @id @default(uuid())
+  projectId         String   @map("project_id")
+  title             String
+  description       String?  @db.Text
+  status            String   @default("todo") // todo, in_progress, done
+  priority          String   @default("medium") // low, medium, high, urgent
+  assignedTo        String?  @map("assigned_to")
+  dueDate           DateTime? @map("due_date")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  project           WorkspaceProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee          User?   @relation("AssignedTasks", fields: [assignedTo], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([status])
+  @@index([assignedTo])
+  @@map("workspace_tasks")
+}
+
+model SharedDashboard {
+  id                String   @id @default(uuid())
+  workspaceId       String   @map("workspace_id")
+  dashboardId       String   @map("dashboard_id")
+  permission        String   @default("view") // view, edit
+  sharedBy          String   @map("shared_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  dashboard         CustomDashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  sharedByUser      User     @relation("SharedDashboards", fields: [sharedBy], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, dashboardId])
+  @@index([workspaceId])
+  @@map("shared_dashboards")
+}
+
+model WorkspaceActivity {
+  id                String   @id @default(uuid())
+  workspaceId       String   @map("workspace_id")
+  userId            String   @map("user_id")
+  action            String   // created, updated, deleted, shared, invited, joined
+  entityType        String   // workspace, member, project, task, dashboard
+  entityId          String   @map("entity_id")
+  description       String   @db.Text
+  metadata          String?  @db.Json
+  timestamp         DateTime @default(now())
+
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user              User     @relation("WorkspaceActivityLog", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([timestamp(sort: Desc)])
+  @@map("workspace_activities")
 }
