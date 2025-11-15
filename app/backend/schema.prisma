@@ -20,9 +20,10 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  platforms    Platform[]
-  earnings     Earning[]
-  goals        Goal[]
+  platforms     Platform[]
+  earnings      Earning[]
+  goals         Goal[]
+  subscription  Subscription?
 
   @@map("users")
 }
@@ -78,4 +79,42 @@ model Goal {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("goals")
+}
+
+model Subscription {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  tier              String   @default("free") @db.VarChar(20) // free, pro, business
+  stripeCustomerId  String?  @unique @map("stripe_customer_id") @db.VarChar(255)
+  stripeSubId       String?  @unique @map("stripe_subscription_id") @db.VarChar(255)
+  status            String   @default("active") @db.VarChar(50) // active, cancelled, past_due
+  currentPeriodEnd  DateTime? @map("current_period_end")
+  cancelAtPeriodEnd Boolean  @default(false) @map("cancel_at_period_end")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments          Payment[]
+
+  @@index([tier])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  subscriptionId    String   @map("subscription_id")
+  stripePaymentId   String   @unique @map("stripe_payment_id") @db.VarChar(255)
+  amount            Decimal  @db.Decimal(10, 2)
+  currency          String   @db.VarChar(3)
+  status            String   @db.VarChar(50) // succeeded, failed, pending
+  invoiceUrl        String?  @map("invoice_url") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  subscription      Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
 }

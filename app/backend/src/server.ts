@@ -13,10 +13,13 @@ import platformRoutes from './routes/platform.routes';
 import earningRoutes from './routes/earning.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import goalRoutes from './routes/goal.routes';
+import paymentRoutes from './routes/payment.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
 import { notFound } from './middleware/notFound.middleware';
+import { attachSubscription } from './middleware/tier.middleware';
+import { auth } from './middleware/auth.middleware';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,6 +40,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/', limiter);
 
+// Attach subscription info to authenticated requests
+app.use(auth, attachSubscription);
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -49,6 +55,7 @@ app.use('/api/v1/platforms', platformRoutes);
 app.use('/api/v1/earnings', earningRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/goals', goalRoutes);
+app.use('/api/v1/payments', paymentRoutes);
 
 // Error handling
 app.use(notFound);
