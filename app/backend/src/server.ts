@@ -32,6 +32,7 @@ import budgetingRoutes from './routes/budgeting.routes';
 import localizationRoutes from './routes/localization.routes';
 import collaborationRoutes from './routes/collaboration.routes';
 import automationRoutes from './routes/automation.routes';
+import realtimeRoutes from './routes/realtime.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -92,6 +93,7 @@ app.use('/api/v1/budgets', budgetingRoutes);
 app.use('/api/v1/localization', localizationRoutes);
 app.use('/api/v1/workspaces', collaborationRoutes);
 app.use('/api/v1/automation', automationRoutes);
+app.use('/api/v1/realtime', realtimeRoutes);
 
 // Error handling
 app.use(notFound);

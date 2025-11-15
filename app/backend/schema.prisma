@@ -70,6 +70,13 @@ model User {
   workflows Workflow[] @relation("Workflows")
   scheduledAutomations ScheduledAutomation[] @relation("ScheduledAutomations")
   automationHistory AutomationHistory[] @relation("AutomationHistory")
+  realtimeConnections RealtimeConnection[] @relation("RealtimeConnections")
+  presence UserPresence? @relation("UserPresence")
+  realtimeAlerts RealtimeAlert[] @relation("RealtimeAlerts")
+  dataSubscriptions DataSubscription[] @relation("DataSubscriptions")
+  liveEvents LiveEvent[] @relation("LiveEvents")
+  notificationDeliveries NotificationDelivery[] @relation("NotificationDeliveries")
+  realtimeSubscriptions RealtimeSubscription[] @relation("RealtimeSubscriptions")
 
   @@map("users")
 }
@@ -1374,4 +1381,138 @@ model AutomationHistory {
   @@index([automationType])
   @@index([executedAt(sort: Desc)])
   @@map("automation_history")
+}
+
+// Phase 29: Real-time Notifications & WebSocket Integration
+model RealtimeConnection {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  deviceId          String   @map("device_id")
+  deviceType        String   // web, mobile, desktop
+  sessionToken      String?  @map("session_token")
+  isActive          Boolean  @default(true)
+  lastHeartbeat     DateTime @map("last_heartbeat")
+  createdAt         DateTime @default(now()) @map("created_at")
+  closedAt          DateTime? @map("closed_at")
+
+  user              User     @relation("RealtimeConnections", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([isActive])
+  @@map("realtime_connections")
+}
+
+model UserPresence {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  status            String   @default("offline") // online, idle, away, offline
+  activity          String?  // what the user is doing
+  isOnline          Boolean  @default(false)
+  lastSeen          DateTime @map("last_seen")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("UserPresence", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([lastSeen(sort: Desc)])
+  @@map("user_presences")
+}
+
+model RealtimeAlert {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  type              String   // earning, goal, platform, threshold, warning
+  title             String
+  message           String   @db.Text
+  metadata          String?  @db.Json
+  priority          String   @default("normal") // low, normal, high, critical
+  isRead            Boolean  @default(false)
+  readAt            DateTime? @map("read_at")
+  isAcknowledged    Boolean  @default(false)
+  acknowledgedAt    DateTime? @map("acknowledged_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("RealtimeAlerts", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([priority])
+  @@index([isRead])
+  @@index([createdAt(sort: Desc)])
+  @@map("realtime_alerts")
+}
+
+model DataSubscription {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  dataType          String   // earnings, goals, platforms, analytics
+  resourceId        String?  @map("resource_id")
+  isActive          Boolean  @default(true)
+  filters           String?  @db.Json
+  lastUpdate        DateTime @map("last_update")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("DataSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dataType, resourceId])
+  @@index([userId])
+  @@index([dataType])
+  @@index([isActive])
+  @@map("data_subscriptions")
+}
+
+model LiveEvent {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  eventType         String   // earning, milestone, alert, collaboration, system
+  data              String   @db.Text // JSON: event data
+  broadcastToAll    Boolean  @default(false)
+  metadata          String?  @db.Json
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("LiveEvents", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([broadcastToAll])
+  @@index([createdAt(sort: Desc)])
+  @@map("live_events")
+}
+
+model NotificationDelivery {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  notificationId    String   @map("notification_id")
+  platform          String   // push, email, sms, in-app
+  status            String   // pending, sent, delivered, failed
+  metadata          String?  @db.Json
+  sentAt            DateTime @map("sent_at")
+  deliveredAt       DateTime? @map("delivered_at")
+
+  user              User     @relation("NotificationDeliveries", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([notificationId])
+  @@index([platform])
+  @@index([status])
+  @@index([sentAt(sort: Desc)])
+  @@map("notification_deliveries")
+}
+
+model RealtimeSubscription {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  channelName       String   @map("channel_name") // workspace, team, project
+  channelId         String   @map("channel_id")
+  isSubscribed      Boolean  @default(true)
+  subscribedAt      DateTime @map("subscribed_at")
+  unsubscribedAt    DateTime? @map("unsubscribed_at")
+
+  user              User     @relation("RealtimeSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelName, channelId])
+  @@index([userId])
+  @@index([channelName])
+  @@map("realtime_subscriptions")
 }
