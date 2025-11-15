@@ -103,6 +103,10 @@ model User {
   invoiceTaxes InvoiceTax[] @relation("InvoiceTaxes")
   invoiceTemplates InvoiceTemplate[] @relation("InvoiceTemplates")
   recurringInvoices RecurringInvoice[] @relation("RecurringInvoices")
+  expenses Expense[] @relation("Expenses")
+  projects Project[] @relation("Projects")
+  projectBudgets ProjectBudget[] @relation("ProjectBudgets")
+  teamExpenses TeamExpense[] @relation("TeamExpenses")
 
   @@map("users")
 }
@@ -2164,4 +2168,91 @@ model RecurringInvoice {
   @@index([isActive])
   @@index([nextInvoiceDate])
   @@map("recurring_invoices")
+}
+
+// Phase 36: Advanced Expense Management & Project Tracking
+model Expense {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  projectId         String?  @map("project_id")
+  categoryId        String   @map("category_id")
+  amount            Decimal  @map("amount") @db.Decimal(10, 2)
+  description       String   @db.Text
+  date              DateTime
+  paymentMethod     String   @default("cash") @map("payment_method")
+  attachments       String?  @db.Json
+  status            String   @default("approved") // approved, pending, rejected
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("Expenses", fields: [userId], references: [id], onDelete: Cascade)
+  project           Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([categoryId])
+  @@index([date(sort: Desc)])
+  @@index([status])
+  @@map("expenses")
+}
+
+model Project {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  projectName       String   @map("project_name")
+  clientName        String   @map("client_name")
+  description       String?  @db.Text
+  budget            Decimal  @db.Decimal(10, 2)
+  startDate         DateTime @map("start_date")
+  endDate           DateTime? @map("end_date")
+  status            String   @default("active") // active, completed, on_hold, cancelled
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("Projects", fields: [userId], references: [id], onDelete: Cascade)
+  expenses          Expense[]
+  budgets           ProjectBudget[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("projects")
+}
+
+model ProjectBudget {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  projectId         String   @map("project_id")
+  budgetAmount      Decimal  @map("budget_amount") @db.Decimal(10, 2)
+  period            String   @default("monthly") // monthly, quarterly, yearly
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("ProjectBudgets", fields: [userId], references: [id], onDelete: Cascade)
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([projectId])
+  @@map("project_budgets")
+}
+
+model TeamExpense {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  projectId         String?  @map("project_id")
+  description       String   @db.Text
+  totalAmount       Decimal  @map("total_amount") @db.Decimal(10, 2)
+  date              DateTime
+  members           String   @db.Json // Array of team members
+  status            String   @default("pending") // pending, approved, rejected
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("TeamExpenses", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+  @@map("team_expenses")
 }
