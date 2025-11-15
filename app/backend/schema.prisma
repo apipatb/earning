@@ -149,6 +149,10 @@ model User {
   financialGoals FinancialGoal[] @relation("FinancialGoals")
   financialRisks FinancialRiskAnalysis[] @relation("FinancialRisks")
   financialAlerts FinancialAlert[] @relation("FinancialAlerts")
+  purchaseOrders PurchaseOrder[] @relation("PurchaseOrders")
+  vendorInvoices VendorInvoice[] @relation("VendorInvoices")
+  vendorRatings VendorRating[] @relation("VendorRatings")
+  vendorMetrics VendorPerformanceMetric[] @relation("VendorMetrics")
 
   @@map("users")
 }
@@ -2413,6 +2417,9 @@ model Vendor {
   email             String
   phone             String?
   address           String?  @db.Text
+  city              String?
+  state             String?
+  country           String?
   category          String   @default("other") // supplies, services, professional, other
   paymentTerms      String   @default("net30") @map("payment_terms")
   taxId             String?  @map("tax_id")
@@ -2422,6 +2429,10 @@ model Vendor {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   user              User     @relation("Vendors", fields: [userId], references: [id], onDelete: Cascade)
+  purchaseOrders    PurchaseOrder[]
+  invoices          VendorInvoice[]
+  ratings           VendorRating[]
+  performanceMetrics VendorPerformanceMetric[]
 
   @@index([userId])
   @@index([category])
@@ -3334,4 +3345,89 @@ model FinancialAlert {
   @@index([planId])
   @@index([type])
   @@map("financial_alerts")
+}
+
+model PurchaseOrder {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  vendorId          String   @map("vendor_id")
+  poNumber          String   @unique
+  description       String?  @db.Text
+  items             String   @db.Text // JSON stored as string
+  totalAmount       Decimal  @db.Decimal(12, 2) @map("total_amount")
+  dueDate           DateTime @map("due_date")
+  receivedDate      DateTime? @map("received_date")
+  status            String   @default("draft") // draft, issued, confirmed, received, cancelled
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("PurchaseOrders", fields: [userId], references: [id], onDelete: Cascade)
+  vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([vendorId])
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+model VendorInvoice {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  vendorId          String   @map("vendor_id")
+  invoiceNumber     String   @unique
+  amount            Decimal  @db.Decimal(12, 2)
+  dueDate           DateTime @map("due_date")
+  paidDate          DateTime? @map("paid_date")
+  description       String?  @db.Text
+  purchaseOrderId   String?  @map("purchase_order_id")
+  status            String   @default("pending") // pending, received, approved, paid, rejected
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("VendorInvoices", fields: [userId], references: [id], onDelete: Cascade)
+  vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([vendorId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("vendor_invoices")
+}
+
+model VendorRating {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  vendorId          String   @map("vendor_id")
+  rating            Int      @default(5) // 1-5 stars
+  comment           String?  @db.Text
+  category          String   @default("overall") // quality, delivery, communication, pricing, overall
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("VendorRatings", fields: [userId], references: [id], onDelete: Cascade)
+  vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([vendorId])
+  @@index([category])
+  @@map("vendor_ratings")
+}
+
+model VendorPerformanceMetric {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  vendorId          String   @map("vendor_id")
+  onTimeDeliveryRate Decimal @db.Decimal(5, 2) @map("on_time_delivery_rate")
+  qualityScore      Decimal  @db.Decimal(5, 2) @map("quality_score")
+  communicationScore Decimal @db.Decimal(5, 2) @map("communication_score")
+  priceCompetitiveness Decimal @db.Decimal(5, 2) @map("price_competitiveness")
+  overallScore      Decimal  @db.Decimal(5, 2) @map("overall_score")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("VendorMetrics", fields: [userId], references: [id], onDelete: Cascade)
+  vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([vendorId])
+  @@index([overallScore(sort: Desc)])
+  @@map("vendor_performance_metrics")
 }
