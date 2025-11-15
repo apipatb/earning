@@ -10,6 +10,9 @@ import ActivityFeedWidget from '../components/widgets/ActivityFeedWidget';
 import EarningsHeatmap from '../components/widgets/EarningsHeatmap';
 import PerformanceMetrics from '../components/widgets/PerformanceMetrics';
 import SmartInsights from '../components/SmartInsights';
+import FinancialForecasting from '../components/FinancialForecasting';
+import RecurringTemplates from '../components/RecurringTemplates';
+import CalendarView from '../components/CalendarView';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
@@ -228,6 +231,15 @@ export default function Dashboard() {
 
       {/* Smart Insights */}
       <SmartInsights />
+
+      {/* Financial Forecasting */}
+      <FinancialForecasting />
+
+      {/* Recurring Templates */}
+      <RecurringTemplates />
+
+      {/* Calendar View */}
+      <CalendarView />
 
       {/* Recent Earnings */}
       {isWidgetEnabled('recent-earnings') && (
