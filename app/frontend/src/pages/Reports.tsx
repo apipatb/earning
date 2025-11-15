@@ -1,338 +1,183 @@
-import { useState, useEffect } from 'react';
-import { FileText, Download, Calendar, TrendingUp, FileSpreadsheet, Printer, BarChart3 } from 'lucide-react';
-import { analyticsAPI, earningsAPI } from '../lib/api';
-import { useCurrency } from '../hooks/useCurrency';
-import { exportToCSV, exportDateRangeToCSV } from '../lib/export';
-import { notify } from '../store/notification.store';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import {
+  Plus,
+  Search,
+  Filter,
+  Download,
+  Share2,
+  Settings,
+  FileText,
+  BarChart3,
+  Grid3x3,
+  Clock,
+  TrendingUp,
+} from 'lucide-react';
 
-interface MonthlyReport {
-  month: string;
-  totalEarnings: number;
-  totalHours: number;
-  avgHourlyRate: number;
-  transactionCount: number;
+interface Report {
+  id: string;
+  name: string;
+  description?: string;
+  reportType: string;
+  format: string;
+  schedule: string;
+  isActive: boolean;
+  createdAt: string;
 }
 
-export default function Reports() {
-  const [loading, setLoading] = useState(true);
-  const [reportType, setReportType] = useState<'monthly' | 'annual'>('monthly');
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([]);
-  const { formatCurrency } = useCurrency();
+interface Dashboard {
+  id: string;
+  name: string;
+  description?: string;
+  layout: string;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+const Reports: React.FC = () => {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [reports, setReports] = useState<Report[]>([]);
+  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showCreateReport, setShowCreateReport] = useState(false);
+  const [showCreateDashboard, setShowCreateDashboard] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const apiClient = axios.create({
+    baseURL: 'http://localhost:5000/api/v1',
+    headers: {
+      Authorization: 'Bearer ' + (localStorage.getItem('token') || ''),
+    },
+  });
 
   useEffect(() => {
-    loadReportData();
-  }, [reportType, selectedYear, selectedMonth]);
+    fetchAllData();
+  }, [activeTab]);
 
-  const loadReportData = async () => {
+  const fetchAllData = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      // In real app, fetch from specific reports endpoint
-      const period = reportType === 'monthly' ? 'month' : 'year';
-      const data = await analyticsAPI.getAnalytics(period);
-
-      // Mock monthly breakdown
-      setMonthlyReports([
-        {
-          month: 'January',
-          totalEarnings: 3500,
-          totalHours: 140,
-          avgHourlyRate: 25,
-          transactionCount: 28,
-        },
-        {
-          month: 'February',
-          totalEarnings: 4200,
-          totalHours: 160,
-          avgHourlyRate: 26.25,
-          transactionCount: 32,
-        },
-        {
-          month: 'March',
-          totalEarnings: 3800,
-          totalHours: 150,
-          avgHourlyRate: 25.33,
-          transactionCount: 30,
-        },
-      ]);
+      if (activeTab === 'reports') {
+        const res = await apiClient.get('/reports/reports');
+        setReports(res.data);
+      } else if (activeTab === 'dashboards') {
+        const res = await apiClient.get('/reports/dashboards');
+        setDashboards(res.data);
+      }
     } catch (error) {
-      console.error('Failed to load reports:', error);
+      console.error('Failed to fetch data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const generatePrintableReport = () => {
-    window.print();
+  const handleCreateReport = async (formData: any) => {
+    try {
+      await apiClient.post('/reports/reports', formData);
+      setShowCreateReport(false);
+      fetchAllData();
+    } catch (error) {
+      console.error('Failed to create report:', error);
+    }
   };
 
-  const handleExportCSV = () => {
-    const exportData = monthlyReports.map(report => ({
-      Period: report.month,
-      'Total Earnings': report.totalEarnings.toFixed(2),
-      'Hours Worked': report.totalHours.toFixed(1),
-      'Avg Hourly Rate': report.avgHourlyRate.toFixed(2),
-      Transactions: report.transactionCount,
-    }));
-
-    const filename = `${reportType}-report-${selectedYear}${reportType === 'monthly' ? `-${selectedMonth}` : ''}`;
-    exportToCSV(exportData, filename);
-    notify.success('Export Complete', 'Report has been exported to CSV');
+  const handleCreateDashboard = async (formData: any) => {
+    try {
+      await apiClient.post('/reports/dashboards', formData);
+      setShowCreateDashboard(false);
+      fetchAllData();
+    } catch (error) {
+      console.error('Failed to create dashboard:', error);
+    }
   };
-
-  const handleExportJSON = () => {
-    const reportData = {
-      reportType,
-      year: selectedYear,
-      month: reportType === 'monthly' ? selectedMonth : null,
-      summary: {
-        totalEarnings,
-        totalHours,
-        avgHourlyRate: totalHours > 0 ? totalEarnings / totalHours : 0,
-        totalTransactions,
-      },
-      breakdown: monthlyReports,
-      generatedAt: new Date().toISOString(),
-    };
-
-    const dataStr = JSON.stringify(reportData, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${reportType}-report-${selectedYear}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    notify.success('Export Complete', 'Report has been exported to JSON');
-  };
-
-  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  const totalEarnings = monthlyReports.reduce((sum, r) => sum + r.totalEarnings, 0);
-  const totalHours = monthlyReports.reduce((sum, r) => sum + r.totalHours, 0);
-  const totalTransactions = monthlyReports.reduce((sum, r) => sum + r.transactionCount, 0);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500 dark:text-gray-400 animate-pulse">Loading reports...</div>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Financial Reports</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">Comprehensive earnings and performance reports</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">Reports & Dashboards</h1>
+          <p className="text-slate-400">Create, manage, and share reports and dashboards</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+
+        <div className="flex gap-2 mb-8 border-b border-slate-700">
           <button
-            onClick={handleExportCSV}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 transition-colors"
+            onClick={() => setActiveTab('dashboard')}
+            className={activeTab === 'dashboard' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400'}
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            Export CSV
+            Dashboard
           </button>
           <button
-            onClick={handleExportJSON}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 transition-colors"
+            onClick={() => setActiveTab('reports')}
+            className={activeTab === 'reports' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400'}
           >
-            <Download className="w-4 h-4" />
-            Export JSON
+            Reports
           </button>
           <button
-            onClick={generatePrintableReport}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors"
+            onClick={() => setActiveTab('dashboards')}
+            className={activeTab === 'dashboards' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400'}
           >
-            <Printer className="w-4 h-4" />
-            Print PDF
+            Dashboards
           </button>
         </div>
-      </div>
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Report Type
-            </label>
-            <select
-              value={reportType}
-              onChange={(e) => setReportType(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="monthly">Monthly Report</option>
-              <option value="annual">Annual Report</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Year
-            </label>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              {years.map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-          </div>
-
-          {reportType === 'monthly' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Month
-              </label>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                {months.map((month, index) => (
-                  <option key={month} value={index + 1}>{month}</option>
-                ))}
-              </select>
+        {activeTab === 'dashboard' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-6 text-white">
+              <p className="text-sm opacity-80">Total Reports</p>
+              <p className="text-3xl font-bold">{reports.length}</p>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Report Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-medium opacity-90">Total Earnings</div>
-              <div className="mt-2 text-3xl font-bold">
-                {formatCurrency(totalEarnings)}
-              </div>
+            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg p-6 text-white">
+              <p className="text-sm opacity-80">Active Reports</p>
+              <p className="text-3xl font-bold">{reports.filter((r: Report) => r.isActive).length}</p>
             </div>
-            <TrendingUp className="w-12 h-12 opacity-80" />
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-6 text-white">
+              <p className="text-sm opacity-80">Total Dashboards</p>
+              <p className="text-3xl font-bold">{dashboards.length}</p>
+            </div>
+            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-6 text-white">
+              <p className="text-sm opacity-80">Default Dashboards</p>
+              <p className="text-3xl font-bold">{dashboards.filter((d: Dashboard) => d.isDefault).length}</p>
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg rounded-lg p-6">
-          <div className="text-sm font-medium opacity-90">Total Hours</div>
-          <div className="mt-2 text-3xl font-bold">{totalHours}</div>
-        </div>
+        {activeTab === 'reports' && (
+          <button
+            onClick={() => setShowCreateReport(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
+          >
+            <Plus className="w-5 h-5" />
+            New Report
+          </button>
+        )}
 
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg rounded-lg p-6">
-          <div className="text-sm font-medium opacity-90">Avg Rate</div>
-          <div className="mt-2 text-3xl font-bold">
-            {formatCurrency(totalHours > 0 ? totalEarnings / totalHours : 0)}
+        {activeTab === 'dashboards' && (
+          <button
+            onClick={() => setShowCreateDashboard(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
+          >
+            <Plus className="w-5 h-5" />
+            New Dashboard
+          </button>
+        )}
+
+        {showCreateReport && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 rounded-lg p-8 max-w-md w-full">
+              <h2 className="text-2xl font-bold text-white mb-6">Create Report</h2>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                handleCreateReport({ name: 'Test' });
+              }} className="space-y-4">
+                <input type="text" placeholder="Report Name" required className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg" />
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">Create</button>
+              </form>
+            </div>
           </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg rounded-lg p-6">
-          <div className="text-sm font-medium opacity-90">Transactions</div>
-          <div className="mt-2 text-3xl font-bold">{totalTransactions}</div>
-        </div>
-      </div>
-
-      {/* Detailed Report Table */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {reportType === 'monthly' ? 'Monthly' : 'Annual'} Earnings Breakdown
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Period
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Total Earnings
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Hours Worked
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Avg Rate
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Transactions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {monthlyReports.map((report, index) => (
-                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {report.month}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
-                    {formatCurrency(report.totalEarnings)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {report.totalHours.toFixed(1)} hrs
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {formatCurrency(report.avgHourlyRate)}/hr
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {report.transactionCount}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-gray-100 dark:bg-gray-700">
-              <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
-                  Total
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">
-                  {formatCurrency(totalEarnings)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
-                  {totalHours.toFixed(1)} hrs
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(totalHours > 0 ? totalEarnings / totalHours : 0)}/hr
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
-                  {totalTransactions}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-
-      {/* Report Footer */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-        <div className="flex items-start gap-2">
-          <FileText className="w-5 h-5 text-gray-400 mt-1" />
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            <p className="font-medium mb-1">Report Notes:</p>
-            <ul className="list-disc list-inside space-y-1">
-              <li>All amounts shown in selected currency</li>
-              <li>Report generated on {new Date().toLocaleDateString()}</li>
-              <li>For tax purposes, please consult with your accountant</li>
-              <li>This report includes all earnings from recorded platforms</li>
-            </ul>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
-}
+};
+
+export default Reports;

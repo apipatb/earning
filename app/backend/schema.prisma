@@ -128,6 +128,14 @@ model User {
   subtasks Subtask[] @relation("Subtasks")
   milestones Milestone[] @relation("Milestones")
   taskComments TaskComment[] @relation("TaskComments")
+  customReports CustomReport[] @relation("CustomReports")
+  reportTemplates ReportTemplate[] @relation("ReportTemplates")
+  reportExecutions ReportExecution[] @relation("ReportExecutions")
+  dashboards Dashboard[] @relation("Dashboards")
+  dashboardWidgets DashboardWidget[] @relation("DashboardWidgets")
+  reportShares ReportShare[] @relation("ReportShares")
+  reportSchedules ReportSchedule[] @relation("ReportSchedules")
+  dataExports DataExport[] @relation("DataExports")
 
   @@map("users")
 }
@@ -2777,4 +2785,158 @@ model ProjectTeamMember {
   @@unique([projectId, userId])
   @@index([projectId])
   @@map("project_team_members")
+}
+
+model CustomReport {
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  name              String
+  description       String?          @db.Text
+  reportType        String           @default("custom") // sales, financial, project, team, analytics, custom
+  filters           String           @db.Text
+  metrics           String           @db.Text
+  format            String           @default("pdf") // pdf, excel, csv, json
+  schedule          String           @default("manual") // manual, daily, weekly, monthly
+  isActive          Boolean          @default(true) @map("is_active")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  user              User             @relation("CustomReports", fields: [userId], references: [id], onDelete: Cascade)
+  executions        ReportExecution[]
+  shares            ReportShare[]
+  schedules         ReportSchedule[]
+
+  @@index([userId])
+  @@index([reportType])
+  @@index([isActive])
+  @@map("custom_reports")
+}
+
+model ReportTemplate {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  description       String?  @db.Text
+  reportType        String
+  defaultFilters    String   @db.Text @map("default_filters")
+  defaultMetrics    String   @db.Text @map("default_metrics")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("ReportTemplates", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([reportType])
+  @@map("report_templates")
+}
+
+model ReportExecution {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  reportId          String   @map("report_id")
+  status            String   @default("completed") // pending, completed, failed
+  format            String
+  data              String   @db.Text
+  generatedAt       DateTime @map("generated_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("ReportExecutions", fields: [userId], references: [id], onDelete: Cascade)
+  report            CustomReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([reportId])
+  @@index([createdAt(sort: Desc)])
+  @@map("report_executions")
+}
+
+model Dashboard {
+  id                String              @id @default(uuid())
+  userId            String              @map("user_id")
+  name              String
+  description       String?             @db.Text
+  layout            String              @default("grid") // grid, kanban, list
+  widgets           String              @db.Text
+  isDefault         Boolean             @default(false) @map("is_default")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  user              User                @relation("Dashboards", fields: [userId], references: [id], onDelete: Cascade)
+  dashboardWidgets  DashboardWidget[]
+
+  @@index([userId])
+  @@index([isDefault])
+  @@map("dashboards")
+}
+
+model DashboardWidget {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  dashboardId       String   @map("dashboard_id")
+  widgetType        String   @map("widget_type") // metric, chart, table, map, text
+  config            String   @db.Text
+  position          Int
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("DashboardWidgets", fields: [userId], references: [id], onDelete: Cascade)
+  dashboard         Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([dashboardId])
+  @@map("dashboard_widgets")
+}
+
+model ReportShare {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  reportId          String   @map("report_id")
+  sharedWith        String   @map("shared_with")
+  permission        String   @default("view") // view, edit, admin
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("ReportShares", fields: [userId], references: [id], onDelete: Cascade)
+  report            CustomReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, sharedWith])
+  @@index([userId])
+  @@index([reportId])
+  @@map("report_shares")
+}
+
+model ReportSchedule {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  reportId          String   @map("report_id")
+  schedule          String   @default("weekly") // daily, weekly, monthly, quarterly
+  recipients        String   @db.Text
+  sendEmail         Boolean  @default(true) @map("send_email")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("ReportSchedules", fields: [userId], references: [id], onDelete: Cascade)
+  report            CustomReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([reportId])
+  @@index([isActive])
+  @@map("report_schedules")
+}
+
+model DataExport {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  entityType        String   @map("entity_type")
+  entityId          String   @map("entity_id")
+  format            String   @default("csv") // csv, excel, json, pdf
+  status            String   @default("completed") // pending, completed, failed
+  exportedAt        DateTime @map("exported_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("DataExports", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([createdAt(sort: Desc)])
+  @@map("data_exports")
 }

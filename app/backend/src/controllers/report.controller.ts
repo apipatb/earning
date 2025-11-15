@@ -1,206 +1,70 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import * as XLSX from 'xlsx';
 
 const prisma = new PrismaClient();
 
-export const generateReport = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+// Custom Reports
+export const createReport = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
-    const { startDate, endDate, format, platformId, type } = req.body;
+    const {
+      name,
+      description,
+      reportType,
+      filters,
+      metrics,
+      format,
+      schedule,
+    } = req.body;
+    const userId = (req as any).userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    // Get earnings data
-    const earnings = await prisma.earning.findMany({
-      where: {
-        userId,
-        date: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-        ...(platformId && { platformId }),
-      },
-      include: {
-        platform: true,
-      },
-      orderBy: { date: 'desc' },
-    });
-
-    // Calculate statistics
-    const totalEarnings = earnings.reduce((sum, e) => sum + Number(e.amount), 0);
-    const totalHours = earnings.reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
-    const avgHourlyRate = totalHours > 0 ? totalEarnings / totalHours : 0;
-    const totalDays = new Set(earnings.map(e => e.date.toISOString().split('T')[0])).size;
-    const avgPerDay = totalDays > 0 ? totalEarnings / totalDays : 0;
-
-    // Group by platform
-    const byPlatform = earnings.reduce((acc: any, e) => {
-      const key = e.platform.name;
-      if (!acc[key]) {
-        acc[key] = { total: 0, count: 0, hours: 0 };
-      }
-      acc[key].total += Number(e.amount);
-      acc[key].count += 1;
-      acc[key].hours += Number(e.hours) || 0;
-      return acc;
-    }, {});
-
-    const platformStats = Object.entries(byPlatform).map(([name, data]: any) => ({
-      platform: name,
-      earnings: data.total,
-      transactions: data.count,
-      hours: data.hours,
-      hourlyRate: data.hours > 0 ? data.total / data.hours : 0,
-    }));
-
-    const reportData = {
-      period: { startDate, endDate },
-      summary: {
-        totalEarnings,
-        totalHours,
-        avgHourlyRate: Math.round(avgHourlyRate * 100) / 100,
-        totalDays,
-        avgPerDay: Math.round(avgPerDay * 100) / 100,
-        transactionCount: earnings.length,
-      },
-      platformStats,
-      transactions: earnings.map(e => ({
-        date: e.date,
-        platform: e.platform.name,
-        amount: Number(e.amount),
-        hours: Number(e.hours) || null,
-        notes: e.notes,
-      })),
-    };
-
-    // Generate format
-    if (format === 'pdf') {
-      // PDF generation would use a library like puppeteer or pdfkit
-      res.json({
-        message: 'PDF report generated',
-        data: reportData,
-        downloadUrl: `/reports/download/pdf-${Date.now()}`,
-      });
-    } else if (format === 'csv') {
-      const csvContent = convertToCSV(reportData);
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="earnings-report-${startDate}-to-${endDate}.csv"`
-      );
-      res.send(csvContent);
-    } else if (format === 'excel') {
-      const workbook = XLSX.utils.book_new();
-
-      // Summary sheet
-      const summarySheet = XLSX.utils.json_to_sheet([reportData.summary]);
-      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-
-      // Transactions sheet
-      const transactionSheet = XLSX.utils.json_to_sheet(reportData.transactions);
-      XLSX.utils.book_append_sheet(workbook, transactionSheet, 'Transactions');
-
-      // Platform stats sheet
-      const platformSheet = XLSX.utils.json_to_sheet(reportData.platformStats);
-      XLSX.utils.book_append_sheet(workbook, platformSheet, 'By Platform');
-
-      XLSX.writeFile(workbook, `earnings-report-${startDate}-to-${endDate}.xlsx`);
-      res.json({ message: 'Excel file generated' });
-    } else {
-      res.json(reportData);
-    }
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const createScheduledReport = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const userId = req.user?.id;
-    const tier = (req as any).tier;
-    const { name, frequency, format, recipients, filters } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    if (tier === 'free') {
-      return res.status(403).json({
-        error: 'Scheduled reports require Pro tier',
-        requiredTier: 'pro',
-      });
-    }
-
-    const report = await prisma.scheduledReport.create({
+    const report = await prisma.customReport.create({
       data: {
         userId,
         name,
-        frequency, // daily, weekly, monthly
-        format,
-        recipients: recipients || [userId],
-        filters: filters || {},
+        description: description || null,
+        reportType: reportType || 'custom', // sales, financial, project, team, analytics, custom
+        filters: JSON.stringify(filters || {}),
+        metrics: JSON.stringify(metrics || []),
+        format: format || 'pdf', // pdf, excel, csv, json
+        schedule: schedule || 'manual', // manual, daily, weekly, monthly
         isActive: true,
-        lastRunAt: null,
+        createdAt: new Date(),
       },
     });
 
-    res.status(201).json({
-      message: 'Scheduled report created',
-      report,
-    });
+    res.status(201).json(report);
   } catch (error) {
-    next(error);
+    res.status(400).json({ error: 'Failed to create report' });
   }
 };
 
-export const getScheduledReports = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const getReports = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).userId;
+    const { reportType, limit = 50, page = 1 } = req.query;
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const where: any = { userId };
+    if (reportType) where.reportType = reportType;
 
-    const reports = await prisma.scheduledReport.findMany({
-      where: { userId },
+    const reports = await prisma.customReport.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
+      take: parseInt(limit as string),
+      skip: (parseInt(page as string) - 1) * parseInt(limit as string),
     });
 
     res.json(reports);
   } catch (error) {
-    next(error);
+    res.status(500).json({ error: 'Failed to fetch reports' });
   }
 };
 
-export const deleteScheduledReport = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const getReportById = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
     const { reportId } = req.params;
+    const userId = (req as any).userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const report = await prisma.scheduledReport.findFirst({
+    const report = await prisma.customReport.findFirst({
       where: { id: reportId, userId },
     });
 
@@ -208,151 +72,481 @@ export const deleteScheduledReport = async (
       return res.status(404).json({ error: 'Report not found' });
     }
 
-    await prisma.scheduledReport.delete({
-      where: { id: reportId },
-    });
-
-    res.json({ message: 'Report deleted' });
+    res.json(report);
   } catch (error) {
-    next(error);
+    res.status(500).json({ error: 'Failed to fetch report' });
   }
 };
 
-export const getReportHistory = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const updateReport = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const { reportId } = req.params;
+    const { name, description, filters, metrics, format, schedule, isActive } = req.body;
+    const userId = (req as any).userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const history = await prisma.reportExecution.findMany({
-      where: {
-        scheduledReport: { userId },
+    await prisma.customReport.updateMany({
+      where: { id: reportId, userId },
+      data: {
+        name,
+        description,
+        filters: filters ? JSON.stringify(filters) : undefined,
+        metrics: metrics ? JSON.stringify(metrics) : undefined,
+        format,
+        schedule,
+        isActive,
+        updatedAt: new Date(),
       },
-      include: {
-        scheduledReport: true,
-      },
-      orderBy: { executedAt: 'desc' },
-      take: 20,
     });
 
-    res.json(history);
+    res.json({ success: true });
   } catch (error) {
-    next(error);
+    res.status(400).json({ error: 'Failed to update report' });
   }
 };
 
-export const getAnalyticsDashboard = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const deleteReport = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
-    const { period } = req.query; // day, week, month, year, all
+    const { reportId } = req.params;
+    const userId = (req as any).userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    await prisma.customReport.deleteMany({
+      where: { id: reportId, userId },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to delete report' });
+  }
+};
+
+// Report Generation & Execution
+export const generateReport = async (req: Request, res: Response) => {
+  try {
+    const { reportId } = req.params;
+    const userId = (req as any).userId;
+
+    const report = await prisma.customReport.findFirst({
+      where: { id: reportId, userId },
+    });
+
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found' });
     }
 
-    let startDate: Date;
-    const now = new Date();
+    const execution = await prisma.reportExecution.create({
+      data: {
+        userId,
+        reportId,
+        status: 'completed',
+        generatedAt: new Date(),
+        format: report.format,
+        data: JSON.stringify({}),
+        createdAt: new Date(),
+      },
+    });
 
-    switch (period) {
-      case 'day':
-        startDate = new Date(now.setDate(now.getDate() - 1));
-        break;
-      case 'week':
-        startDate = new Date(now.setDate(now.getDate() - 7));
-        break;
-      case 'month':
-        startDate = new Date(now.setMonth(now.getMonth() - 1));
-        break;
-      case 'year':
-        startDate = new Date(now.setFullYear(now.getFullYear() - 1));
-        break;
-      default:
-        startDate = new Date(2000, 0, 1);
-    }
+    res.status(201).json(execution);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to generate report' });
+  }
+};
 
-    const earnings = await prisma.earning.findMany({
+export const getReportExecutions = async (req: Request, res: Response) => {
+  try {
+    const { reportId } = req.query;
+    const userId = (req as any).userId;
+
+    const executions = await prisma.reportExecution.findMany({
       where: {
         userId,
-        createdAt: { gte: startDate },
+        reportId: reportId as string,
       },
-      include: { platform: true },
+      orderBy: { createdAt: 'desc' },
     });
 
-    // Calculate trends
-    const daily = earnings.reduce((acc: any, e) => {
-      const date = e.date.toISOString().split('T')[0];
-      if (!acc[date]) acc[date] = 0;
-      acc[date] += Number(e.amount);
-      return acc;
-    }, {});
-
-    const trend = Object.entries(daily).map(([date, amount]) => ({
-      date,
-      amount,
-    }));
-
-    const totalEarnings = Object.values(daily).reduce((a: number, b: any) => a + b, 0);
-    const avgDaily = trend.length > 0 ? totalEarnings / trend.length : 0;
-    const maxDay = Math.max(...Object.values(daily).map(v => v as number));
-    const minDay = Math.min(...Object.values(daily).map(v => v as number));
-
-    res.json({
-      period,
-      summary: {
-        totalEarnings,
-        avgDaily,
-        maxDay,
-        minDay,
-        daysTracked: trend.length,
-      },
-      trend,
-      topPlatforms: earnings
-        .reduce((acc: any, e) => {
-          const key = e.platform.name;
-          if (!acc[key]) acc[key] = 0;
-          acc[key] += Number(e.amount);
-          return acc;
-        }, {})
-        .sort((a: any, b: any) => b - a)
-        .slice(0, 5),
-    });
+    res.json(executions);
   } catch (error) {
-    next(error);
+    res.status(500).json({ error: 'Failed to fetch executions' });
   }
 };
 
-// Helper function
-function convertToCSV(data: any): string {
-  let csv = 'Earnings Report\n';
-  csv += `Period: ${data.period.startDate} to ${data.period.endDate}\n\n`;
+// Report Templates
+export const createReportTemplate = async (req: Request, res: Response) => {
+  try {
+    const { name, description, reportType, defaultFilters, defaultMetrics } = req.body;
+    const userId = (req as any).userId;
 
-  csv += 'Summary\n';
-  csv += `Total Earnings,${data.summary.totalEarnings}\n`;
-  csv += `Total Hours,${data.summary.totalHours}\n`;
-  csv += `Avg Hourly Rate,$${data.summary.avgHourlyRate}\n`;
-  csv += `Total Days,${data.summary.totalDays}\n\n`;
+    const template = await prisma.reportTemplate.create({
+      data: {
+        userId,
+        name,
+        description: description || null,
+        reportType,
+        defaultFilters: JSON.stringify(defaultFilters || {}),
+        defaultMetrics: JSON.stringify(defaultMetrics || []),
+        createdAt: new Date(),
+      },
+    });
 
-  csv += 'By Platform\n';
-  csv += 'Platform,Earnings,Transactions,Hours,Hourly Rate\n';
-  data.platformStats.forEach((p: any) => {
-    csv += `${p.platform},${p.earnings},${p.transactions},${p.hours},${p.hourlyRate}\n`;
-  });
+    res.status(201).json(template);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to create template' });
+  }
+};
 
-  csv += '\nTransactions\n';
-  csv += 'Date,Platform,Amount,Hours,Notes\n';
-  data.transactions.forEach((t: any) => {
-    csv += `${t.date},${t.platform},${t.amount},${t.hours || ''},${t.notes || ''}\n`;
-  });
+export const getReportTemplates = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
 
-  return csv;
-}
+    const templates = await prisma.reportTemplate.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(templates);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch templates' });
+  }
+};
+
+// Dashboard Customization
+export const createDashboard = async (req: Request, res: Response) => {
+  try {
+    const { name, description, layout, widgets } = req.body;
+    const userId = (req as any).userId;
+
+    const dashboard = await prisma.dashboard.create({
+      data: {
+        userId,
+        name,
+        description: description || null,
+        layout: layout || 'grid',
+        widgets: JSON.stringify(widgets || []),
+        isDefault: false,
+        createdAt: new Date(),
+      },
+    });
+
+    res.status(201).json(dashboard);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to create dashboard' });
+  }
+};
+
+export const getDashboards = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+
+    const dashboards = await prisma.dashboard.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(dashboards);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch dashboards' });
+  }
+};
+
+export const getDashboardById = async (req: Request, res: Response) => {
+  try {
+    const { dashboardId } = req.params;
+    const userId = (req as any).userId;
+
+    const dashboard = await prisma.dashboard.findFirst({
+      where: { id: dashboardId, userId },
+    });
+
+    if (!dashboard) {
+      return res.status(404).json({ error: 'Dashboard not found' });
+    }
+
+    res.json(dashboard);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch dashboard' });
+  }
+};
+
+export const updateDashboard = async (req: Request, res: Response) => {
+  try {
+    const { dashboardId } = req.params;
+    const { name, description, layout, widgets, isDefault } = req.body;
+    const userId = (req as any).userId;
+
+    await prisma.dashboard.updateMany({
+      where: { id: dashboardId, userId },
+      data: {
+        name,
+        description,
+        layout,
+        widgets: widgets ? JSON.stringify(widgets) : undefined,
+        isDefault,
+        updatedAt: new Date(),
+      },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to update dashboard' });
+  }
+};
+
+export const deleteDashboard = async (req: Request, res: Response) => {
+  try {
+    const { dashboardId } = req.params;
+    const userId = (req as any).userId;
+
+    await prisma.dashboard.deleteMany({
+      where: { id: dashboardId, userId },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to delete dashboard' });
+  }
+};
+
+// Dashboard Widgets
+export const addDashboardWidget = async (req: Request, res: Response) => {
+  try {
+    const { dashboardId, widgetType, config, position } = req.body;
+    const userId = (req as any).userId;
+
+    const widget = await prisma.dashboardWidget.create({
+      data: {
+        userId,
+        dashboardId,
+        widgetType: widgetType || 'metric',
+        config: JSON.stringify(config || {}),
+        position: position || 0,
+        createdAt: new Date(),
+      },
+    });
+
+    res.status(201).json(widget);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to add widget' });
+  }
+};
+
+export const getDashboardWidgets = async (req: Request, res: Response) => {
+  try {
+    const { dashboardId } = req.query;
+    const userId = (req as any).userId;
+
+    const widgets = await prisma.dashboardWidget.findMany({
+      where: {
+        userId,
+        dashboardId: dashboardId as string,
+      },
+      orderBy: { position: 'asc' },
+    });
+
+    res.json(widgets);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch widgets' });
+  }
+};
+
+export const updateDashboardWidget = async (req: Request, res: Response) => {
+  try {
+    const { widgetId } = req.params;
+    const { config, position } = req.body;
+    const userId = (req as any).userId;
+
+    await prisma.dashboardWidget.updateMany({
+      where: { id: widgetId, userId },
+      data: {
+        config: config ? JSON.stringify(config) : undefined,
+        position,
+        updatedAt: new Date(),
+      },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to update widget' });
+  }
+};
+
+export const deleteDashboardWidget = async (req: Request, res: Response) => {
+  try {
+    const { widgetId } = req.params;
+    const userId = (req as any).userId;
+
+    await prisma.dashboardWidget.deleteMany({
+      where: { id: widgetId, userId },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to delete widget' });
+  }
+};
+
+// Report Analytics
+export const getReportAnalytics = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+
+    const totalReports = await prisma.customReport.count({
+      where: { userId },
+    });
+
+    const activeReports = await prisma.customReport.count({
+      where: { userId, isActive: true },
+    });
+
+    const totalExecutions = await prisma.reportExecution.count({
+      where: { userId },
+    });
+
+    const analytics = {
+      totalReports,
+      activeReports,
+      inactiveReports: totalReports - activeReports,
+      totalExecutions,
+      timestamp: new Date(),
+    };
+
+    res.json(analytics);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+};
+
+// Dashboard Analytics
+export const getDashboardAnalytics = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+
+    const totalDashboards = await prisma.dashboard.count({
+      where: { userId },
+    });
+
+    const totalWidgets = await prisma.dashboardWidget.count({
+      where: { userId },
+    });
+
+    const analytics = {
+      totalDashboards,
+      totalWidgets,
+      avgWidgetsPerDashboard:
+        totalDashboards > 0 ? (totalWidgets / totalDashboards).toFixed(2) : 0,
+      timestamp: new Date(),
+    };
+
+    res.json(analytics);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+};
+
+// Data Export
+export const exportReportData = async (req: Request, res: Response) => {
+  try {
+    const { reportId } = req.params;
+    const { format } = req.query;
+    const userId = (req as any).userId;
+
+    const report = await prisma.customReport.findFirst({
+      where: { id: reportId, userId },
+    });
+
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    const exportData = await prisma.dataExport.create({
+      data: {
+        userId,
+        entityType: 'report',
+        entityId: reportId,
+        format: (format as string) || 'csv',
+        status: 'completed',
+        exportedAt: new Date(),
+        createdAt: new Date(),
+      },
+    });
+
+    res.status(201).json(exportData);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to export data' });
+  }
+};
+
+// Report Sharing
+export const shareReport = async (req: Request, res: Response) => {
+  try {
+    const { reportId, sharedWith, permission } = req.body;
+    const userId = (req as any).userId;
+
+    const sharing = await prisma.reportShare.create({
+      data: {
+        userId,
+        reportId,
+        sharedWith,
+        permission: permission || 'view',
+        createdAt: new Date(),
+      },
+    });
+
+    res.status(201).json(sharing);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to share report' });
+  }
+};
+
+export const getSharedReports = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+
+    const sharing = await prisma.reportShare.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(sharing);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch shared reports' });
+  }
+};
+
+// Report Scheduling
+export const scheduleReportExecution = async (req: Request, res: Response) => {
+  try {
+    const { reportId, schedule, recipients, sendEmail } = req.body;
+    const userId = (req as any).userId;
+
+    const scheduled = await prisma.reportSchedule.create({
+      data: {
+        userId,
+        reportId,
+        schedule: schedule || 'weekly',
+        recipients: JSON.stringify(recipients || []),
+        sendEmail: sendEmail || true,
+        isActive: true,
+        createdAt: new Date(),
+      },
+    });
+
+    res.status(201).json(scheduled);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to schedule report' });
+  }
+};
+
+export const getScheduledReports = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+
+    const scheduled = await prisma.reportSchedule.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(scheduled);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch scheduled reports' });
+  }
+};
