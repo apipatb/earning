@@ -287,3 +287,34 @@ model ApiUsage {
   @@index([userId, createdAt(sort: Desc)])
   @@map("api_usage")
 }
+
+model ScheduledReport {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  frequency         String   // daily, weekly, monthly
+  format            String   // pdf, csv, excel, json
+  recipients        String[] // Email addresses
+  filters           Json?    // Custom filter criteria
+  isActive          Boolean  @default(true)
+  lastRunAt         DateTime? @map("last_run_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  executions        ReportExecution[]
+
+  @@index([userId])
+  @@map("scheduled_reports")
+}
+
+model ReportExecution {
+  id                String   @id @default(uuid())
+  scheduledReportId String   @map("scheduled_report_id")
+  status            String   // success, failed, pending
+  downloadUrl       String?  @map("download_url")
+  executedAt        DateTime @default(now()) @map("executed_at")
+
+  scheduledReport   ScheduledReport @relation(fields: [scheduledReportId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledReportId])
+  @@map("report_executions")
+}

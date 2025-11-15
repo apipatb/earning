@@ -17,6 +17,7 @@ import paymentRoutes from './routes/payment.routes';
 import emailRoutes from './routes/email.routes';
 import affiliateRoutes from './routes/affiliate.routes';
 import apiManagementRoutes from './routes/api-management.routes';
+import reportRoutes from './routes/report.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -62,6 +63,7 @@ app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/emails', emailRoutes);
 app.use('/api/v1/affiliate', affiliateRoutes);
 app.use('/api/v1/api-management', apiManagementRoutes);
+app.use('/api/v1/reports', reportRoutes);
 
 // Error handling
 app.use(notFound);
