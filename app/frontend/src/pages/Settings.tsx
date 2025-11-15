@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { User, Lock, Trash2, Save } from 'lucide-react';
+import { User, Lock, Trash2, Save, Bell } from 'lucide-react';
 import api from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 import { SUPPORTED_CURRENCIES } from '../lib/currency';
+import { notify, requestNotificationPermission } from '../store/notification.store';
 
 interface ProfileData {
   id: string;
@@ -18,6 +19,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { user, logout } = useAuthStore();
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
 
   const [profileData, setProfileData] = useState({
     name: '',
@@ -33,6 +35,9 @@ export default function Settings() {
 
   useEffect(() => {
     loadProfile();
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
   }, []);
 
   const loadProfile = async () => {
@@ -47,6 +52,7 @@ export default function Settings() {
       });
     } catch (error) {
       console.error('Failed to load profile:', error);
+      notify.error('Error', 'Failed to load profile. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -57,10 +63,10 @@ export default function Settings() {
     try {
       setSaving(true);
       await api.put('/user/profile', profileData);
-      alert('Profile updated successfully!');
+      notify.success('Profile Updated', 'Your profile has been updated successfully!');
     } catch (error) {
       console.error('Failed to update profile:', error);
-      alert('Failed to update profile. Please try again.');
+      notify.error('Error', 'Failed to update profile. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -70,12 +76,12 @@ export default function Settings() {
     e.preventDefault();
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert('New passwords do not match');
+      notify.warning('Password Mismatch', 'New passwords do not match');
       return;
     }
 
     if (passwordData.newPassword.length < 6) {
-      alert('Password must be at least 6 characters');
+      notify.warning('Invalid Password', 'Password must be at least 6 characters');
       return;
     }
 
@@ -85,7 +91,7 @@ export default function Settings() {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
-      alert('Password changed successfully!');
+      notify.success('Password Changed', 'Your password has been changed successfully!');
       setPasswordData({
         currentPassword: '',
         newPassword: '',
@@ -94,9 +100,9 @@ export default function Settings() {
     } catch (error: any) {
       console.error('Failed to change password:', error);
       if (error.response?.data?.error === 'Current password is incorrect') {
-        alert('Current password is incorrect');
+        notify.error('Incorrect Password', 'Current password is incorrect');
       } else {
-        alert('Failed to change password. Please try again.');
+        notify.error('Error', 'Failed to change password. Please try again.');
       }
     } finally {
       setSaving(false);
@@ -110,20 +116,31 @@ export default function Settings() {
 
     const confirmation = prompt('Type "DELETE" to confirm account deletion:');
     if (confirmation !== 'DELETE') {
-      alert('Account deletion cancelled');
+      notify.info('Cancelled', 'Account deletion cancelled');
       return;
     }
 
     try {
       setSaving(true);
       await api.delete('/user/account');
+      notify.success('Account Deleted', 'Your account has been deleted.');
       logout();
       window.location.href = '/login';
     } catch (error) {
       console.error('Failed to delete account:', error);
-      alert('Failed to delete account. Please try again.');
+      notify.error('Error', 'Failed to delete account. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEnableNotifications = async () => {
+    const granted = await requestNotificationPermission();
+    if (granted) {
+      setNotificationPermission('granted');
+      notify.success('Notifications Enabled', 'You will now receive browser notifications!');
+    } else {
+      notify.warning('Notifications Denied', 'Browser notifications have been blocked. You can still use the app normally.');
     }
   };
 
@@ -294,6 +311,58 @@ export default function Settings() {
             {saving ? 'Changing...' : 'Change Password'}
           </button>
         </form>
+      </div>
+
+      {/* Notification Settings */}
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <Bell className="w-6 h-6 text-blue-600" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Notification Settings</h2>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+              Enable browser notifications to get real-time updates when you add earnings, achieve goals, and more.
+            </p>
+
+            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white">Browser Notifications</h3>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                  {notificationPermission === 'granted' && 'Notifications are enabled'}
+                  {notificationPermission === 'denied' && 'Notifications are blocked by your browser'}
+                  {notificationPermission === 'default' && 'Click to enable notifications'}
+                </p>
+              </div>
+
+              {notificationPermission === 'granted' && (
+                <span className="text-green-600 dark:text-green-400 text-sm font-medium">Enabled</span>
+              )}
+
+              {notificationPermission === 'denied' && (
+                <span className="text-red-600 dark:text-red-400 text-sm font-medium">Blocked</span>
+              )}
+
+              {notificationPermission === 'default' && (
+                <button
+                  onClick={handleEnableNotifications}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                >
+                  Enable
+                </button>
+              )}
+            </div>
+
+            {notificationPermission === 'denied' && (
+              <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                  To enable notifications, you'll need to allow them in your browser settings.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Danger Zone */}

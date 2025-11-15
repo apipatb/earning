@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, Calendar, Download } from 'lucide-react';
 import { earningsAPI, platformsAPI } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 import { exportEarningsToCSV } from '../lib/export';
+import { notify } from '../store/notification.store';
 
 interface Earning {
   id: string;
@@ -58,6 +59,7 @@ export default function Earnings() {
       setPlatforms(platformsData.filter((p: Platform) => p.id));
     } catch (error) {
       console.error('Failed to load data:', error);
+      notify.error('Error', 'Failed to load earnings data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -76,15 +78,17 @@ export default function Earnings() {
 
       if (editingId) {
         await earningsAPI.updateEarning(editingId, payload);
+        notify.success('Earning Updated', 'Your earning has been updated successfully.');
       } else {
         await earningsAPI.createEarning(payload);
+        notify.success('Earning Added', `Successfully added $${formData.amount} to your earnings!`);
       }
 
       resetForm();
       loadData();
     } catch (error) {
       console.error('Failed to save earning:', error);
-      alert('Failed to save earning. Please try again.');
+      notify.error('Error', 'Failed to save earning. Please try again.');
     }
   };
 
@@ -105,10 +109,11 @@ export default function Earnings() {
 
     try {
       await earningsAPI.deleteEarning(id);
+      notify.success('Earning Deleted', 'Earning has been removed successfully.');
       loadData();
     } catch (error) {
       console.error('Failed to delete earning:', error);
-      alert('Failed to delete earning. Please try again.');
+      notify.error('Error', 'Failed to delete earning. Please try again.');
     }
   };
 

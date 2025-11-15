@@ -8,6 +8,8 @@ import Earnings from './pages/Earnings';
 import Goals from './pages/Goals';
 import Analytics from './pages/Analytics';
 import Reports from './pages/Reports';
+import Invoices from './pages/Invoices';
+import TaxCalculator from './pages/TaxCalculator';
 import Settings from './pages/Settings';
 import Layout from './components/Layout';
 
@@ -38,6 +40,8 @@ function App() {
           <Route path="goals" element={<Goals />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="invoices" element={<Invoices />} />
+          <Route path="tax-calculator" element={<TaxCalculator />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

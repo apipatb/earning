@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Target, Edit, Trash2, TrendingUp, Calendar, CheckCircle, XCircle, Download } from 'lucide-react';
 import { goalsAPI } from '../lib/api';
 import { exportGoalsToCSV } from '../lib/export';
+import { notify } from '../store/notification.store';
 
 interface Goal {
   id: string;
@@ -40,6 +41,7 @@ export default function Goals() {
       setGoals(data);
     } catch (error) {
       console.error('Failed to load goals:', error);
+      notify.error('Error', 'Failed to load goals. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -57,15 +59,17 @@ export default function Goals() {
 
       if (editingId) {
         await goalsAPI.updateGoal(editingId, payload);
+        notify.success('Goal Updated', 'Your goal has been updated successfully.');
       } else {
         await goalsAPI.createGoal(payload);
+        notify.success('Goal Created', `New goal "${formData.title}" has been set!`);
       }
 
       resetForm();
       loadGoals();
     } catch (error) {
       console.error('Failed to save goal:', error);
-      alert('Failed to save goal. Please try again.');
+      notify.error('Error', 'Failed to save goal. Please try again.');
     }
   };
 
@@ -85,30 +89,37 @@ export default function Goals() {
 
     try {
       await goalsAPI.deleteGoal(id);
+      notify.success('Goal Deleted', 'Goal has been removed successfully.');
       loadGoals();
     } catch (error) {
       console.error('Failed to delete goal:', error);
-      alert('Failed to delete goal. Please try again.');
+      notify.error('Error', 'Failed to delete goal. Please try again.');
     }
   };
 
   const handleUpdateProgress = async (id: string) => {
     try {
       await goalsAPI.updateGoalProgress(id);
+      notify.success('Progress Updated', 'Goal progress has been refreshed.');
       loadGoals();
     } catch (error) {
       console.error('Failed to update goal progress:', error);
-      alert('Failed to update goal progress. Please try again.');
+      notify.error('Error', 'Failed to update goal progress. Please try again.');
     }
   };
 
   const handleStatusChange = async (id: string, status: 'active' | 'completed' | 'cancelled') => {
     try {
       await goalsAPI.updateGoal(id, { status });
+      const statusText = status === 'completed' ? 'Congratulations!' : 'Status Updated';
+      const message = status === 'completed'
+        ? 'You\'ve achieved your goal!'
+        : `Goal status changed to ${status}.`;
+      notify.success(statusText, message);
       loadGoals();
     } catch (error) {
       console.error('Failed to update goal status:', error);
-      alert('Failed to update goal status. Please try again.');
+      notify.error('Error', 'Failed to update goal status. Please try again.');
     }
   };
 

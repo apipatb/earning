@@ -1,9 +1,10 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, Settings as SettingsIcon, LogOut, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, Receipt, Calculator, Settings as SettingsIcon, LogOut, Moon, Sun } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { useThemeStore } from '../store/theme.store';
 import { useCurrencyStore } from '../store/currency.store';
 import { SUPPORTED_CURRENCIES } from '../lib/currency';
+import NotificationContainer from './NotificationContainer';
 
 export default function Layout() {
   const location = useLocation();
@@ -133,6 +134,28 @@ export default function Layout() {
               Reports
             </Link>
             <Link
+              to="/invoices"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/invoices')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Receipt className="mr-3 h-5 w-5" />
+              Invoices
+            </Link>
+            <Link
+              to="/tax-calculator"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/tax-calculator')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Calculator className="mr-3 h-5 w-5" />
+              Tax Calculator
+            </Link>
+            <Link
               to="/settings"
               className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
                 isActive('/settings')
@@ -151,6 +174,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Notification Container */}
+      <NotificationContainer />
     </div>
   );
 }

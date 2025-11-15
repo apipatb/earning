@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { platformsAPI } from '../lib/api';
+import { notify } from '../store/notification.store';
 
 export default function Platforms() {
   const [platforms, setPlatforms] = useState<any[]>([]);
@@ -16,6 +17,7 @@ export default function Platforms() {
       setPlatforms(response.data.platforms);
     } catch (error) {
       console.error('Failed to load platforms:', error);
+      notify.error('Error', 'Failed to load platforms. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -27,8 +29,9 @@ export default function Platforms() {
     try {
       await platformsAPI.delete(id);
       setPlatforms(platforms.filter((p) => p.id !== id));
+      notify.success('Platform Deleted', 'Platform has been removed successfully.');
     } catch (error) {
-      alert('Failed to delete platform');
+      notify.error('Error', 'Failed to delete platform. Please try again.');
     }
   };
 
