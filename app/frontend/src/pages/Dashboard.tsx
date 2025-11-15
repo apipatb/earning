@@ -13,6 +13,7 @@ import SmartInsights from '../components/SmartInsights';
 import FinancialForecasting from '../components/FinancialForecasting';
 import RecurringTemplates from '../components/RecurringTemplates';
 import CalendarView from '../components/CalendarView';
+import DailyStrategyGuide from '../components/DailyStrategyGuide';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
@@ -213,6 +214,9 @@ export default function Dashboard() {
         </div>
         </div>
       )}
+
+      {/* Daily Strategy Guide */}
+      <DailyStrategyGuide />
 
       {/* Budget & Goals Widgets */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
