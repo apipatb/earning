@@ -98,6 +98,11 @@ model User {
   auditEvidence AuditEvidence[] @relation("AuditEvidence")
   receipts Receipt[] @relation("Receipts")
   extractedExpenses ExtractedExpense[] @relation("ExtractedExpenses")
+  invoices Invoice[] @relation("Invoices")
+  invoicePayments InvoicePayment[] @relation("InvoicePayments")
+  invoiceTaxes InvoiceTax[] @relation("InvoiceTaxes")
+  invoiceTemplates InvoiceTemplate[] @relation("InvoiceTemplates")
+  recurringInvoices RecurringInvoice[] @relation("RecurringInvoices")
 
   @@map("users")
 }
@@ -2054,4 +2059,109 @@ model ExtractedExpense {
   @@index([category])
   @@index([extractedAt(sort: Desc)])
   @@map("extracted_expenses")
+}
+
+// Phase 35: Advanced Invoice & Billing System
+model Invoice {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  invoiceNumber     String   @unique @map("invoice_number")
+  clientName        String   @map("client_name")
+  clientEmail       String   @map("client_email")
+  totalAmount       Decimal  @map("total_amount") @db.Decimal(10, 2)
+  taxRate           Float    @default(0.0) @map("tax_rate")
+  taxAmount         Decimal  @default(0.0) @map("tax_amount") @db.Decimal(10, 2)
+  finalAmount       Decimal  @map("final_amount") @db.Decimal(10, 2)
+  description       String?  @db.Text
+  items             String?  @db.Json // Array of invoice items
+  status            String   @default("draft") // draft, sent, paid, partially_paid, overdue
+  dueDate           DateTime @map("due_date")
+  issuedAt          DateTime @map("issued_at")
+  sentAt            DateTime? @map("sent_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("Invoices", fields: [userId], references: [id], onDelete: Cascade)
+  payments          InvoicePayment[]
+  taxes             InvoiceTax[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([issuedAt(sort: Desc)])
+  @@map("invoices")
+}
+
+model InvoicePayment {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  invoiceId         String   @map("invoice_id")
+  paymentAmount     Decimal  @map("payment_amount") @db.Decimal(10, 2)
+  paymentDate       DateTime @map("payment_date")
+  paymentMethod     String   @default("bank_transfer") @map("payment_method") // bank_transfer, card, check, cash, digital
+  notes             String?  @db.Text
+  status            String   @default("completed") // completed, pending, failed
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("InvoicePayments", fields: [userId], references: [id], onDelete: Cascade)
+  invoice           Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([invoiceId])
+  @@index([paymentDate(sort: Desc)])
+  @@map("invoice_payments")
+}
+
+model InvoiceTax {
+  id                String   @id @default(uuid())
+  invoiceId         String   @map("invoice_id")
+  taxName           String   @map("tax_name")
+  taxRate           Float    @map("tax_rate")
+  taxAmount         Decimal  @map("tax_amount") @db.Decimal(10, 2)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  invoice           Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_taxes")
+}
+
+model InvoiceTemplate {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  templateName      String   @map("template_name")
+  companyName       String   @map("company_name")
+  companyEmail      String   @map("company_email")
+  companyPhone      String?  @map("company_phone")
+  companyAddress    String?  @map("company_address") @db.Text
+  defaultTaxRate    Float    @default(0.0) @map("default_tax_rate")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("InvoiceTemplates", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_templates")
+}
+
+model RecurringInvoice {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  clientName        String   @map("client_name")
+  clientEmail       String   @map("client_email")
+  amount            Decimal  @db.Decimal(10, 2)
+  frequency         String   // monthly, quarterly, yearly
+  description       String?  @db.Text
+  startDate         DateTime @map("start_date")
+  endDate           DateTime? @map("end_date")
+  dayOfMonth        Int      @default(1) @map("day_of_month")
+  isActive          Boolean  @default(true) @map("is_active")
+  lastInvoiceDate   DateTime? @map("last_invoice_date")
+  nextInvoiceDate   DateTime? @map("next_invoice_date")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("RecurringInvoices", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([nextInvoiceDate])
+  @@map("recurring_invoices")
 }
