@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, Receipt, Calculator, Settings as SettingsIcon, LogOut, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, Receipt, Calculator, RepeatIcon, Clock, Users, Settings as SettingsIcon, LogOut, Moon, Sun } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { useThemeStore } from '../store/theme.store';
 import { useCurrencyStore } from '../store/currency.store';
@@ -99,6 +99,39 @@ export default function Layout() {
             >
               <DollarSign className="mr-3 h-5 w-5" />
               Earnings
+            </Link>
+            <Link
+              to="/recurring"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/recurring')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <RepeatIcon className="mr-3 h-5 w-5" />
+              Recurring
+            </Link>
+            <Link
+              to="/time-tracking"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/time-tracking')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Clock className="mr-3 h-5 w-5" />
+              Time Tracking
+            </Link>
+            <Link
+              to="/clients"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/clients')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Users className="mr-3 h-5 w-5" />
+              Clients
             </Link>
             <Link
               to="/goals"

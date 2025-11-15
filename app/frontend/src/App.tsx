@@ -10,6 +10,9 @@ import Analytics from './pages/Analytics';
 import Reports from './pages/Reports';
 import Invoices from './pages/Invoices';
 import TaxCalculator from './pages/TaxCalculator';
+import RecurringEarnings from './pages/RecurringEarnings';
+import TimeTracking from './pages/TimeTracking';
+import ClientManagement from './pages/ClientManagement';
 import Settings from './pages/Settings';
 import Layout from './components/Layout';
 
@@ -37,6 +40,9 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="platforms" element={<Platforms />} />
           <Route path="earnings" element={<Earnings />} />
+          <Route path="recurring" element={<RecurringEarnings />} />
+          <Route path="time-tracking" element={<TimeTracking />} />
+          <Route path="clients" element={<ClientManagement />} />
           <Route path="goals" element={<Goals />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="reports" element={<Reports />} />
