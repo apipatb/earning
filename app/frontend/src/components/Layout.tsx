@@ -1,8 +1,9 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, Receipt, Calculator, RepeatIcon, Clock, Users, Settings as SettingsIcon, LogOut, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, Receipt, Calculator, RepeatIcon, Clock, Users, Wallet, Settings as SettingsIcon, LogOut, Moon, Sun, Languages } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { useThemeStore } from '../store/theme.store';
 import { useCurrencyStore } from '../store/currency.store';
+import { useI18nStore } from '../store/i18n.store';
 import { SUPPORTED_CURRENCIES } from '../lib/currency';
 import NotificationContainer from './NotificationContainer';
 
@@ -12,6 +13,7 @@ export default function Layout() {
   const { user, logout } = useAuthStore();
   const { isDarkMode, toggleDarkMode } = useThemeStore();
   const { currency, setCurrency } = useCurrencyStore();
+  const { language, setLanguage, t } = useI18nStore();
 
   const handleLogout = () => {
     logout();
@@ -31,8 +33,20 @@ export default function Layout() {
                 <h1 className="text-2xl font-bold text-primary dark:text-blue-400">EarnTrack</h1>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700 dark:text-gray-300">{user?.email}</span>
+            <div className="flex items-center space-x-3">
+              <span className="text-sm text-gray-700 dark:text-gray-300 hidden md:block">{user?.email}</span>
+
+              {/* Language Selector */}
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as 'en' | 'th')}
+                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="en">🇬🇧 EN</option>
+                <option value="th">🇹🇭 ไทย</option>
+              </select>
+
+              {/* Currency Selector */}
               <select
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value as any)}
@@ -44,19 +58,23 @@ export default function Layout() {
                   </option>
                 ))}
               </select>
+
+              {/* Dark Mode Toggle */}
               <button
                 onClick={toggleDarkMode}
-                className="inline-flex items-center p-2 border border-transparent text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="inline-flex items-center p-2 border border-transparent text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               >
                 {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </button>
+
+              {/* Logout */}
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <LogOut className="h-4 w-4 mr-2" />
-                Logout
+                <span className="hidden md:inline">{t('nav.logout')}</span>
               </button>
             </div>
           </div>
@@ -143,6 +161,17 @@ export default function Layout() {
             >
               <Target className="mr-3 h-5 w-5" />
               Goals
+            </Link>
+            <Link
+              to="/budget"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/budget')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Wallet className="mr-3 h-5 w-5" />
+              Budget
             </Link>
             <Link
               to="/analytics"

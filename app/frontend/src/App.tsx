@@ -13,6 +13,7 @@ import TaxCalculator from './pages/TaxCalculator';
 import RecurringEarnings from './pages/RecurringEarnings';
 import TimeTracking from './pages/TimeTracking';
 import ClientManagement from './pages/ClientManagement';
+import BudgetPlanning from './pages/BudgetPlanning';
 import Settings from './pages/Settings';
 import Layout from './components/Layout';
 
@@ -44,6 +45,7 @@ function App() {
           <Route path="time-tracking" element={<TimeTracking />} />
           <Route path="clients" element={<ClientManagement />} />
           <Route path="goals" element={<Goals />} />
+          <Route path="budget" element={<BudgetPlanning />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="reports" element={<Reports />} />
           <Route path="invoices" element={<Invoices />} />
