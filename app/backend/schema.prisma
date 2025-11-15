@@ -136,6 +136,13 @@ model User {
   reportShares ReportShare[] @relation("ReportShares")
   reportSchedules ReportSchedule[] @relation("ReportSchedules")
   dataExports DataExport[] @relation("DataExports")
+  contracts Contract[] @relation("Contracts")
+  contractMilestones ContractMilestone[] @relation("ContractMilestones")
+  contractDocuments ContractDocument[] @relation("ContractDocuments")
+  contractSignatures ContractSignature[] @relation("ContractSignatures")
+  contractPayments ContractPayment[] @relation("ContractPayments")
+  contractRenewals ContractRenewal[] @relation("ContractRenewals")
+  contractAmendments ContractAmendment[] @relation("ContractAmendments")
 
   @@map("users")
 }
@@ -2385,6 +2392,7 @@ model Client {
   slas              ServiceLevelAgreement[]
   invoices          Invoice[]
   supportTickets    SupportTicket[]
+  agreementContracts Contract[]
 
   @@index([userId])
   @@index([status])
@@ -3035,4 +3043,156 @@ model WorkflowAction {
   @@index([workflowId])
   @@index([order])
   @@map("workflow_actions")
+}
+
+model Contract {
+  id                String                @id @default(uuid())
+  userId            String                @map("user_id")
+  title             String
+  description       String?               @db.Text
+  contractType      String                @default("service") // service, nda, employment, vendor, license
+  clientId          String?               @map("client_id")
+  value             Decimal               @db.Decimal(12, 2)
+  currency          String                @default("USD") @db.VarChar(3)
+  startDate         DateTime              @map("start_date")
+  endDate           DateTime              @map("end_date")
+  terms             String                @db.Text // JSON stored as string
+  status            String                @default("draft") // draft, pending_signature, active, completed, terminated, expired
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client            Client?               @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  milestones        ContractMilestone[]
+  documents         ContractDocument[]
+  signatures        ContractSignature[]
+  payments          ContractPayment[]
+  renewals          ContractRenewal[]
+  amendments        ContractAmendment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([contractType])
+  @@index([createdAt(sort: Desc)])
+  @@map("contracts")
+}
+
+model ContractMilestone {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  contractId        String   @map("contract_id")
+  name              String
+  description       String?  @db.Text
+  dueDate           DateTime @map("due_date")
+  deliverable       String?
+  value             Decimal  @db.Decimal(12, 2)
+  status            String   @default("pending") // pending, in_progress, completed
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contract          Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([contractId])
+  @@index([status])
+  @@index([dueDate(sort: Asc)])
+  @@map("contract_milestones")
+}
+
+model ContractDocument {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  contractId        String   @map("contract_id")
+  name              String
+  fileUrl           String   @map("file_url") @db.Text
+  type              String   @default("other") // contract, amendment, signature, supporting
+  uploadedAt        DateTime @map("uploaded_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contract          Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([contractId])
+  @@index([type])
+  @@map("contract_documents")
+}
+
+model ContractSignature {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  contractId        String   @map("contract_id")
+  signedBy          String   @map("signed_by")
+  signatureData     String   @map("signature_data") @db.Text
+  date              DateTime
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contract          Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([contractId])
+  @@map("contract_signatures")
+}
+
+model ContractPayment {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  contractId        String   @map("contract_id")
+  amount            Decimal  @db.Decimal(12, 2)
+  dueDate           DateTime @map("due_date")
+  paidDate          DateTime? @map("paid_date")
+  status            String   @default("pending") // pending, paid, overdue, cancelled
+  milestone         String?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contract          Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([contractId])
+  @@index([status])
+  @@index([dueDate(sort: Asc)])
+  @@map("contract_payments")
+}
+
+model ContractRenewal {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  contractId        String   @map("contract_id")
+  renewalDate       DateTime @map("renewal_date")
+  terms             String   @db.Text // JSON stored as string
+  autoRenewal       Boolean  @default(false) @map("auto_renewal")
+  status            String   @default("pending") // pending, accepted, rejected
+  renewedContractId String?  @map("renewed_contract_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contract          Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([contractId])
+  @@index([status])
+  @@map("contract_renewals")
+}
+
+model ContractAmendment {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  contractId        String   @map("contract_id")
+  title             String
+  description       String?  @db.Text
+  changes           String   @db.Text // JSON stored as string
+  status            String   @default("pending") // pending, approved, rejected
+  approvedAt        DateTime? @map("approved_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contract          Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([contractId])
+  @@index([status])
+  @@map("contract_amendments")
 }
