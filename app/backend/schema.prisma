@@ -89,6 +89,13 @@ model User {
   dataVersions DataVersion[] @relation("DataVersions")
   syncLogs SyncLog[] @relation("SyncLogs")
   selectiveSync SelectiveSync? @relation("SelectiveSync")
+  complianceRecords ComplianceRecord[] @relation("ComplianceRecords")
+  auditLogEntries AuditLogEntry[] @relation("AuditLogEntries")
+  compliancePolicies CompliancePolicy[] @relation("CompliancePolicies")
+  complianceViolations ComplianceViolation[] @relation("ComplianceViolations")
+  dataRetentionPolicies DataRetentionPolicy[] @relation("DataRetentionPolicies")
+  complianceReports ComplianceReport[] @relation("ComplianceReports")
+  auditEvidence AuditEvidence[] @relation("AuditEvidence")
 
   @@map("users")
 }
@@ -1847,4 +1854,140 @@ model SelectiveSync {
   user              User     @relation("SelectiveSync", fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("selective_sync")
+}
+
+// Phase 33: Advanced Compliance & Audit System
+model ComplianceRecord {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  complianceType    String   // data_protection, access_control, audit_logging, encryption
+  framework         String   // gdpr, ccpa, hipaa, sox, pci-dss, iso-27001
+  status            String   // compliant, non_compliant, unknown
+  description       String   @db.Text
+  metadata          String?  @db.Json
+  checkedAt         DateTime @map("checked_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("ComplianceRecords", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([framework])
+  @@index([status])
+  @@map("compliance_records")
+}
+
+model AuditLogEntry {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  action            String   // create, update, delete, export, download, login, logout
+  entityType        String   @map("entity_type") // user, earning, goal, platform, etc
+  entityId          String   @map("entity_id")
+  changes           String?  @db.Json // What changed
+  ipAddress         String?  @map("ip_address")
+  userAgent         String?  @map("user_agent")
+  timestamp         DateTime @default(now())
+
+  user              User     @relation("AuditLogEntries", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([timestamp(sort: Desc)])
+  @@map("audit_log_entries")
+}
+
+model CompliancePolicy {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  policyName        String   @map("policy_name")
+  framework         String   // gdpr, ccpa, hipaa, sox, pci-dss, iso-27001
+  description       String   @db.Text
+  requirements      String   @db.Text // JSON array
+  enforcementLevel  String   @map("enforcement_level") // low, medium, high, critical
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("CompliancePolicies", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([framework])
+  @@map("compliance_policies")
+}
+
+model ComplianceViolation {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  violationType     String   @map("violation_type")
+  policyId          String?  @map("policy_id")
+  severity          String   // low, medium, high, critical
+  description       String   @db.Text
+  evidence          String?  @db.Json
+  status            String   // open, in_progress, resolved
+  resolution        String?  // remediation steps taken
+  notes             String?  @db.Text
+  detectedAt        DateTime @map("detected_at")
+  resolvedAt        DateTime? @map("resolved_at")
+
+  user              User     @relation("ComplianceViolations", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([severity])
+  @@map("compliance_violations")
+}
+
+model DataRetentionPolicy {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  dataType          String   @map("data_type") // earnings, goals, platforms, backups, etc
+  retentionDays     Int      @map("retention_days")
+  archiveAfterDays  Int?     @map("archive_after_days")
+  deleteAfterDays   Int?     @map("delete_after_days")
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("DataRetentionPolicies", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dataType])
+  @@index([userId])
+  @@map("data_retention_policies")
+}
+
+model ComplianceReport {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  framework         String   // gdpr, ccpa, hipaa, sox, pci-dss, iso-27001, general
+  startDate         DateTime @map("start_date")
+  endDate           DateTime @map("end_date")
+  totalChecks       Int      @map("total_checks")
+  compliantChecks   Int      @map("compliant_checks")
+  nonCompliantChecks Int     @map("non_compliant_checks")
+  complianceRate    Float    @map("compliance_rate")
+  reportData        String   @db.Text // JSON
+  generatedAt       DateTime @map("generated_at")
+
+  user              User     @relation("ComplianceReports", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([framework])
+  @@index([generatedAt(sort: Desc)])
+  @@map("compliance_reports")
+}
+
+model AuditEvidence {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  violationId       String   @map("violation_id")
+  evidenceType      String   @map("evidence_type") // document, log, screenshot, certification
+  description       String   @db.Text
+  attachments       String?  @db.Json // URLs or file references
+  collectedAt       DateTime @map("collected_at")
+
+  user              User     @relation("AuditEvidence", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([violationId])
+  @@map("audit_evidence")
 }
