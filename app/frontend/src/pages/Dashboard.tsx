@@ -20,6 +20,10 @@ import ExpenseTracker from '../components/ExpenseTracker';
 import ClientManager from '../components/ClientManager';
 import TimeTrackerPro from '../components/TimeTrackerPro';
 import ReportBuilder from '../components/ReportBuilder';
+import DataExport from '../components/DataExport';
+import AdvancedAnalytics from '../components/AdvancedAnalytics';
+import GoalTemplates from '../components/GoalTemplates';
+import CurrencyConverter from '../components/CurrencyConverter';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
@@ -268,6 +272,18 @@ export default function Dashboard() {
 
       {/* Report Builder */}
       <ReportBuilder />
+
+      {/* Data Export */}
+      <DataExport />
+
+      {/* Advanced Analytics */}
+      <AdvancedAnalytics />
+
+      {/* Goal Templates */}
+      <GoalTemplates />
+
+      {/* Currency Converter */}
+      <CurrencyConverter />
 
       {/* Recent Earnings */}
       {isWidgetEnabled('recent-earnings') && (
