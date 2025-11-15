@@ -54,6 +54,9 @@ model User {
   reportTemplates ReportTemplate[]
   customReports CustomReport[]
   chartVisualizations ChartVisualization[]
+  budgets Budget[]
+  categoryBudgets CategoryBudget[]
+  financialPlans FinancialPlan[]
 
   @@map("users")
 }
@@ -958,4 +961,64 @@ model ChartVisualization {
 
   @@index([userId, isActive])
   @@map("chart_visualizations")
+}
+
+model Budget {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  description       String?  @db.Text
+  budgetType        String   // spending, revenue, savings, project
+  amount            Decimal  @db.Decimal(10, 2)
+  period            String   // day, week, month, quarter, year, custom
+  startDate         DateTime @map("start_date")
+  endDate           DateTime? @map("end_date")
+  categories        String[] // Platform categories included in budget
+  alertThreshold    Int      @default(80) // Alert when percentage used
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@index([userId, period])
+  @@map("budgets")
+}
+
+model CategoryBudget {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  category          String   // Platform category
+  amount            Decimal  @db.Decimal(10, 2)
+  period            String   // month, quarter, year
+  alertThreshold    Int      @default(80)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, category])
+  @@map("category_budgets")
+}
+
+model FinancialPlan {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  description       String?  @db.Text
+  timeframe         String   // 3months, 6months, 1year, 2years, 5years
+  targetAmount      Decimal  @db.Decimal(10, 2) @map("target_amount")
+  currentAmount     Decimal  @db.Decimal(10, 2) @default(0) @map("current_amount")
+  priority          String   @default("medium") // low, medium, high, critical
+  categories        String[] // Focus categories
+  status            String   @default("active") // active, paused, completed
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("financial_plans")
 }
