@@ -79,6 +79,10 @@ model User {
   realtimeSubscriptions RealtimeSubscription[] @relation("RealtimeSubscriptions")
   performanceMetrics PerformanceMetric[] @relation("PerformanceMetrics")
   errorLogs ErrorLog[] @relation("ErrorLogs")
+  backups Backup[] @relation("Backups")
+  recoveries Recovery[] @relation("Recoveries")
+  dataArchives DataArchive[] @relation("DataArchives")
+  backupStrategies BackupStrategy[] @relation("BackupStrategies")
 
   @@map("users")
 }
@@ -1606,4 +1610,117 @@ model ServiceDependency {
 
   @@unique([serviceName])
   @@map("service_dependencies")
+}
+
+// Phase 31: Advanced Backup, Recovery & Data Management
+model Backup {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  backupType        String   // full, incremental, differential
+  description       String?  @db.Text
+  status            String   // in_progress, completed, failed
+  includeData       Boolean  @default(true)
+  backupSize        BigInt   @default(0) @map("backup_size")
+  startedAt         DateTime @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("Backups", fields: [userId], references: [id], onDelete: Cascade)
+  restorePoints     RestorePoint[]
+  verifications     BackupVerification[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([startedAt(sort: Desc)])
+  @@map("backups")
+}
+
+model RestorePoint {
+  id                String   @id @default(uuid())
+  backupId          String   @map("backup_id")
+  description       String?  @db.Text
+  timestamp         DateTime
+  status            String   @default("available") // available, expired, deleted
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  backup            Backup   @relation(fields: [backupId], references: [id], onDelete: Cascade)
+  recoveries        Recovery[]
+
+  @@index([backupId])
+  @@index([timestamp(sort: Desc)])
+  @@map("restore_points")
+}
+
+model Recovery {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  restorePointId    String   @map("restore_point_id")
+  status            String   // in_progress, completed, failed
+  itemsRestored     Int      @default(0) @map("items_restored")
+  startedAt         DateTime @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("Recoveries", fields: [userId], references: [id], onDelete: Cascade)
+  restorePoint      RestorePoint @relation(fields: [restorePointId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([startedAt(sort: Desc)])
+  @@map("recoveries")
+}
+
+model DataArchive {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  dataType          String   // earnings, goals, platforms, all
+  dateRange         String   @map("date_range") // e.g., "2023-01-01 to 2023-12-31"
+  description       String?  @db.Text
+  status            String   // archiving, archived, failed
+  itemsArchived     Int      @default(0) @map("items_archived")
+  archiveSize       BigInt   @default(0) @map("archive_size")
+  archivedAt        DateTime @map("archived_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("DataArchives", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([dataType])
+  @@index([archivedAt(sort: Desc)])
+  @@map("data_archives")
+}
+
+model BackupStrategy {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  frequency         String   // daily, weekly, monthly
+  retention         Int      // days
+  type              String   // full, incremental, differential
+  enabled           Boolean  @default(true)
+  schedule          String?  @db.Text // cron expression
+  lastExecuted      DateTime? @map("last_executed")
+  nextScheduled     DateTime? @map("next_scheduled")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("BackupStrategies", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("backup_strategies")
+}
+
+model BackupVerification {
+  id                String   @id @default(uuid())
+  backupId          String   @map("backup_id")
+  status            String   // verifying, completed, failed
+  issuesFound       Int      @default(0) @map("issues_found")
+  checksPerformed   Int      @default(0) @map("checks_performed")
+  startedAt         DateTime @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  backup            Backup   @relation(fields: [backupId], references: [id], onDelete: Cascade)
+
+  @@index([backupId])
+  @@index([status])
+  @@map("backup_verifications")
 }
