@@ -77,6 +77,8 @@ model User {
   liveEvents LiveEvent[] @relation("LiveEvents")
   notificationDeliveries NotificationDelivery[] @relation("NotificationDeliveries")
   realtimeSubscriptions RealtimeSubscription[] @relation("RealtimeSubscriptions")
+  performanceMetrics PerformanceMetric[] @relation("PerformanceMetrics")
+  errorLogs ErrorLog[] @relation("ErrorLogs")
 
   @@map("users")
 }
@@ -1515,4 +1517,93 @@ model RealtimeSubscription {
   @@index([userId])
   @@index([channelName])
   @@map("realtime_subscriptions")
+}
+
+// Phase 30: Advanced Performance Monitoring & System Health
+model PerformanceMetric {
+  id                String   @id @default(uuid())
+  userId            String?  @map("user_id")
+  endpoint          String
+  method            String   // GET, POST, PUT, DELETE, etc
+  statusCode        Int      @map("status_code")
+  responseTime      Int      @map("response_time") // in milliseconds
+  timestamp         DateTime @default(now())
+
+  user              User?    @relation("PerformanceMetrics", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([endpoint])
+  @@index([statusCode])
+  @@index([timestamp(sort: Desc)])
+  @@map("performance_metrics")
+}
+
+model ErrorLog {
+  id                String   @id @default(uuid())
+  userId            String?  @map("user_id")
+  message           String   @db.Text
+  stack             String?  @db.Text
+  endpoint          String?
+  severity          String   @default("error") // debug, info, warn, error, fatal
+  context           String?  @db.Json
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User?    @relation("ErrorLogs", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([severity])
+  @@index([createdAt(sort: Desc)])
+  @@map("error_logs")
+}
+
+model UptimeCheck {
+  id                String   @id @default(uuid())
+  serviceName       String   @map("service_name")
+  isUp              Boolean
+  responseTime      Int      @map("response_time") // in milliseconds
+  statusCode        Int?     @map("status_code")
+  checkedAt         DateTime @map("checked_at")
+
+  @@index([serviceName])
+  @@index([checkedAt(sort: Desc)])
+  @@map("uptime_checks")
+}
+
+model HealthAlert {
+  id                String   @id @default(uuid())
+  alertType         String   // cpu, memory, database, api, error_rate
+  severity          String   // low, medium, high, critical
+  message           String   @db.Text
+  threshold         String?
+  isActive          Boolean  @default(true)
+  resolvedAt        DateTime? @map("resolved_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([alertType])
+  @@index([severity])
+  @@index([isActive])
+  @@map("health_alerts")
+}
+
+model SystemMetric {
+  id                String   @id @default(uuid())
+  memoryUsage       Int      @map("memory_usage") // in MB
+  cpuUsage          Float    @map("cpu_usage") // percentage
+  diskUsage         Int      @map("disk_usage") // in MB
+  activeConnections Int      @map("active_connections")
+  requestsPerSec    Float    @map("requests_per_sec")
+  timestamp         DateTime @default(now())
+
+  @@index([timestamp(sort: Desc)])
+  @@map("system_metrics")
+}
+
+model ServiceDependency {
+  id                String   @id @default(uuid())
+  serviceName       String   @map("service_name")
+  dependsOn         String   @db.Text // JSON: array of service names
+  healthStatus      String   @default("operational")
+  lastChecked       DateTime @map("last_checked")
+
+  @@unique([serviceName])
+  @@map("service_dependencies")
 }
