@@ -24,6 +24,7 @@ import aiRoutes from './routes/ai.routes';
 import marketplaceRoutes from './routes/marketplace.routes';
 import socialRoutes from './routes/social.routes';
 import securityRoutes from './routes/security.routes';
+import schedulerRoutes from './routes/scheduler.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -76,6 +77,7 @@ app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/marketplace', marketplaceRoutes);
 app.use('/api/v1/social', socialRoutes);
 app.use('/api/v1/security', securityRoutes);
+app.use('/api/v1/scheduler', schedulerRoutes);
 
 // Error handling
 app.use(notFound);

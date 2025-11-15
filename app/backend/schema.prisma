@@ -45,6 +45,7 @@ model User {
   auditLogs      SecurityAuditLog[]
   dataExports    DataExportRequest[]
   dataDeletions  DataDeleteRequest[]
+  scheduledTasks ScheduledTask[]
 
   @@map("users")
 }
@@ -726,4 +727,41 @@ model DataDeleteRequest {
 
   @@index([userId, status])
   @@map("data_delete_requests")
+}
+
+model ScheduledTask {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  description       String?  @db.Text
+  taskType          String   // recurring_earning, reminder, report, cleanup
+  cronExpression    String   @map("cron_expression")
+  actionConfig      Json?    // Task-specific configuration
+  isActive          Boolean  @default(true)
+  timezone          String   @default("UTC")
+  lastRunAt         DateTime? @map("last_run_at")
+  nextRunAt         DateTime? @map("next_run_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  executions        TaskExecution[]
+
+  @@index([userId, isActive])
+  @@index([userId, nextRunAt(sort: Asc)])
+  @@map("scheduled_tasks")
+}
+
+model TaskExecution {
+  id                String   @id @default(uuid())
+  taskId            String   @map("task_id")
+  status            String   // completed, failed, skipped
+  result            Json?    // Execution result
+  durationMs        Int      @default(0) @map("duration_ms")
+  executedAt        DateTime @default(now()) @map("executed_at")
+
+  task              ScheduledTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, executedAt(sort: Desc)])
+  @@map("task_executions")
 }
