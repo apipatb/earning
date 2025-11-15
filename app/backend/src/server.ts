@@ -37,6 +37,7 @@ import performanceRoutes from './routes/performance.routes';
 import backupRoutes from './routes/backup.routes';
 import syncRoutes from './routes/sync.routes';
 import complianceRoutes from './routes/compliance.routes';
+import ocrRoutes from './routes/ocr.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -102,6 +103,7 @@ app.use('/api/v1/performance', performanceRoutes);
 app.use('/api/v1/backup', backupRoutes);
 app.use('/api/v1/sync', syncRoutes);
 app.use('/api/v1/compliance', complianceRoutes);
+app.use('/api/v1/ocr', ocrRoutes);
 
 // Error handling
 app.use(notFound);

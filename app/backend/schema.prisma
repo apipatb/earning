@@ -96,6 +96,8 @@ model User {
   dataRetentionPolicies DataRetentionPolicy[] @relation("DataRetentionPolicies")
   complianceReports ComplianceReport[] @relation("ComplianceReports")
   auditEvidence AuditEvidence[] @relation("AuditEvidence")
+  receipts Receipt[] @relation("Receipts")
+  extractedExpenses ExtractedExpense[] @relation("ExtractedExpenses")
 
   @@map("users")
 }
@@ -1990,4 +1992,66 @@ model AuditEvidence {
   @@index([userId])
   @@index([violationId])
   @@map("audit_evidence")
+}
+
+// Phase 34: Advanced OCR & Receipt Scanning
+model Receipt {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  fileUrl           String   @map("file_url")
+  fileName          String   @map("file_name")
+  vendorName        String   @map("vendor_name")
+  receiptDate       DateTime @map("receipt_date")
+  status            String   // uploaded, processing, processed, failed
+  notes             String?  @db.Text
+  uploadedAt        DateTime @map("uploaded_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("Receipts", fields: [userId], references: [id], onDelete: Cascade)
+  ocrResults        ReceiptOCRResult[]
+  expense           ExtractedExpense?
+
+  @@index([userId])
+  @@index([status])
+  @@index([uploadedAt(sort: Desc)])
+  @@map("receipts")
+}
+
+model ReceiptOCRResult {
+  id                String   @id @default(uuid())
+  receiptId         String   @map("receipt_id")
+  rawText           String   @db.Text @map("raw_text")
+  confidence        Float    // 0.0 - 1.0
+  status            String   // processing, completed, failed
+  processedAt       DateTime @map("processed_at")
+
+  receipt           Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@index([receiptId])
+  @@index([status])
+  @@map("receipt_ocr_results")
+}
+
+model ExtractedExpense {
+  id                String   @id @default(uuid())
+  receiptId         String   @unique @map("receipt_id")
+  userId            String   @map("user_id")
+  totalAmount       Decimal  @map("total_amount") @db.Decimal(10, 2)
+  itemCount         Int      @default(1) @map("item_count")
+  category          String   // food, transport, accommodation, office, software, utilities, marketing, equipment, other
+  paymentMethod     String   @map("payment_method") // cash, card, check, digital
+  description       String   @db.Text
+  confidence        Float    @default(0.9)
+  confirmed         Boolean  @default(false)
+  confirmedAt       DateTime? @map("confirmed_at")
+  extractedAt       DateTime @map("extracted_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("ExtractedExpenses", fields: [userId], references: [id], onDelete: Cascade)
+  receipt           Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([category])
+  @@index([extractedAt(sort: Desc)])
+  @@map("extracted_expenses")
 }
