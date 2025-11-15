@@ -120,6 +120,9 @@ model User {
   ticketResponses TicketResponse[] @relation("TicketResponses")
   articles KnowledgeBaseArticle[] @relation("KnowledgeBaseArticles")
   faqEntries FAQEntry[] @relation("FAQEntries")
+  leads Lead[] @relation("Leads")
+  leadCommunications LeadCommunication[] @relation("LeadCommunications")
+  leadActivities LeadActivity[] @relation("LeadActivities")
 
   @@map("users")
 }
@@ -2559,4 +2562,71 @@ model FAQEntry {
   @@index([category])
   @@index([order])
   @@map("faq_entries")
+}
+
+model Lead {
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  firstName         String           @map("first_name")
+  lastName          String           @map("last_name")
+  email             String
+  phone             String?
+  company           String?
+  jobTitle          String?          @map("job_title")
+  source            String           @default("unknown") // website, referral, email, event, social, other
+  status            String           @default("new") // new, contacted, qualified, proposal, negotiating, won, lost
+  score             Int              @default(0) // 0-100 lead score
+  notes             String?          @db.Text
+  convertedToClientId String?        @map("converted_to_client_id")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  user              User             @relation("Leads", fields: [userId], references: [id], onDelete: Cascade)
+  communications    LeadCommunication[]
+  activities        LeadActivity[]
+
+  @@index([userId])
+  @@index([email])
+  @@index([status])
+  @@index([score(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("leads")
+}
+
+model LeadCommunication {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  leadId            String   @map("lead_id")
+  type              String   @default("email") // email, call, meeting, note
+  subject           String?
+  notes             String?  @db.Text
+  communicatedAt    DateTime @map("communicated_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("LeadCommunications", fields: [userId], references: [id], onDelete: Cascade)
+  lead              Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([leadId])
+  @@index([createdAt(sort: Desc)])
+  @@map("lead_communications")
+}
+
+model LeadActivity {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  leadId            String   @map("lead_id")
+  type              String   @default("note") // call, email, meeting, note, task
+  description       String   @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("LeadActivities", fields: [userId], references: [id], onDelete: Cascade)
+  lead              Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([leadId])
+  @@index([createdAt(sort: Desc)])
+  @@map("lead_activities")
 }
