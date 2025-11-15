@@ -8,6 +8,7 @@ dotenv.config();
 
 // Import routes
 import authRoutes from './routes/auth.routes';
+import userRoutes from './routes/user.routes';
 import platformRoutes from './routes/platform.routes';
 import earningRoutes from './routes/earning.routes';
 import analyticsRoutes from './routes/analytics.routes';
@@ -43,6 +44,7 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/user', userRoutes);
 app.use('/api/v1/platforms', platformRoutes);
 app.use('/api/v1/earnings', earningRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);

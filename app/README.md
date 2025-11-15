@@ -8,6 +8,7 @@ EarnTrack helps freelancers, gig workers, and multi-platform earners track their
 
 ## Features
 
+### Core Features
 - **User Authentication** - Secure JWT-based authentication with bcrypt password hashing
 - **Platform Management** - Add and track multiple earning platforms (Upwork, Fiverr, DoorDash, etc.)
 - **Earnings Tracking** - Record earnings with date, amount, hours, and notes
@@ -15,6 +16,15 @@ EarnTrack helps freelancers, gig workers, and multi-platform earners track their
 - **Time Filtering** - View data by today, week, month, or year
 - **Responsive Design** - Mobile-first design that works on all devices
 - **Real-time Updates** - Instant updates when adding or editing data
+
+### Advanced Features (NEW!)
+- **Goal Tracking** - Set income goals with deadlines and track progress automatically
+- **Export to CSV** - Export earnings, platforms, and goals to CSV/Excel
+- **Dark Mode** - Beautiful dark theme with persistent preference
+- **Multi-Currency** - Support for 10+ currencies (USD, EUR, GBP, THB, JPY, etc.)
+- **Reports** - Generate monthly/annual reports with detailed breakdowns
+- **Profile Settings** - Manage your account, timezone, currency, and password
+- **Print Reports** - Print or save reports as PDF
 
 ## Tech Stack
 

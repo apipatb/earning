@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, LogOut, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, Settings as SettingsIcon, LogOut, Moon, Sun } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { useThemeStore } from '../store/theme.store';
 import { useCurrencyStore } from '../store/currency.store';
@@ -131,6 +131,17 @@ export default function Layout() {
             >
               <FileText className="mr-3 h-5 w-5" />
               Reports
+            </Link>
+            <Link
+              to="/settings"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/settings')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <SettingsIcon className="mr-3 h-5 w-5" />
+              Settings
             </Link>
           </nav>
         </aside>
