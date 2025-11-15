@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/auth.store';
 import { SUPPORTED_CURRENCIES } from '../lib/currency';
 import { notify, requestNotificationPermission } from '../store/notification.store';
 import ThemeCustomizer from '../components/ThemeCustomizer';
+import NotificationPreferences from '../components/NotificationPreferences';
 
 interface ProfileData {
   id: string;
@@ -707,11 +708,8 @@ export default function Settings() {
       {/* Notification Settings */}
       <SettingsSection id="notifications" title="Notification Settings" icon={Bell} iconColor="text-blue-600">
         <div className="space-y-4">
-          <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
-            Enable browser notifications to get real-time updates when you add earnings, achieve goals, and more.
-          </p>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          {/* Browser Permission Check */}
+          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg mb-4">
             <div className="flex-1">
               <h3 className="text-sm font-medium text-gray-900 dark:text-white">Browser Notifications</h3>
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
@@ -740,12 +738,15 @@ export default function Settings() {
           </div>
 
           {notificationPermission === 'denied' && (
-            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg mb-4">
               <p className="text-xs text-yellow-800 dark:text-yellow-200">
                 To enable notifications, you'll need to allow them in your browser settings.
               </p>
             </div>
           )}
+
+          {/* Notification Preferences */}
+          {notificationPermission === 'granted' && <NotificationPreferences />}
         </div>
       </SettingsSection>
 
