@@ -52,6 +52,8 @@ model User {
   customDashboards CustomDashboard[]
   analyticsSnapshots AnalyticsSnapshot[]
   reportTemplates ReportTemplate[]
+  customReports CustomReport[]
+  chartVisualizations ChartVisualization[]
 
   @@map("users")
 }
@@ -884,4 +886,76 @@ model ReportTemplate {
 
   @@index([userId, isActive])
   @@map("report_templates")
+}
+
+model CustomReport {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  description       String?  @db.Text
+  reportType        String   // earnings_summary, platform_comparison, monthly_trend, etc
+  chartType         String   @default("bar") // bar, line, pie, area, scatter, doughnut
+  metrics           String[] // Selected metrics to include
+  filters           Json?    // Filter configuration
+  dateRange         String   @default("month") // day, week, month, quarter, year
+  schedule          String?  // Cron expression for automated reports
+  recipients        String[] // Email recipients for automated delivery
+  format            String   @default("pdf") // pdf, csv, excel, json
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  executions        ReportExecution[]
+  shares            ReportShare[]
+
+  @@index([userId, isActive])
+  @@map("custom_reports")
+}
+
+model ReportExecution {
+  id                String   @id @default(uuid())
+  reportId          String   @map("report_id")
+  status            String   // completed, failed, pending
+  chartData         Json?    @map("chart_data") // Chart configuration and data
+  summary           Json?    // Summary statistics
+  downloadUrl       String?  @map("download_url")
+  executedAt        DateTime @default(now()) @map("executed_at")
+
+  report            CustomReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId, executedAt(sort: Desc)])
+  @@map("report_executions")
+}
+
+model ReportShare {
+  id                String   @id @default(uuid())
+  reportId          String   @map("report_id")
+  shareType         String   // email, link, export
+  recipients        String[] // Email recipients
+  shareUrl          String?  @map("share_url")
+  expiresAt         DateTime? @map("expires_at")
+  sharedAt          DateTime @default(now()) @map("shared_at")
+
+  report            CustomReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@map("report_shares")
+}
+
+model ChartVisualization {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  chartType         String   // bar, line, pie, area, scatter, doughnut, gauge, heatmap
+  dataSource        String   @default("earnings") // earnings, platforms, goals, goals_progress
+  config            Json?    // Chart-specific configuration
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@map("chart_visualizations")
 }
