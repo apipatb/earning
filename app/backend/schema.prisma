@@ -20,10 +20,12 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  platforms     Platform[]
-  earnings      Earning[]
-  goals         Goal[]
-  subscription  Subscription?
+  platforms      Platform[]
+  earnings       Earning[]
+  goals          Goal[]
+  subscription   Subscription?
+  emailSettings  EmailSettings?
+  affiliateProfile AffiliateProfile?
 
   @@map("users")
 }
@@ -117,4 +119,171 @@ model Payment {
   @@index([userId])
   @@index([status])
   @@map("payments")
+}
+
+model NewsletterSubscriber {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  name              String?
+  isSubscribed      Boolean  @default(true)
+  verificationToken String?
+  isVerified        Boolean  @default(false)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([isSubscribed])
+  @@map("newsletter_subscribers")
+}
+
+model EmailSettings {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  weeklyNewsletter  Boolean  @default(true)
+  goalReminders     Boolean  @default(true)
+  platformUpdates   Boolean  @default(true)
+  promotions        Boolean  @default(false)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_settings")
+}
+
+model EmailTemplate {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  subject           String
+  content           String   @db.Text
+  type              String   @default("custom")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  campaigns         EmailCampaign[]
+
+  @@index([userId])
+  @@map("email_templates")
+}
+
+model EmailCampaign {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  templateId        String?  @map("template_id")
+  subject           String
+  recipientCount    Int
+  sentCount         Int      @default(0)
+  failedCount       Int      @default(0)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  template          EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("email_campaigns")
+}
+
+model AffiliateProfile {
+  id                    String   @id @default(uuid())
+  userId                String   @unique @map("user_id")
+  referralCode          String   @unique
+  referralLink          String
+  tier                  String   @default("bronze") // bronze, silver, gold, platinum
+  status                String   @default("active")
+  totalEarningsGenerated Decimal  @default(0) @db.Decimal(10, 2) @map("total_earnings_generated")
+  totalPaid             Decimal  @default(0) @db.Decimal(10, 2) @map("total_paid")
+  payoutMethod          String?  @map("payout_method")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversions           AffiliateConversion[]
+  clicks                AffiliateClick[]
+  payouts               AffiliatePayout[]
+
+  @@index([status])
+  @@index([tier])
+  @@map("affiliate_profiles")
+}
+
+model AffiliateClick {
+  id                String   @id @default(uuid())
+  affiliateId       String   @map("affiliate_id")
+  sourceType        String   @default("link") // link, email, banner, social
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  affiliate         AffiliateProfile @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId, createdAt(sort: Desc)])
+  @@map("affiliate_clicks")
+}
+
+model AffiliateConversion {
+  id                String   @id @default(uuid())
+  affiliateId       String   @map("affiliate_id")
+  referredUserId    String   @map("referred_user_id")
+  tierUpgradedTo    String   @map("tier_upgraded_to")
+  commissionRate    Decimal  @db.Decimal(5, 2) @map("commission_rate")
+  commissionEarned  Decimal  @db.Decimal(10, 2) @map("commission_earned")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  affiliate         AffiliateProfile @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId, createdAt(sort: Desc)])
+  @@map("affiliate_conversions")
+}
+
+model AffiliatePayout {
+  id                String   @id @default(uuid())
+  affiliateId       String   @map("affiliate_id")
+  amount            Decimal  @db.Decimal(10, 2)
+  payoutMethod      String   @map("payout_method") // stripe, paypal, bank
+  status            String   @default("pending") // pending, completed, failed
+  transactionId     String?  @unique @map("transaction_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  completedAt       DateTime? @map("completed_at")
+
+  affiliate         AffiliateProfile @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([affiliateId, createdAt(sort: Desc)])
+  @@map("affiliate_payouts")
+}
+
+model ApiKey {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  hashedKey         String   @unique @map("hashed_key")
+  name              String
+  isActive          Boolean  @default(true)
+  lastUsedAt        DateTime? @map("last_used_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+model Webhook {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  url               String
+  secret            String
+  events            String[] // Array of event types
+  isActive          Boolean  @default(true)
+  lastFiredAt       DateTime? @map("last_fired_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("webhooks")
+}
+
+model ApiUsage {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  endpoint          String
+  method            String
+  statusCode        Int
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("api_usage")
 }
