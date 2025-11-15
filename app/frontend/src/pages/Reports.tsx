@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { FileText, Download, Calendar, TrendingUp } from 'lucide-react';
+import { FileText, Download, Calendar, TrendingUp, FileSpreadsheet, Printer, BarChart3 } from 'lucide-react';
 import { analyticsAPI, earningsAPI } from '../lib/api';
 import { useCurrency } from '../hooks/useCurrency';
+import { exportToCSV, exportDateRangeToCSV } from '../lib/export';
+import { notify } from '../store/notification.store';
 
 interface MonthlyReport {
   month: string;
@@ -65,6 +67,46 @@ export default function Reports() {
     window.print();
   };
 
+  const handleExportCSV = () => {
+    const exportData = monthlyReports.map(report => ({
+      Period: report.month,
+      'Total Earnings': report.totalEarnings.toFixed(2),
+      'Hours Worked': report.totalHours.toFixed(1),
+      'Avg Hourly Rate': report.avgHourlyRate.toFixed(2),
+      Transactions: report.transactionCount,
+    }));
+
+    const filename = `${reportType}-report-${selectedYear}${reportType === 'monthly' ? `-${selectedMonth}` : ''}`;
+    exportToCSV(exportData, filename);
+    notify.success('Export Complete', 'Report has been exported to CSV');
+  };
+
+  const handleExportJSON = () => {
+    const reportData = {
+      reportType,
+      year: selectedYear,
+      month: reportType === 'monthly' ? selectedMonth : null,
+      summary: {
+        totalEarnings,
+        totalHours,
+        avgHourlyRate: totalHours > 0 ? totalEarnings / totalHours : 0,
+        totalTransactions,
+      },
+      breakdown: monthlyReports,
+      generatedAt: new Date().toISOString(),
+    };
+
+    const dataStr = JSON.stringify(reportData, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${reportType}-report-${selectedYear}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    notify.success('Export Complete', 'Report has been exported to JSON');
+  };
+
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -78,23 +120,42 @@ export default function Reports() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading reports...</div>
+        <div className="text-gray-500 dark:text-gray-400 animate-pulse">Loading reports...</div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports</h1>
-        <button
-          onClick={generatePrintableReport}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          Print / Save PDF
-        </button>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Financial Reports</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Comprehensive earnings and performance reports</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 transition-colors"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Export CSV
+          </button>
+          <button
+            onClick={handleExportJSON}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export JSON
+          </button>
+          <button
+            onClick={generatePrintableReport}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors"
+          >
+            <Printer className="w-4 h-4" />
+            Print PDF
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
