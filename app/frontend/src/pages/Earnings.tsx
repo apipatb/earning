@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Calendar, Download } from 'lucide-react';
+import { Plus, Pencil, Trash2, Calendar, Download, Upload, FileDown } from 'lucide-react';
 import { earningsAPI, platformsAPI } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 import { exportEarningsToCSV } from '../lib/export';
 import { notify } from '../store/notification.store';
+import { parseCSV, downloadCSVTemplate, CSVEarning } from '../lib/csvImport';
 
 interface Earning {
   id: string;
@@ -33,6 +34,9 @@ export default function Earnings() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterPeriod, setFilterPeriod] = useState<'today' | 'week' | 'month' | 'all'>('month');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<CSVEarning[] | null>(null);
 
   const [formData, setFormData] = useState({
     platformId: '',
@@ -129,6 +133,95 @@ export default function Earnings() {
     setShowForm(false);
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const result = parseCSV(text);
+
+      if (!result.success) {
+        notify.error('Import Failed', result.errors?.[0] || 'Failed to parse CSV file');
+        if (result.errors && result.errors.length > 1) {
+          result.errors.slice(1, 3).forEach(err => {
+            notify.warning('Import Error', err);
+          });
+        }
+        return;
+      }
+
+      if (result.warnings && result.warnings.length > 0) {
+        result.warnings.forEach(warning => {
+          notify.warning('Import Warning', warning);
+        });
+      }
+
+      setImportPreview(result.data || []);
+      notify.success('CSV Parsed', `Found ${result.data?.length || 0} earnings to import`);
+    };
+
+    reader.readAsText(file);
+    event.target.value = '';
+  };
+
+  const handleImport = async () => {
+    if (!importPreview || importPreview.length === 0) return;
+
+    setImporting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const item of importPreview) {
+      try {
+        // Find or create platform
+        let platform = platforms.find(
+          p => p.name.toLowerCase() === item.platformName.toLowerCase()
+        );
+
+        if (!platform) {
+          // Create new platform
+          const response = await platformsAPI.create({
+            name: item.platformName,
+            category: 'freelance',
+            isActive: true,
+          });
+          platform = response.data.platform;
+          setPlatforms([...platforms, platform]);
+        }
+
+        // Create earning
+        await earningsAPI.createEarning({
+          platformId: platform.id,
+          date: item.date,
+          amount: item.amount,
+          hours: item.hours || null,
+          notes: item.notes || null,
+        });
+
+        successCount++;
+      } catch (error) {
+        console.error('Failed to import earning:', error);
+        errorCount++;
+      }
+    }
+
+    setImporting(false);
+    setImportPreview(null);
+    setShowImportModal(false);
+
+    if (successCount > 0) {
+      notify.success(
+        'Import Complete',
+        `Successfully imported ${successCount} earnings${errorCount > 0 ? `, ${errorCount} failed` : ''}`
+      );
+      loadData();
+    } else {
+      notify.error('Import Failed', 'No earnings were imported');
+    }
+  };
+
   const totalAmount = earnings.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0);
   const totalHours = earnings.reduce((sum, e) => sum + (parseFloat(e.hours?.toString() || '0') || 0), 0);
 
@@ -144,19 +237,26 @@ export default function Earnings() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Earnings</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Earnings</h1>
         <div className="flex gap-2">
           <button
             onClick={() => exportEarningsToCSV(earnings)}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors dark:bg-green-500 dark:hover:bg-green-600"
             disabled={earnings.length === 0}
           >
             <Download className="w-4 h-4" />
             Export CSV
           </button>
           <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors dark:bg-purple-500 dark:hover:bg-purple-600"
+          >
+            <Upload className="w-4 h-4" />
+            Import CSV
+          </button>
+          <button
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors dark:bg-blue-500 dark:hover:bg-blue-600"
           >
             <Plus className="w-4 h-4" />
             Add Earning
@@ -408,6 +508,133 @@ export default function Earnings() {
           </table>
         </div>
       </div>
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Import Earnings from CSV</h2>
+
+              {!importPreview ? (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">CSV Format Requirements</h3>
+                    <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+                      Your CSV file must include the following columns:
+                    </p>
+                    <ul className="text-xs text-blue-700 dark:text-blue-300 list-disc list-inside space-y-1">
+                      <li><strong>platform</strong> - Name of the platform (e.g., "Upwork", "Fiverr")</li>
+                      <li><strong>date</strong> - Date in YYYY-MM-DD, MM/DD/YYYY, or DD/MM/YYYY format</li>
+                      <li><strong>amount</strong> - Earning amount (numbers only, no currency symbols)</li>
+                      <li><strong>hours</strong> - (Optional) Hours worked</li>
+                      <li><strong>notes</strong> - (Optional) Additional notes</li>
+                    </ul>
+                  </div>
+
+                  <div className="flex items-center justify-center">
+                    <button
+                      onClick={downloadCSVTemplate}
+                      className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                    >
+                      <FileDown className="w-4 h-4" />
+                      Download Template
+                    </button>
+                  </div>
+
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+                    <Upload className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-3" />
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      Drag and drop your CSV file here, or click to browse
+                    </p>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      id="csv-upload"
+                    />
+                    <label
+                      htmlFor="csv-upload"
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
+                    >
+                      Select CSV File
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                    <p className="text-sm text-green-800 dark:text-green-200">
+                      Found <strong>{importPreview.length}</strong> earnings ready to import
+                    </p>
+                  </div>
+
+                  <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Platform</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Amount</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Hours</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {importPreview.map((item, index) => (
+                          <tr key={index}>
+                            <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">{item.platformName}</td>
+                            <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{item.date}</td>
+                            <td className="px-4 py-2 text-sm text-gray-900 dark:text-white text-right">${item.amount.toFixed(2)}</td>
+                            <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 text-right">{item.hours || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                    <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                      <strong>Note:</strong> If a platform doesn't exist, it will be automatically created.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-6 justify-end">
+                <button
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportPreview(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  disabled={importing}
+                >
+                  Cancel
+                </button>
+                {importPreview && (
+                  <button
+                    onClick={() => setImportPreview(null)}
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    disabled={importing}
+                  >
+                    Choose Different File
+                  </button>
+                )}
+                {importPreview && (
+                  <button
+                    onClick={handleImport}
+                    disabled={importing}
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {importing ? 'Importing...' : `Import ${importPreview.length} Earnings`}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
