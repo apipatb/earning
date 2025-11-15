@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.routes';
 import platformRoutes from './routes/platform.routes';
 import earningRoutes from './routes/earning.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import goalRoutes from './routes/goal.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -45,6 +46,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/platforms', platformRoutes);
 app.use('/api/v1/earnings', earningRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
+app.use('/api/v1/goals', goalRoutes);
 
 // Error handling
 app.use(notFound);

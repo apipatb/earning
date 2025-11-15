@@ -5,7 +5,9 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Platforms from './pages/Platforms';
 import Earnings from './pages/Earnings';
+import Goals from './pages/Goals';
 import Analytics from './pages/Analytics';
+import Reports from './pages/Reports';
 import Layout from './components/Layout';
 
 function App() {
@@ -32,7 +34,9 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="platforms" element={<Platforms />} />
           <Route path="earnings" element={<Earnings />} />
+          <Route path="goals" element={<Goals />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="reports" element={<Reports />} />
         </Route>
       </Routes>
     </BrowserRouter>

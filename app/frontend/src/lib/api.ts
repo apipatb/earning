@@ -42,19 +42,28 @@ export const authAPI = {
 };
 
 export const platformsAPI = {
-  getAll: () => api.get('/platforms'),
-  create: (data: any) => api.post('/platforms', data),
-  update: (id: string, data: any) => api.put(`/platforms/${id}`, data),
-  delete: (id: string) => api.delete(`/platforms/${id}`),
+  getPlatforms: () => api.get('/platforms').then(res => res.data),
+  createPlatform: (data: any) => api.post('/platforms', data).then(res => res.data),
+  updatePlatform: (id: string, data: any) => api.put(`/platforms/${id}`, data).then(res => res.data),
+  deletePlatform: (id: string) => api.delete(`/platforms/${id}`).then(res => res.data),
 };
 
 export const earningsAPI = {
-  getAll: (params?: any) => api.get('/earnings', { params }),
-  create: (data: any) => api.post('/earnings', data),
-  update: (id: string, data: any) => api.put(`/earnings/${id}`, data),
-  delete: (id: string) => api.delete(`/earnings/${id}`),
+  getEarnings: (period?: string) => api.get('/earnings', { params: { period } }).then(res => res.data),
+  createEarning: (data: any) => api.post('/earnings', data).then(res => res.data),
+  updateEarning: (id: string, data: any) => api.put(`/earnings/${id}`, data).then(res => res.data),
+  deleteEarning: (id: string) => api.delete(`/earnings/${id}`).then(res => res.data),
 };
 
 export const analyticsAPI = {
-  getSummary: (params?: any) => api.get('/analytics/summary', { params }),
+  getAnalytics: (period?: string) => api.get('/analytics', { params: { period } }).then(res => res.data),
+};
+
+export const goalsAPI = {
+  getGoals: (status?: string) => api.get('/goals', { params: { status } }).then(res => res.data),
+  getGoal: (id: string) => api.get(`/goals/${id}`).then(res => res.data),
+  createGoal: (data: any) => api.post('/goals', data).then(res => res.data),
+  updateGoal: (id: string, data: any) => api.put(`/goals/${id}`, data).then(res => res.data),
+  deleteGoal: (id: string) => api.delete(`/goals/${id}`).then(res => res.data),
+  updateGoalProgress: (id: string) => api.post(`/goals/${id}/update-progress`).then(res => res.data),
 };

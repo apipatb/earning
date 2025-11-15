@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Calendar } from 'lucide-react';
+import { Plus, Pencil, Trash2, Calendar, Download } from 'lucide-react';
 import { earningsAPI, platformsAPI } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
+import { exportEarningsToCSV } from '../lib/export';
 
 interface Earning {
   id: string;
@@ -139,13 +140,23 @@ export default function Earnings() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Earnings</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Earning
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => exportEarningsToCSV(earnings)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            disabled={earnings.length === 0}
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Earning
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs */}
