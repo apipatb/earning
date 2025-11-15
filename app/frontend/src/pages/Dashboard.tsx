@@ -9,6 +9,7 @@ import UpcomingGoalsWidget from '../components/widgets/UpcomingGoalsWidget';
 import ActivityFeedWidget from '../components/widgets/ActivityFeedWidget';
 import EarningsHeatmap from '../components/widgets/EarningsHeatmap';
 import PerformanceMetrics from '../components/widgets/PerformanceMetrics';
+import SmartInsights from '../components/SmartInsights';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
@@ -224,6 +225,9 @@ export default function Dashboard() {
 
       {/* Earnings Heatmap */}
       <EarningsHeatmap />
+
+      {/* Smart Insights */}
+      <SmartInsights />
 
       {/* Recent Earnings */}
       {isWidgetEnabled('recent-earnings') && (
