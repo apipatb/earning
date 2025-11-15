@@ -116,6 +116,10 @@ model User {
   contracts ClientContract[] @relation("ClientContracts")
   clientRatings ClientRating[] @relation("ClientRatings")
   slas ServiceLevelAgreement[] @relation("SLAs")
+  supportTickets SupportTicket[] @relation("SupportTickets")
+  ticketResponses TicketResponse[] @relation("TicketResponses")
+  articles KnowledgeBaseArticle[] @relation("KnowledgeBaseArticles")
+  faqEntries FAQEntry[] @relation("FAQEntries")
 
   @@map("users")
 }
@@ -2364,6 +2368,7 @@ model Client {
   ratings           ClientRating[]
   slas              ServiceLevelAgreement[]
   invoices          Invoice[]
+  supportTickets    SupportTicket[]
 
   @@index([userId])
   @@index([status])
@@ -2469,4 +2474,89 @@ model ServiceLevelAgreement {
   @@index([userId])
   @@index([clientId])
   @@map("service_level_agreements")
+}
+
+model SupportTicket {
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  clientId          String?          @map("client_id")
+  ticketNumber      String           @map("ticket_number") @unique
+  subject           String
+  description       String           @db.Text
+  priority          String           @default("medium") // low, medium, high, urgent
+  category          String           @default("general")
+  status            String           @default("open") // open, in_progress, closed, resolved
+  resolutionNote    String?          @map("resolution_note") @db.Text
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  closedAt          DateTime?        @map("closed_at")
+
+  user              User             @relation("SupportTickets", fields: [userId], references: [id], onDelete: Cascade)
+  client            Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  responses         TicketResponse[]
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt(sort: Desc)])
+  @@map("support_tickets")
+}
+
+model TicketResponse {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  ticketId          String   @map("ticket_id")
+  message           String   @db.Text
+  isInternal        Boolean  @default(false) @map("is_internal")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("TicketResponses", fields: [userId], references: [id], onDelete: Cascade)
+  ticket            SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([ticketId])
+  @@index([createdAt(sort: Asc)])
+  @@map("ticket_responses")
+}
+
+model KnowledgeBaseArticle {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  title             String
+  slug              String   @unique
+  content           String   @db.Text
+  category          String   @default("general")
+  tags              String?  @db.Text // JSON array stored as string
+  isPublished       Boolean  @default(false) @map("is_published")
+  views             Int      @default(0)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("KnowledgeBaseArticles", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isPublished])
+  @@index([slug])
+  @@map("knowledge_base_articles")
+}
+
+model FAQEntry {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  question          String
+  answer            String   @db.Text
+  category          String   @default("general")
+  order             Int      @default(0)
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("FAQEntries", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([category])
+  @@index([order])
+  @@map("faq_entries")
 }
