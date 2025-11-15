@@ -83,6 +83,12 @@ model User {
   recoveries Recovery[] @relation("Recoveries")
   dataArchives DataArchive[] @relation("DataArchives")
   backupStrategies BackupStrategy[] @relation("BackupStrategies")
+  syncDevices SyncDevice[] @relation("SyncDevices")
+  syncQueue SyncQueue[] @relation("SyncQueue")
+  syncConflicts SyncConflict[] @relation("SyncConflicts")
+  dataVersions DataVersion[] @relation("DataVersions")
+  syncLogs SyncLog[] @relation("SyncLogs")
+  selectiveSync SelectiveSync? @relation("SelectiveSync")
 
   @@map("users")
 }
@@ -1723,4 +1729,122 @@ model BackupVerification {
   @@index([backupId])
   @@index([status])
   @@map("backup_verifications")
+}
+
+// Phase 32: Multi-Device Synchronization & Cloud Sync
+model SyncDevice {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  deviceName        String   @map("device_name")
+  deviceType        String   // mobile, tablet, web, desktop
+  deviceToken       String?  @map("device_token")
+  osVersion         String?  @map("os_version")
+  isActive          Boolean  @default(true)
+  lastSyncAt        DateTime @map("last_sync_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("SyncDevices", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceName])
+  @@index([userId])
+  @@index([isActive])
+  @@map("sync_devices")
+}
+
+model SyncQueue {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  operationType     String   @map("operation_type") // create, update, delete, sync
+  dataType          String   @map("data_type") // earnings, goals, platforms, analytics
+  payload           String   @db.Text // JSON payload
+  priority          String   @default("normal") // low, normal, high, critical
+  status            String   @default("pending") // pending, synced, failed
+  retryCount        Int      @default(0) @map("retry_count")
+  enqueuedAt        DateTime @map("enqueued_at")
+  syncedAt          DateTime? @map("synced_at")
+  failedAt          DateTime? @map("failed_at")
+
+  user              User     @relation("SyncQueue", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+  @@index([enqueuedAt(sort: Desc)])
+  @@map("sync_queue")
+}
+
+model SyncConflict {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  dataType          String   @map("data_type")
+  dataId            String   @map("data_id")
+  localVersion      String   @map("local_version")
+  remoteVersion     String   @map("remote_version")
+  localData         String   @db.Text @map("local_data") // JSON
+  remoteData        String   @db.Text @map("remote_data") // JSON
+  status            String   @default("unresolved") // unresolved, resolved
+  resolution        String?  // local, remote, merged
+  selectedVersion   String?  @map("selected_version")
+  customData        String?  @db.Json @map("custom_data")
+  detectedAt        DateTime @map("detected_at")
+  resolvedAt        DateTime? @map("resolved_at")
+
+  user              User     @relation("SyncConflicts", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([dataType])
+  @@map("sync_conflicts")
+}
+
+model DataVersion {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  dataType          String   @map("data_type")
+  dataId            String   @map("data_id")
+  versionNumber     Int      @map("version_number")
+  data              String   @db.Text // JSON
+  changeType        String   // created, updated, deleted
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("DataVersions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dataId, versionNumber])
+  @@index([userId])
+  @@index([dataType])
+  @@map("data_versions")
+}
+
+model SyncLog {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  deviceId          String?  @map("device_id")
+  operationType     String   @map("operation_type")
+  dataType          String   @map("data_type")
+  status            String   // success, failed, conflict
+  itemsProcessed    Int      @default(0) @map("items_processed")
+  durationMs        Int?     @map("duration_ms")
+  error             String?  @db.Text
+  timestamp         DateTime @default(now())
+
+  user              User     @relation("SyncLogs", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([timestamp(sort: Desc)])
+  @@map("sync_logs")
+}
+
+model SelectiveSync {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  dataTypes         String   @db.Text // JSON array
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("SelectiveSync", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("selective_sync")
 }
