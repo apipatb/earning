@@ -6,6 +6,9 @@ import { useWidgetStore } from '../store/widget.store';
 import { notify } from '../store/notification.store';
 import BudgetOverviewWidget from '../components/widgets/BudgetOverviewWidget';
 import UpcomingGoalsWidget from '../components/widgets/UpcomingGoalsWidget';
+import ActivityFeedWidget from '../components/widgets/ActivityFeedWidget';
+import EarningsHeatmap from '../components/widgets/EarningsHeatmap';
+import PerformanceMetrics from '../components/widgets/PerformanceMetrics';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
@@ -212,6 +215,15 @@ export default function Dashboard() {
         <BudgetOverviewWidget />
         <UpcomingGoalsWidget />
       </div>
+
+      {/* Performance & Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <PerformanceMetrics />
+        <ActivityFeedWidget />
+      </div>
+
+      {/* Earnings Heatmap */}
+      <EarningsHeatmap />
 
       {/* Recent Earnings */}
       {isWidgetEnabled('recent-earnings') && (

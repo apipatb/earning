@@ -8,6 +8,7 @@ import { SUPPORTED_CURRENCIES } from '../lib/currency';
 import NotificationContainer from './NotificationContainer';
 import QuickActionsMenu from './QuickActionsMenu';
 import GlobalSearch from './GlobalSearch';
+import KeyboardShortcutsGuide from './KeyboardShortcutsGuide';
 
 export default function Layout() {
   const location = useLocation();
@@ -244,6 +245,9 @@ export default function Layout() {
 
       {/* Quick Actions Menu */}
       <QuickActionsMenu />
+
+      {/* Keyboard Shortcuts Guide */}
+      <KeyboardShortcutsGuide />
 
       {/* Notification Container */}
       <NotificationContainer />
