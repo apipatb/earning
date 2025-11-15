@@ -47,6 +47,7 @@ import leadRoutes from './routes/lead.routes';
 import projectRoutes from './routes/project.routes';
 import workflowRoutes from './routes/workflow.routes';
 import contractRoutes from './routes/contract.routes';
+import financialplanRoutes from './routes/financialplan.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -122,6 +123,7 @@ app.use('/api/v1/leads', leadRoutes);
 app.use('/api/v1/projects', projectRoutes);
 app.use('/api/v1/workflows', workflowRoutes);
 app.use('/api/v1/contracts', contractRoutes);
+app.use('/api/v1/financialplan', financialplanRoutes);
 
 // Error handling
 app.use(notFound);

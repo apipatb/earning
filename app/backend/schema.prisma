@@ -143,6 +143,12 @@ model User {
   contractPayments ContractPayment[] @relation("ContractPayments")
   contractRenewals ContractRenewal[] @relation("ContractRenewals")
   contractAmendments ContractAmendment[] @relation("ContractAmendments")
+  financialPlans FinancialPlan[] @relation("FinancialPlans")
+  financialScenarios FinancialScenario[] @relation("FinancialScenarios")
+  financialForecasts FinancialForecast[] @relation("FinancialForecasts")
+  financialGoals FinancialGoal[] @relation("FinancialGoals")
+  financialRisks FinancialRiskAnalysis[] @relation("FinancialRisks")
+  financialAlerts FinancialAlert[] @relation("FinancialAlerts")
 
   @@map("users")
 }
@@ -3195,4 +3201,137 @@ model ContractAmendment {
   @@index([contractId])
   @@index([status])
   @@map("contract_amendments")
+}
+
+model FinancialPlan {
+  id                String                  @id @default(uuid())
+  userId            String                  @map("user_id")
+  name              String
+  description       String?                 @db.Text
+  timeHorizon       String                  @default("medium_term") @map("time_horizon") // short_term, medium_term, long_term
+  riskProfile       String                  @default("moderate") @map("risk_profile") // conservative, moderate, aggressive
+  startDate         DateTime                @map("start_date")
+  endDate           DateTime                @map("end_date")
+  goals             String                  @db.Text // JSON stored as string
+  status            String                  @default("active") // active, paused, completed
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+
+  user              User                    @relation("FinancialPlans", fields: [userId], references: [id], onDelete: Cascade)
+  scenarios         FinancialScenario[]
+  forecasts         FinancialForecast[]
+  goals_rel         FinancialGoal[]         @relation("FinancialPlanGoals")
+  risks             FinancialRiskAnalysis[]
+  alerts            FinancialAlert[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([riskProfile])
+  @@map("financial_plans")
+}
+
+model FinancialScenario {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  planId            String   @map("plan_id")
+  name              String
+  description       String?  @db.Text
+  incomeGrowth      Decimal  @default(0) @db.Decimal(5, 2) @map("income_growth")
+  expenseGrowth     Decimal  @default(0) @db.Decimal(5, 2) @map("expense_growth")
+  savingsRate       Decimal  @default(0) @db.Decimal(5, 2) @map("savings_rate")
+  assumptions       String   @db.Text // JSON stored as string
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("FinancialScenarios", fields: [userId], references: [id], onDelete: Cascade)
+  plan              FinancialPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([planId])
+  @@map("financial_scenarios")
+}
+
+model FinancialForecast {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  planId            String   @map("plan_id")
+  scenarioId        String?  @map("scenario_id")
+  date              DateTime
+  incomeProjection  Decimal  @db.Decimal(12, 2) @map("income_projection")
+  expenseProjection Decimal  @db.Decimal(12, 2) @map("expense_projection")
+  savingsProjection Decimal  @db.Decimal(12, 2) @map("savings_projection")
+  cashFlow          Decimal  @db.Decimal(12, 2) @map("cash_flow")
+  netWorth          Decimal  @db.Decimal(12, 2) @map("net_worth")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("FinancialForecasts", fields: [userId], references: [id], onDelete: Cascade)
+  plan              FinancialPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([planId])
+  @@index([date])
+  @@map("financial_forecasts")
+}
+
+model FinancialGoal {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  planId            String   @map("plan_id")
+  name              String
+  description       String?  @db.Text
+  targetAmount      Decimal  @db.Decimal(12, 2) @map("target_amount")
+  currentAmount     Decimal  @default(0) @db.Decimal(12, 2) @map("current_amount")
+  targetDate        DateTime @map("target_date")
+  category          String   @default("general") // retirement, education, home_ownership, general
+  priority          String   @default("medium") // low, medium, high
+  status            String   @default("active") // active, paused, completed, abandoned
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("FinancialGoals", fields: [userId], references: [id], onDelete: Cascade)
+  plan              FinancialPlan @relation("FinancialPlanGoals", fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([planId])
+  @@index([status])
+  @@index([category])
+  @@map("financial_goals")
+}
+
+model FinancialRiskAnalysis {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  planId            String   @map("plan_id")
+  riskType          String   // market_risk, inflation_risk, longevity_risk, sequence_risk
+  probability       Decimal  @default(0) @db.Decimal(3, 2)
+  impact            Decimal  @default(0) @db.Decimal(3, 2)
+  mitigation        String   @db.Text // JSON stored as string
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("FinancialRisks", fields: [userId], references: [id], onDelete: Cascade)
+  plan              FinancialPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([planId])
+  @@index([riskType])
+  @@map("financial_risk_analyses")
+}
+
+model FinancialAlert {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  planId            String   @map("plan_id")
+  type              String   // spending_alert, income_alert, goal_alert, threshold_alert
+  threshold         Decimal  @db.Decimal(12, 2)
+  condition         String
+  message           String   @db.Text
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("FinancialAlerts", fields: [userId], references: [id], onDelete: Cascade)
+  plan              FinancialPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([planId])
+  @@index([type])
+  @@map("financial_alerts")
 }
