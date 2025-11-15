@@ -110,6 +110,12 @@ model User {
   timesheetEntries TimesheetEntry[] @relation("TimesheetEntries")
   timesheets Timesheet[] @relation("Timesheets")
   timeOffRequests TimeOff[] @relation("TimeOffRequests")
+  clients Client[] @relation("Clients")
+  vendors Vendor[] @relation("Vendors")
+  communications ClientCommunication[] @relation("ClientCommunications")
+  contracts ClientContract[] @relation("ClientContracts")
+  clientRatings ClientRating[] @relation("ClientRatings")
+  slas ServiceLevelAgreement[] @relation("SLAs")
 
   @@map("users")
 }
@@ -2329,4 +2335,138 @@ model TimeOff {
   @@index([status])
   @@index([startDate])
   @@map("time_off")
+}
+
+// Phase 38: Advanced Client & Vendor Management
+model Client {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  clientName        String   @map("client_name")
+  email             String
+  phone             String?
+  address           String?  @db.Text
+  city              String?
+  state             String?
+  country           String?
+  zipCode           String?  @map("zip_code")
+  contactPerson     String?  @map("contact_person")
+  industry          String?
+  companySize       String?  @map("company_size")
+  website           String?
+  status            String   @default("active") // active, inactive, archived
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("Clients", fields: [userId], references: [id], onDelete: Cascade)
+  projects          Project[]
+  communications    ClientCommunication[]
+  contracts         ClientContract[]
+  ratings           ClientRating[]
+  slas              ServiceLevelAgreement[]
+  invoices          Invoice[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([email])
+  @@map("clients")
+}
+
+model Vendor {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  vendorName        String   @map("vendor_name")
+  email             String
+  phone             String?
+  address           String?  @db.Text
+  category          String   @default("other") // supplies, services, professional, other
+  paymentTerms      String   @default("net30") @map("payment_terms")
+  taxId             String?  @map("tax_id")
+  website           String?
+  status            String   @default("active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("Vendors", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([category])
+  @@index([status])
+  @@map("vendors")
+}
+
+model ClientCommunication {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  clientId          String   @map("client_id")
+  communicationType String   @map("communication_type") // email, call, meeting, message
+  subject           String?
+  content           String   @db.Text
+  date              DateTime
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("ClientCommunications", fields: [userId], references: [id], onDelete: Cascade)
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([date(sort: Desc)])
+  @@map("client_communications")
+}
+
+model ClientContract {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  clientId          String   @map("client_id")
+  contractName      String   @map("contract_name")
+  value             Decimal  @db.Decimal(10, 2)
+  startDate         DateTime @map("start_date")
+  endDate           DateTime @map("end_date")
+  terms             String?  @db.Text
+  status            String   @default("active") // active, completed, expired, terminated
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("ClientContracts", fields: [userId], references: [id], onDelete: Cascade)
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([status])
+  @@index([startDate])
+  @@map("client_contracts")
+}
+
+model ClientRating {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  clientId          String   @map("client_id")
+  rating            Int      // 1-5 stars
+  feedback          String?  @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation("ClientRatings", fields: [userId], references: [id], onDelete: Cascade)
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+  @@map("client_ratings")
+}
+
+model ServiceLevelAgreement {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  clientId          String   @map("client_id")
+  serviceName       String   @map("service_name")
+  responseTime      Int      @map("response_time") // hours
+  resolutionTime    Int      @map("resolution_time") // hours
+  uptime            Decimal  @db.Decimal(5, 2) // percentage
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation("SLAs", fields: [userId], references: [id], onDelete: Cascade)
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+  @@map("service_level_agreements")
 }

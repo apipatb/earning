@@ -41,6 +41,7 @@ import ocrRoutes from './routes/ocr.routes';
 import invoiceRoutes from './routes/invoice.routes';
 import expenseRoutes from './routes/expense.routes';
 import timesheetRoutes from './routes/timesheet.routes';
+import clientRoutes from './routes/client.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -110,6 +111,7 @@ app.use('/api/v1/ocr', ocrRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
 app.use('/api/v1/expenses', expenseRoutes);
 app.use('/api/v1/timesheets', timesheetRoutes);
+app.use('/api/v1/clients', clientRoutes);
 
 // Error handling
 app.use(notFound);
