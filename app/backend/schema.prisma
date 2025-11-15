@@ -26,6 +26,8 @@ model User {
   subscription   Subscription?
   emailSettings  EmailSettings?
   affiliateProfile AffiliateProfile?
+  workspaceMembers WorkspaceMember[]
+  auditLogs      AuditLog[]
 
   @@map("users")
 }
@@ -317,4 +319,106 @@ model ReportExecution {
 
   @@index([scheduledReportId])
   @@map("report_executions")
+}
+
+model Integration {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  integrationId     String   @map("integration_id") // slack, discord, etc
+  accessToken       String   @map("access_token") // encrypted
+  config            Json?
+  isConnected       Boolean  @default(true)
+  lastSyncAt        DateTime? @map("last_sync_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, integrationId])
+  @@index([userId])
+  @@map("integrations")
+}
+
+model AutomationRule {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  trigger           String   // earnings_created, goal_achieved, milestone_hit
+  action            String   // send_slack, send_email, sync_sheets
+  config            Json?    // action-specific config
+  isActive          Boolean  @default(true)
+  lastExecutedAt    DateTime? @map("last_executed_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("automation_rules")
+}
+
+model AutomationLog {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  ruleId            String   @map("rule_id")
+  status            String   // success, failed, skipped
+  message           String?
+  executedAt        DateTime @default(now()) @map("executed_at")
+
+  @@index([userId, executedAt(sort: Desc)])
+  @@map("automation_logs")
+}
+
+model Workspace {
+  id                String   @id @default(uuid())
+  ownerId           String   @map("owner_id")
+  name              String
+  inviteCode        String   @unique
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  members           WorkspaceMember[]
+  settings          WorkspaceSettings?
+  auditLogs         AuditLog[]
+
+  @@index([ownerId])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id                String   @id @default(uuid())
+  workspaceId       String   @map("workspace_id")
+  userId            String   @map("user_id")
+  role              String   @default("member") // owner, admin, member, viewer
+  joinedAt          DateTime @default(now()) @map("joined_at")
+
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@map("workspace_members")
+}
+
+model WorkspaceSettings {
+  id                String   @id @default(uuid())
+  workspaceId       String   @unique @map("workspace_id")
+  allowPublicReports Boolean @default(false) @map("allow_public_reports")
+  requireApprovalForExpenses Boolean @default(false) @map("require_approval_for_expenses")
+  twoFactorRequired Boolean @default(false) @map("two_factor_required")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_settings")
+}
+
+model AuditLog {
+  id                String   @id @default(uuid())
+  workspaceId       String   @map("workspace_id")
+  userId            String   @map("user_id")
+  action            String   // workspace_created, member_added, member_removed, etc
+  details           Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("audit_logs")
 }
