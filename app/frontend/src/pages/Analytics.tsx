@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Clock, Target, Download, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import ComparisonView from '../components/ComparisonView';
 import {
   LineChart,
   Line,
@@ -621,6 +622,9 @@ export default function Analytics() {
           </ResponsiveContainer>
         </div>
       )}
+
+      {/* Period Comparison */}
+      <ComparisonView />
     </div>
   );
 }
