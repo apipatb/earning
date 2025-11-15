@@ -32,6 +32,13 @@ model User {
   publishedPlugins Plugin[]
   pluginInstallations PluginInstallation[]
   pluginReviews  PluginReview[]
+  profile        UserProfile?
+  followers      UserFollowing[] @relation("followers")
+  following      UserFollowing[] @relation("following")
+  badges         Badge[]
+  socialPosts    SocialPost[]
+  postLikes      PostLike[]
+  achievementShares AchievementShare[]
 
   @@map("users")
 }
@@ -510,4 +517,113 @@ model PluginReview {
   @@index([pluginId])
   @@index([authorId])
   @@map("plugin_reviews")
+}
+
+model UserProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  bio               String?  @db.Text
+  avatar            String?  @db.Text
+  socialLinks       Json?    // Twitter, LinkedIn, etc
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model UserFollowing {
+  id                String   @id @default(uuid())
+  followerId        String   @map("follower_id")
+  followingId       String   @map("following_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  follower          User     @relation("followers", fields: [followerId], references: [id], onDelete: Cascade)
+  following         User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("user_following")
+}
+
+model Badge {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  badgeType         String   // earner_100, earner_1000, streak_30, etc
+  description       String?  @db.Text
+  earnedAt          DateTime @default(now()) @map("earned_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeType])
+  @@index([userId])
+  @@map("badges")
+}
+
+model SocialPost {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  content           String   @db.Text
+  postType          String   // achievement, milestone, update, question
+  attachments       String[] // URLs
+  isPublic          Boolean  @default(true)
+  likesCount        Int      @default(0)
+  sharesCount       Int      @default(0)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes             PostLike[]
+  comments          PostComment[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([isPublic])
+  @@map("social_posts")
+}
+
+model PostLike {
+  id                String   @id @default(uuid())
+  postId            String   @map("post_id")
+  userId            String   @map("user_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  post              SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@map("post_likes")
+}
+
+model PostComment {
+  id                String   @id @default(uuid())
+  postId            String   @map("post_id")
+  authorId          String   @map("author_id")
+  content           String   @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  post              SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author            User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([authorId])
+  @@map("post_comments")
+}
+
+model AchievementShare {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  achievementType   String   // level, milestone, streak, etc
+  message           String?  @db.Text
+  sharedOn          String[] // twitter, facebook, linkedin, email
+  shareCount        Int      @default(0)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("achievement_shares")
 }

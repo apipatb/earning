@@ -22,6 +22,7 @@ import integrationRoutes from './routes/integration.routes';
 import teamRoutes from './routes/team.routes';
 import aiRoutes from './routes/ai.routes';
 import marketplaceRoutes from './routes/marketplace.routes';
+import socialRoutes from './routes/social.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -72,6 +73,7 @@ app.use('/api/v1/integrations', integrationRoutes);
 app.use('/api/v1/team', teamRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/marketplace', marketplaceRoutes);
+app.use('/api/v1/social', socialRoutes);
 
 // Error handling
 app.use(notFound);
