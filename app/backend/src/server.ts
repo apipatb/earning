@@ -29,6 +29,7 @@ import notificationRoutes from './routes/notification.routes';
 import analyticsAdvancedRoutes from './routes/analytics-advanced.routes';
 import reportsAdvancedRoutes from './routes/reports-advanced.routes';
 import budgetingRoutes from './routes/budgeting.routes';
+import localizationRoutes from './routes/localization.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -86,6 +87,7 @@ app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/analytics-advanced', analyticsAdvancedRoutes);
 app.use('/api/v1/reports-advanced', reportsAdvancedRoutes);
 app.use('/api/v1/budgets', budgetingRoutes);
+app.use('/api/v1/localization', localizationRoutes);
 
 // Error handling
 app.use(notFound);

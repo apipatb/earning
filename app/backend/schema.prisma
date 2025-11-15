@@ -57,6 +57,8 @@ model User {
   budgets Budget[]
   categoryBudgets CategoryBudget[]
   financialPlans FinancialPlan[]
+  languagePreference LanguagePreference? @relation("UserLanguagePreference")
+  languageStats LanguageStatistic[] @relation("UserLanguageStats")
 
   @@map("users")
 }
@@ -1021,4 +1023,75 @@ model FinancialPlan {
 
   @@index([userId, status])
   @@map("financial_plans")
+}
+
+// Phase 26: Multi-language & Localization
+model LanguagePreference {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  language          String   @default("en")
+  dateFormat        String   @default("MM/DD/YYYY")
+  timeFormat        String   @default("12h")
+  timezone          String   @default("UTC")
+  currency          String   @default("USD")
+  rtlEnabled        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation("UserLanguagePreference", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("language_preferences")
+}
+
+model Translation {
+  id                String   @id @default(uuid())
+  language          String   @map("language_code")
+  key               String
+  value             String   @db.Text
+  context           String?  @db.Text
+  namespace         String   @default("common")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([language, key, namespace])
+  @@index([language, namespace])
+  @@map("translations")
+}
+
+model RegionalSetting {
+  id                    String   @id @default(uuid())
+  languageCode          String   @unique @map("language_code")
+  countryCode           String
+  countryName           String
+  dateFormat            String
+  timeFormat            String
+  decimalSeparator      String
+  thousandsSeparator    String
+  currencySymbol        String
+  currencyPosition      String   // 'prefix' or 'suffix'
+  weekStartDay          Int      // 0 = Sunday, 1 = Monday, etc.
+  pluralRules           String   @db.Text
+  rtlLanguage           Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("regional_settings")
+}
+
+model LanguageStatistic {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  language          String
+  translationsUsed  Int      @default(0)
+  stringsCached     Int      @default(0)
+  lastAccessed      DateTime @default(now())
+  accessCount       Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation("UserLanguageStats", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, language])
+  @@index([userId])
+  @@map("language_statistics")
 }
