@@ -45,6 +45,7 @@ import clientRoutes from './routes/client.routes';
 import supportRoutes from './routes/support.routes';
 import leadRoutes from './routes/lead.routes';
 import projectRoutes from './routes/project.routes';
+import workflowRoutes from './routes/workflow.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -118,6 +119,7 @@ app.use('/api/v1/clients', clientRoutes);
 app.use('/api/v1/support', supportRoutes);
 app.use('/api/v1/leads', leadRoutes);
 app.use('/api/v1/projects', projectRoutes);
+app.use('/api/v1/workflows', workflowRoutes);
 
 // Error handling
 app.use(notFound);

@@ -2940,3 +2940,99 @@ model DataExport {
   @@index([createdAt(sort: Desc)])
   @@map("data_exports")
 }
+
+model Workflow {
+  id                String                @id @default(uuid())
+  userId            String                @map("user_id")
+  name              String
+  description       String?               @db.Text
+  trigger           String                @db.Text // JSON stored as string
+  actions           String                @db.Text // JSON stored as string
+  isActive          Boolean               @default(true) @map("is_active")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  user              User                  @relation("Workflows", fields: [userId], references: [id], onDelete: Cascade)
+  executions        WorkflowExecution[]
+  triggers          WorkflowTrigger[]
+  actions_rel       WorkflowAction[]      @relation("WorkflowActions")
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([createdAt(sort: Desc)])
+  @@map("workflows")
+}
+
+model WorkflowExecution {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  workflowId        String   @map("workflow_id")
+  status            String   @default("pending") // pending, completed, failed, running
+  executedAt        DateTime @map("executed_at")
+  result            String?  @db.Text // JSON stored as string
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflow          Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([workflowId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("workflow_executions")
+}
+
+model WorkflowTemplate {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  name              String
+  description       String?  @db.Text
+  category          String   @default("general")
+  trigger           String   @db.Text // JSON stored as string
+  actions           String   @db.Text // JSON stored as string
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([category])
+  @@index([createdAt(sort: Desc)])
+  @@map("workflow_templates")
+}
+
+model WorkflowTrigger {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  workflowId        String   @map("workflow_id")
+  triggerType       String   @default("manual") // manual, scheduled, webhook, event
+  condition         String   @db.Text // JSON stored as string
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflow          Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([workflowId])
+  @@index([triggerType])
+  @@index([isActive])
+  @@map("workflow_triggers")
+}
+
+model WorkflowAction {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  workflowId        String   @map("workflow_id")
+  actionType        String   // email, webhook, script, database, notification
+  config            String   @db.Text // JSON stored as string
+  order             Int      @default(0)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflow          Workflow @relation("WorkflowActions", fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([workflowId])
+  @@index([order])
+  @@map("workflow_actions")
+}
