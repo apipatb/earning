@@ -14,6 +14,12 @@ import FinancialForecasting from '../components/FinancialForecasting';
 import RecurringTemplates from '../components/RecurringTemplates';
 import CalendarView from '../components/CalendarView';
 import DailyStrategyGuide from '../components/DailyStrategyGuide';
+import TaxCalculator from '../components/TaxCalculator';
+import InvoiceGenerator from '../components/InvoiceGenerator';
+import ExpenseTracker from '../components/ExpenseTracker';
+import ClientManager from '../components/ClientManager';
+import TimeTrackerPro from '../components/TimeTrackerPro';
+import ReportBuilder from '../components/ReportBuilder';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
@@ -244,6 +250,24 @@ export default function Dashboard() {
 
       {/* Calendar View */}
       <CalendarView />
+
+      {/* Tax Calculator */}
+      <TaxCalculator />
+
+      {/* Invoice Generator */}
+      <InvoiceGenerator />
+
+      {/* Expense Tracker */}
+      <ExpenseTracker />
+
+      {/* Client Manager */}
+      <ClientManager />
+
+      {/* Time Tracker Pro */}
+      <TimeTrackerPro />
+
+      {/* Report Builder */}
+      <ReportBuilder />
 
       {/* Recent Earnings */}
       {isWidgetEnabled('recent-earnings') && (
