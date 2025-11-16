@@ -1,6 +1,55 @@
 import { useEffect, useState } from 'react';
-import { Lightbulb, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Target, Calendar, DollarSign, Clock, Zap, ArrowRight } from 'lucide-react';
+import { Lightbulb, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Target, Calendar, DollarSign, Clock, Zap, ArrowRight, LucideIcon } from 'lucide-react';
 
+// Data structure interfaces
+interface Earning {
+  id: string;
+  date: string;
+  amount: number;
+  platformId: string;
+}
+
+interface TimeEntry {
+  id: string;
+  startTime: string;
+  endTime?: string;
+  duration: number;
+}
+
+interface Goal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+interface Platform {
+  id: string;
+  name: string;
+}
+
+// Calculation helper interfaces
+interface EarningsByDay {
+  [day: string]: number;
+}
+
+interface EarningsByPlatform {
+  [platformName: string]: number;
+}
+
+interface EntriesByHour {
+  [hour: string]: number;
+}
+
+interface IconConfig {
+  icon: LucideIcon;
+  color: string;
+  bg: string;
+}
+
+// Main insight interface
 interface Insight {
   id: string;
   type: 'success' | 'warning' | 'info' | 'tip';
@@ -8,7 +57,7 @@ interface Insight {
   title: string;
   description: string;
   impact: 'high' | 'medium' | 'low';
-  icon: any;
+  icon: LucideIcon;
   action?: {
     label: string;
     onClick: () => void;
@@ -24,10 +73,10 @@ export default function SmartInsights() {
   }, []);
 
   const generateInsights = () => {
-    const earnings = JSON.parse(localStorage.getItem('earnings') || '[]');
-    const timeEntries = JSON.parse(localStorage.getItem('time_entries') || '[]');
-    const goals = JSON.parse(localStorage.getItem('savings_goals') || '[]');
-    const platforms = JSON.parse(localStorage.getItem('platforms') || '[]');
+    const earnings: Earning[] = JSON.parse(localStorage.getItem('earnings') || '[]');
+    const timeEntries: TimeEntry[] = JSON.parse(localStorage.getItem('time_entries') || '[]');
+    const goals: Goal[] = JSON.parse(localStorage.getItem('savings_goals') || '[]');
+    const platforms: Platform[] = JSON.parse(localStorage.getItem('platforms') || '[]');
 
     const generatedInsights: Insight[] = [];
 
@@ -79,13 +128,13 @@ export default function SmartInsights() {
       }
 
       // Best earning day
-      const earningsByDay = earnings.reduce((acc: any, e: any) => {
+      const earningsByDay = earnings.reduce((acc: EarningsByDay, e: Earning) => {
         const day = new Date(e.date).toLocaleDateString('en-US', { weekday: 'long' });
         acc[day] = (acc[day] || 0) + e.amount;
         return acc;
-      }, {});
+      }, {} as EarningsByDay);
 
-      const bestDay = Object.entries(earningsByDay).sort(([, a]: any, [, b]: any) => b - a)[0];
+      const bestDay = Object.entries(earningsByDay).sort(([, a], [, b]) => (b as number) - (a as number))[0];
       if (bestDay) {
         generatedInsights.push({
           id: 'best-day',
@@ -99,15 +148,15 @@ export default function SmartInsights() {
       }
 
       // Platform concentration
-      const earningsByPlatform = earnings.reduce((acc: any, e: any) => {
-        const platformName = platforms.find((p: any) => p.id === e.platformId)?.name || 'Unknown';
+      const earningsByPlatform = earnings.reduce((acc: EarningsByPlatform, e: Earning) => {
+        const platformName = platforms.find((p: Platform) => p.id === e.platformId)?.name || 'Unknown';
         acc[platformName] = (acc[platformName] || 0) + e.amount;
         return acc;
-      }, {});
+      }, {} as EarningsByPlatform);
 
       const platformEntries = Object.entries(earningsByPlatform);
       if (platformEntries.length > 1) {
-        const topPlatformPct = (platformEntries.sort(([, a]: any, [, b]: any) => b - a)[0][1] as number / earnings.reduce((sum: number, e: any) => sum + e.amount, 0)) * 100;
+        const topPlatformPct = ((platformEntries.sort(([, a], [, b]) => (b as number) - (a as number))[0][1] as number) / earnings.reduce((sum: number, e: Earning) => sum + e.amount, 0)) * 100;
 
         if (topPlatformPct > 70) {
           generatedInsights.push({
@@ -125,9 +174,9 @@ export default function SmartInsights() {
 
     // Analyze productivity
     if (timeEntries.length > 0) {
-      const completedEntries = timeEntries.filter((e: any) => e.endTime);
-      const totalHours = completedEntries.reduce((sum: number, e: any) => sum + (e.duration / 3600), 0);
-      const totalEarnings = earnings.reduce((sum: number, e: any) => sum + e.amount, 0);
+      const completedEntries = timeEntries.filter((e: TimeEntry) => e.endTime);
+      const totalHours = completedEntries.reduce((sum: number, e: TimeEntry) => sum + (e.duration / 3600), 0);
+      const totalEarnings = earnings.reduce((sum: number, e: Earning) => sum + e.amount, 0);
 
       if (totalHours > 0 && totalEarnings > 0) {
         const hourlyRate = totalEarnings / totalHours;
@@ -162,7 +211,7 @@ export default function SmartInsights() {
 
     // Analyze goals
     if (goals.length > 0) {
-      const nearCompletionGoals = goals.filter((g: any) => {
+      const nearCompletionGoals = goals.filter((g: Goal) => {
         const progress = (g.currentAmount / g.targetAmount) * 100;
         return progress >= 80 && progress < 100;
       });
@@ -181,7 +230,7 @@ export default function SmartInsights() {
         });
       }
 
-      const stalledGoals = goals.filter((g: any) => {
+      const stalledGoals = goals.filter((g: Goal) => {
         const progress = (g.currentAmount / g.targetAmount) * 100;
         const lastUpdate = new Date(g.updatedAt || g.createdAt);
         const daysSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24);
@@ -216,7 +265,7 @@ export default function SmartInsights() {
 
     // Consistency check
     if (earnings.length > 10) {
-      const dates = earnings.map((e: any) => new Date(e.date).toDateString());
+      const dates = earnings.map((e: Earning) => new Date(e.date).toDateString());
       const uniqueDates = new Set(dates);
       const avgPerDay = earnings.length / uniqueDates.size;
 
@@ -235,13 +284,13 @@ export default function SmartInsights() {
 
     // Peak performance times
     if (timeEntries.length > 20) {
-      const entriesByHour = timeEntries.reduce((acc: any, e: any) => {
-        const hour = new Date(e.startTime).getHours();
+      const entriesByHour = timeEntries.reduce((acc: EntriesByHour, e: TimeEntry) => {
+        const hour = new Date(e.startTime).getHours().toString();
         acc[hour] = (acc[hour] || 0) + 1;
         return acc;
-      }, {});
+      }, {} as EntriesByHour);
 
-      const peakHour = Object.entries(entriesByHour).sort(([, a]: any, [, b]: any) => b - a)[0];
+      const peakHour = Object.entries(entriesByHour).sort(([, a], [, b]) => (b as number) - (a as number))[0];
       if (peakHour) {
         const hour = parseInt(peakHour[0]);
         const timeStr = hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`;
@@ -265,7 +314,7 @@ export default function SmartInsights() {
     return insights.filter(i => i.category === selectedCategory);
   };
 
-  const getIcon = (type: string) => {
+  const getIcon = (type: string): IconConfig => {
     switch (type) {
       case 'success':
         return { icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900' };

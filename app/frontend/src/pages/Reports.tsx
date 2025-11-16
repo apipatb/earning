@@ -8,6 +8,12 @@ import { exportToCSV, exportDateRangeToCSV } from '../lib/export';
 import { notify } from '../store/notification.store';
 import { FormValidation } from '../lib/validation';
 
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+type ReportType = 'monthly' | 'annual' | 'business';
+
 interface MonthlyReport {
   month: string;
   totalEarnings: number;
@@ -38,9 +44,125 @@ interface ChartData {
   pending?: number;
 }
 
+// API Response Types (matching backend responses)
+interface SaleResponse {
+  id: string;
+  userId: string;
+  productId: string;
+  product: {
+    id: string;
+    name: string;
+    price: number;
+    category?: string;
+  };
+  quantity: number;
+  unitPrice: number;
+  totalAmount: number;
+  saleDate: string;
+  customer?: string;
+  notes?: string;
+  status: 'completed' | 'pending' | 'cancelled';
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ExpenseResponse {
+  id: string;
+  userId: string;
+  category: string;
+  description: string;
+  amount: number;
+  expenseDate: string;
+  vendor?: string;
+  isTaxDeductible: boolean;
+  receiptUrl?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface InvoiceResponse {
+  id: string;
+  userId: string;
+  customerId?: string;
+  invoiceNumber: string;
+  subtotal: number;
+  taxAmount: number;
+  discountAmount: number;
+  totalAmount: number;
+  invoiceDate: string;
+  dueDate: string;
+  paidDate?: string;
+  status: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled';
+  paymentMethod?: 'cash' | 'card' | 'bank' | 'other';
+  notes?: string;
+  terms?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CustomerResponse {
+  id: string;
+  userId: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  totalPurchases: number;
+  totalQuantity: number;
+  purchaseCount: number;
+  lastPurchase?: string;
+  notes?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Report Export Data Types
+interface EarningsExportData {
+  Period: string;
+  'Total Earnings': string;
+  'Hours Worked': string;
+  'Avg Hourly Rate': string;
+  Transactions: number;
+}
+
+interface BusinessReportData {
+  reportType: ReportType;
+  period: { startDate: string; endDate: string };
+  summary: BusinessMetrics;
+  chartData: ChartData[];
+  generatedAt: string;
+}
+
+interface EarningsReportData {
+  reportType: ReportType;
+  year: number;
+  month: number | null;
+  summary: {
+    totalEarnings: number;
+    totalHours: number;
+    totalTransactions: number;
+  };
+  breakdown: MonthlyReport[];
+  generatedAt: string;
+}
+
+type ReportData = BusinessReportData | EarningsReportData;
+
+// Event Handler Types
+type ChangeEventHandler = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => void;
+
+// ============================================
+// COMPONENT
+// ============================================
+
 export default function Reports() {
   const [loading, setLoading] = useState(true);
-  const [reportType, setReportType] = useState<'monthly' | 'annual' | 'business'>('business');
+  const [reportType, setReportType] = useState<ReportType>('business');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
@@ -64,7 +186,7 @@ export default function Reports() {
     loadReportData();
   }, [reportType, selectedYear, selectedMonth, startDate, endDate]);
 
-  const loadReportData = async () => {
+  const loadReportData = async (): Promise<void> => {
     try {
       setLoading(true);
       if (reportType === 'business') {
@@ -106,27 +228,33 @@ export default function Reports() {
     }
   };
 
-  const loadBusinessMetrics = async () => {
+  const loadBusinessMetrics = async (): Promise<void> => {
     try {
       // Load sales/revenue data
       const salesData = await salesAPI.getAll({ startDate, endDate });
-      const totalRevenue = Array.isArray(salesData) ? salesData.reduce((sum: number, s: any) => sum + (s.amount || 0), 0) : 0;
+      const salesArray = Array.isArray(salesData) ? salesData as SaleResponse[] : [];
+      const totalRevenue = salesArray.reduce((sum: number, sale: SaleResponse) => sum + (sale.totalAmount || 0), 0);
 
       // Load expenses data
       const expensesData = await expensesAPI.getAll({ startDate, endDate });
-      const totalExpenses = Array.isArray(expensesData) ? expensesData.reduce((sum: number, e: any) => sum + (e.amount || 0), 0) : 0;
+      const expensesArray = Array.isArray(expensesData) ? expensesData as ExpenseResponse[] : [];
+      const totalExpenses = expensesArray.reduce((sum: number, expense: ExpenseResponse) => sum + (expense.amount || 0), 0);
 
       // Load invoices data
       const invoicesData = await invoicesAPI.getAll({ startDate, endDate });
-      const invoiceTotal = Array.isArray(invoicesData) ? invoicesData.reduce((sum: number, i: any) => sum + (i.total || 0), 0) : 0;
-      const invoicePaid = Array.isArray(invoicesData) ? invoicesData.filter((i: any) => i.status === 'paid').reduce((sum: number, i: any) => sum + (i.total || 0), 0) : 0;
+      const invoicesArray = Array.isArray(invoicesData) ? invoicesData as InvoiceResponse[] : [];
+      const invoiceTotal = invoicesArray.reduce((sum: number, invoice: InvoiceResponse) => sum + (invoice.totalAmount || 0), 0);
+      const invoicePaid = invoicesArray
+        .filter((invoice: InvoiceResponse) => invoice.status === 'paid')
+        .reduce((sum: number, invoice: InvoiceResponse) => sum + (invoice.totalAmount || 0), 0);
       const invoicePending = invoiceTotal - invoicePaid;
 
       // Load customers data
       const customersData = await customersAPI.getAll();
-      const customerCount = Array.isArray(customersData) ? customersData.length : 0;
-      const topCustomer = Array.isArray(customersData) && customersData.length > 0
-        ? { name: customersData[0].name, value: customersData[0].totalPurchases || 0 }
+      const customersArray = Array.isArray(customersData) ? customersData as CustomerResponse[] : [];
+      const customerCount = customersArray.length;
+      const topCustomer = customersArray.length > 0
+        ? { name: customersArray[0].name, value: customersArray[0].totalPurchases || 0 }
         : null;
 
       const profit = totalRevenue - totalExpenses;
@@ -145,13 +273,13 @@ export default function Reports() {
       });
 
       // Generate chart data
-      generateChartData(salesData, expensesData, invoicesData);
+      generateChartData(salesArray, expensesArray, invoicesArray);
     } catch (error) {
       console.error('Failed to load business metrics:', error);
     }
   };
 
-  const generateChartData = (salesData: any[], expensesData: any[], invoicesData: any[]) => {
+  const generateChartData = (salesData: SaleResponse[], expensesData: ExpenseResponse[], invoicesData: InvoiceResponse[]): void => {
     // Group by month
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const data: { [key: string]: ChartData } = {};
@@ -161,26 +289,22 @@ export default function Reports() {
     });
 
     // Aggregate sales by month
-    if (Array.isArray(salesData)) {
-      salesData.forEach((sale: any) => {
-        const date = new Date(sale.createdAt || new Date());
-        const month = months[date.getMonth()];
-        if (data[month]) {
-          data[month].revenue = (data[month].revenue || 0) + (sale.amount || 0);
-        }
-      });
-    }
+    salesData.forEach((sale: SaleResponse) => {
+      const date = new Date(sale.createdAt || new Date());
+      const month = months[date.getMonth()];
+      if (data[month]) {
+        data[month].revenue = (data[month].revenue || 0) + (sale.totalAmount || 0);
+      }
+    });
 
     // Aggregate expenses by month
-    if (Array.isArray(expensesData)) {
-      expensesData.forEach((expense: any) => {
-        const date = new Date(expense.createdAt || new Date());
-        const month = months[date.getMonth()];
-        if (data[month]) {
-          data[month].expenses = (data[month].expenses || 0) + (expense.amount || 0);
-        }
-      });
-    }
+    expensesData.forEach((expense: ExpenseResponse) => {
+      const date = new Date(expense.createdAt || new Date());
+      const month = months[date.getMonth()];
+      if (data[month]) {
+        data[month].expenses = (data[month].expenses || 0) + (expense.amount || 0);
+      }
+    });
 
     // Calculate profit
     Object.keys(data).forEach(month => {
@@ -190,14 +314,14 @@ export default function Reports() {
     setChartData(Object.values(data));
   };
 
-  const generatePrintableReport = () => {
+  const generatePrintableReport = (): void => {
     // window.print() is generally safe but guard against undefined window
     if (typeof window !== 'undefined') {
       window.print();
     }
   };
 
-  const handleExportPDF = async () => {
+  const handleExportPDF = async (): Promise<void> => {
     try {
       const pdf = new jsPDF();
       const pageWidth = pdf.internal.pageSize.getWidth();
@@ -221,7 +345,7 @@ export default function Reports() {
         pdf.text('Business Summary', margin, yPosition);
         yPosition += 8;
 
-        const summaryData = [
+        const summaryData: string[][] = [
           ['Metric', 'Amount'],
           ['Total Revenue', formatCurrency(businessMetrics.revenue)],
           ['Total Expenses', formatCurrency(businessMetrics.expenses)],
@@ -263,7 +387,7 @@ export default function Reports() {
         const totalHours = monthlyReports.reduce((sum, r) => sum + r.totalHours, 0);
         const totalTransactions = monthlyReports.reduce((sum, r) => sum + r.transactionCount, 0);
 
-        const summaryData = [
+        const summaryData: string[][] = [
           ['Metric', 'Amount'],
           ['Total Earnings', formatCurrency(totalEarnings)],
           ['Total Hours', totalHours.toFixed(1)],
@@ -303,7 +427,7 @@ export default function Reports() {
     }
   };
 
-  const handleExportExcel = async () => {
+  const handleExportExcel = async (): Promise<void> => {
     try {
       // Create CSV content that Excel can open
       let csvContent = 'Financial Report\n';
@@ -342,8 +466,8 @@ export default function Reports() {
     }
   };
 
-  const handleExportJSON = () => {
-    const reportData = reportType === 'business' ? {
+  const handleExportJSON = (): void => {
+    const reportData: ReportData = reportType === 'business' ? {
       reportType,
       period: { startDate, endDate },
       summary: businessMetrics,
@@ -373,11 +497,11 @@ export default function Reports() {
     notify.success('Export Complete', 'Report has been exported to JSON');
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = (): void => {
     if (reportType === 'business') {
       handleExportExcel();
     } else {
-      const exportData = monthlyReports.map(report => ({
+      const exportData: EarningsExportData[] = monthlyReports.map(report => ({
         Period: report.month,
         'Total Earnings': report.totalEarnings.toFixed(2),
         'Hours Worked': report.totalHours.toFixed(1),
@@ -388,6 +512,13 @@ export default function Reports() {
       const filename = `report-${reportType}-${selectedYear}`;
       exportToCSV(exportData, filename);
       notify.success('Export Complete', 'Report has been exported to CSV');
+    }
+  };
+
+  const handleReportTypeChange: ChangeEventHandler = (e): void => {
+    const value = FormValidation.parseReportType(e.target.value);
+    if (value === 'monthly' || value === 'annual' || value === 'business') {
+      setReportType(value);
     }
   };
 
@@ -460,7 +591,7 @@ export default function Reports() {
             </label>
             <select
               value={reportType}
-              onChange={(e) => setReportType(FormValidation.parseReportType(e.target.value) as any)}
+              onChange={handleReportTypeChange}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="business">Business Report</option>

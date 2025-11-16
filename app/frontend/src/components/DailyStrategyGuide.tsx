@@ -24,6 +24,25 @@ interface DailyStrategy {
   };
 }
 
+interface Earning {
+  date: string;
+  amount: number;
+}
+
+interface SavingsGoal {
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+}
+
+interface TimeEntry {
+  endTime?: string | null;
+}
+
+interface EarningsByDay {
+  [dayOfWeek: number]: number;
+}
+
 export default function DailyStrategyGuide() {
   const [strategy, setStrategy] = useState<DailyStrategy | null>(null);
 
@@ -38,9 +57,9 @@ export default function DailyStrategyGuide() {
     const date = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
     // Load data
-    const earnings = JSON.parse(localStorage.getItem('earnings') || '[]');
-    const goals = JSON.parse(localStorage.getItem('savings_goals') || '[]');
-    const timeEntries = JSON.parse(localStorage.getItem('time_entries') || '[]');
+    const earnings: Earning[] = JSON.parse(localStorage.getItem('earnings') || '[]');
+    const goals: SavingsGoal[] = JSON.parse(localStorage.getItem('savings_goals') || '[]');
+    const timeEntries: TimeEntry[] = JSON.parse(localStorage.getItem('time_entries') || '[]');
 
     // Calculate streak
     const sortedEarnings = [...earnings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -71,17 +90,17 @@ export default function DailyStrategyGuide() {
     if (tempStreak > bestStreak) bestStreak = tempStreak;
 
     // Calculate progress
-    const todayEarnings = earnings.filter((e: any) => e.date.startsWith(today));
-    const todayTotal = todayEarnings.reduce((sum: number, e: any) => sum + e.amount, 0);
+    const todayEarnings = earnings.filter((e: Earning) => e.date.startsWith(today));
+    const todayTotal = todayEarnings.reduce((sum: number, e: Earning) => sum + e.amount, 0);
 
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    const weekEarnings = earnings.filter((e: any) => new Date(e.date) >= weekStart);
-    const weekTotal = weekEarnings.reduce((sum: number, e: any) => sum + e.amount, 0);
+    const weekEarnings = earnings.filter((e: Earning) => new Date(e.date) >= weekStart);
+    const weekTotal = weekEarnings.reduce((sum: number, e: Earning) => sum + e.amount, 0);
 
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEarnings = earnings.filter((e: any) => new Date(e.date) >= monthStart);
-    const monthTotal = monthEarnings.reduce((sum: number, e: any) => sum + e.amount, 0);
+    const monthEarnings = earnings.filter((e: Earning) => new Date(e.date) >= monthStart);
+    const monthTotal = monthEarnings.reduce((sum: number, e: Earning) => sum + e.amount, 0);
 
     // Generate greeting
     let greeting = '';
@@ -106,7 +125,7 @@ export default function DailyStrategyGuide() {
 
     // Generate goals for today
     const avgDailyEarnings = earnings.length > 0
-      ? earnings.reduce((sum: number, e: any) => sum + e.amount, 0) / uniqueDates.length
+      ? earnings.reduce((sum: number, e: Earning) => sum + e.amount, 0) / uniqueDates.length
       : 100;
 
     const tasks: string[] = [];
@@ -119,7 +138,7 @@ export default function DailyStrategyGuide() {
       tasks.push('Start a new earning streak today');
     }
 
-    const activeGoals = goals.filter((g: any) => {
+    const activeGoals = goals.filter((g: SavingsGoal) => {
       const progress = (g.currentAmount / g.targetAmount) * 100;
       return progress < 100;
     });
@@ -168,11 +187,11 @@ export default function DailyStrategyGuide() {
       insights.push(`📈 This week is ${((weekTotal / (weekEarnings.length * avgDailyEarnings) - 1) * 100).toFixed(0)}% above average!`);
     }
 
-    const earningsByDay = earnings.reduce((acc: any, e: any) => {
+    const earningsByDay = earnings.reduce((acc: EarningsByDay, e: Earning) => {
       const day = new Date(e.date).getDay();
       acc[day] = (acc[day] || 0) + e.amount;
       return acc;
-    }, {});
+    }, {} as EarningsByDay);
 
     const todayDay = now.getDay();
     if (earningsByDay[todayDay] && earningsByDay[todayDay] > avgDailyEarnings * 1.2) {
