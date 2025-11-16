@@ -226,7 +226,7 @@ export default function SmartInsights() {
           type: 'success',
           category: 'productivity',
           title: 'Consistent Tracking',
-          description: 'You're doing a great job tracking your earnings regularly. This helps with better insights!',
+          description: "You're doing a great job tracking your earnings regularly. This helps with better insights!",
           impact: 'low',
           icon: CheckCircle,
         });
