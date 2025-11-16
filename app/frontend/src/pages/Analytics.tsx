@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Clock, Target, Download, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { useState, useEffect, CSSProperties } from 'react';
+import { TrendingUp, TrendingDown, DollarSign, Clock, Target, Download, ArrowUp, ArrowDown, Minus, LucideIcon } from 'lucide-react';
 import ComparisonView from '../components/ComparisonView';
 import {
   LineChart,
@@ -26,43 +26,157 @@ import {
 } from 'recharts';
 import { analyticsAPI } from '../lib/api';
 
+// ============================================================================
+// Type Definitions for Analytics Data Structures
+// ============================================================================
+
+/**
+ * Period type for analytics time range selection
+ */
+type AnalyticsPeriod = 'week' | 'month' | 'year';
+
+/**
+ * Chart type for earnings visualization
+ */
+type ChartType = 'line' | 'area' | 'bar';
+
+/**
+ * Platform earnings data point
+ */
+interface PlatformEarnings {
+  platform: string;
+  amount: number;
+  percentage: number;
+  color: string | null;
+}
+
+/**
+ * Date-based earnings data point
+ */
+interface DateEarnings {
+  date: string;
+  amount: number;
+  hours: number;
+}
+
+/**
+ * Category earnings data point
+ */
+interface CategoryEarnings {
+  category: string;
+  amount: number;
+  count: number;
+}
+
+/**
+ * Period comparison metrics
+ */
+interface PeriodMetrics {
+  totalEarnings: number;
+  totalHours: number;
+  avgHourlyRate: number;
+}
+
+/**
+ * Main analytics data structure
+ */
 interface AnalyticsData {
   totalEarnings: number;
   totalHours: number;
   avgHourlyRate: number;
-  earningsByPlatform: Array<{
-    platform: string;
-    amount: number;
-    percentage: number;
-    color: string | null;
-  }>;
-  earningsByDate: Array<{
-    date: string;
-    amount: number;
-    hours: number;
-  }>;
-  earningsByCategory: Array<{
-    category: string;
-    amount: number;
-    count: number;
-  }>;
-  previousPeriod?: {
-    totalEarnings: number;
-    totalHours: number;
-    avgHourlyRate: number;
-  };
+  earningsByPlatform: PlatformEarnings[];
+  earningsByDate: DateEarnings[];
+  earningsByCategory: CategoryEarnings[];
+  previousPeriod?: PeriodMetrics;
 }
 
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
+/**
+ * Growth indicator configuration
+ */
+interface GrowthIndicator {
+  icon: LucideIcon;
+  color: string;
+  bgColor: string;
+}
 
-// Helper function to calculate growth percentage
+/**
+ * Tooltip formatter return type for recharts
+ */
+type TooltipFormatterReturn = [string, string];
+
+/**
+ * Pie chart entry type for label rendering
+ */
+interface PieChartEntry {
+  platform: string;
+  amount: number;
+  percentage: number;
+  color: string | null;
+}
+
+/**
+ * Legend formatter return type
+ */
+type LegendFormatterReturn = JSX.Element;
+
+/**
+ * Tooltip label formatter type
+ */
+type TooltipLabelFormatter = (value: string | number) => string;
+
+/**
+ * Tooltip content style configuration
+ */
+interface TooltipContentStyle extends CSSProperties {
+  backgroundColor: string;
+  border: string;
+  borderRadius: string;
+  color: string;
+}
+
+/**
+ * Animation delay style for staggered animations
+ */
+interface AnimationDelayStyle extends CSSProperties {
+  animationDelay: string;
+}
+
+// ============================================================================
+// Constants and Helper Functions
+// ============================================================================
+
+/**
+ * Color palette for charts
+ */
+const COLORS: string[] = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
+
+/**
+ * Shared tooltip content style for all charts
+ */
+const TOOLTIP_CONTENT_STYLE: TooltipContentStyle = {
+  backgroundColor: '#1f2937',
+  border: 'none',
+  borderRadius: '8px',
+  color: '#fff'
+};
+
+/**
+ * Calculate growth percentage between current and previous values
+ * @param current - Current period value
+ * @param previous - Previous period value
+ * @returns Growth percentage
+ */
 const calculateGrowth = (current: number, previous: number): number => {
   if (previous === 0) return current > 0 ? 100 : 0;
   return ((current - previous) / previous) * 100;
 };
 
-// Helper function to get growth indicator
-const getGrowthIndicator = (growth: number) => {
+/**
+ * Get growth indicator based on growth percentage
+ * @param growth - The growth percentage value
+ * @returns Growth indicator configuration with icon and colors
+ */
+const getGrowthIndicator = (growth: number): GrowthIndicator => {
   if (growth > 0) {
     return { icon: ArrowUp, color: 'text-green-500', bgColor: 'bg-green-100 dark:bg-green-900' };
   } else if (growth < 0) {
@@ -71,22 +185,67 @@ const getGrowthIndicator = (growth: number) => {
   return { icon: Minus, color: 'text-gray-500', bgColor: 'bg-gray-100 dark:bg-gray-700' };
 };
 
+/**
+ * Format date for tooltip display
+ * @param value - Date string or number
+ * @returns Formatted date string
+ */
+const formatTooltipDate: TooltipLabelFormatter = (value: string | number): string => {
+  return new Date(value).toLocaleDateString();
+};
+
+/**
+ * Format date for X-axis tick display
+ * @param value - Date string
+ * @returns Formatted date string
+ */
+const formatXAxisDate = (value: string): string => {
+  return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+/**
+ * Format earnings value for tooltip
+ * @param value - Numeric value
+ * @returns Formatted tooltip return
+ */
+const formatEarningsTooltip = (value: number): TooltipFormatterReturn => {
+  return [`$${value.toFixed(2)}`, 'Earnings'];
+};
+
+/**
+ * Format hours value for tooltip
+ * @param value - Numeric value
+ * @returns Formatted string
+ */
+const formatHoursTooltip = (value: number): string => {
+  return value.toFixed(1);
+};
+
+/**
+ * Format currency value for tooltip
+ * @param value - Numeric value
+ * @returns Formatted string
+ */
+const formatCurrencyTooltip = (value: number): string => {
+  return `$${value.toFixed(2)}`;
+};
+
 export default function Analytics() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<'week' | 'month' | 'year'>('month');
-  const [chartType, setChartType] = useState<'line' | 'area' | 'bar'>('area');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [period, setPeriod] = useState<AnalyticsPeriod>('month');
+  const [chartType, setChartType] = useState<ChartType>('area');
 
   useEffect(() => {
     loadAnalytics();
   }, [period]);
 
-  const loadAnalytics = async () => {
+  const loadAnalytics = async (): Promise<void> => {
     try {
       setLoading(true);
-      const data = await analyticsAPI.getAnalytics(period);
+      const data: AnalyticsData = await analyticsAPI.getAnalytics(period);
       setAnalytics(data);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load analytics:', error);
     } finally {
       setLoading(false);
@@ -131,7 +290,7 @@ export default function Analytics() {
         <div className="flex flex-wrap gap-2">
           {/* Period Selector */}
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-            {(['week', 'month', 'year'] as const).map((p) => (
+            {(['week', 'month', 'year'] as const).map((p: AnalyticsPeriod) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
@@ -148,7 +307,7 @@ export default function Analytics() {
 
           {/* Chart Type Selector */}
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-            {(['area', 'line', 'bar'] as const).map((type) => (
+            {(['area', 'line', 'bar'] as const).map((type: ChartType) => (
               <button
                 key={type}
                 onClick={() => setChartType(type)}
@@ -191,7 +350,7 @@ export default function Analytics() {
           )}
         </div>
 
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg rounded-lg p-6 animate-slide-in-up hover:shadow-xl transition-shadow" style={{ animationDelay: '0.1s' }}>
+        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg rounded-lg p-6 animate-slide-in-up hover:shadow-xl transition-shadow" style={{ animationDelay: '0.1s' } as AnimationDelayStyle}>
           <div className="flex items-center justify-between mb-3">
             <div className="text-sm font-medium opacity-90">Total Hours</div>
             <Clock className="w-10 h-10 opacity-80" />
@@ -215,7 +374,7 @@ export default function Analytics() {
           )}
         </div>
 
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg rounded-lg p-6 animate-slide-in-up hover:shadow-xl transition-shadow" style={{ animationDelay: '0.2s' }}>
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg rounded-lg p-6 animate-slide-in-up hover:shadow-xl transition-shadow" style={{ animationDelay: '0.2s' } as AnimationDelayStyle}>
           <div className="flex items-center justify-between mb-3">
             <div className="text-sm font-medium opacity-90">Avg Hourly Rate</div>
             <TrendingUp className="w-10 h-10 opacity-80" />
@@ -239,7 +398,7 @@ export default function Analytics() {
           )}
         </div>
 
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg rounded-lg p-6 animate-slide-in-up hover:shadow-xl transition-shadow" style={{ animationDelay: '0.3s' }}>
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg rounded-lg p-6 animate-slide-in-up hover:shadow-xl transition-shadow" style={{ animationDelay: '0.3s' } as AnimationDelayStyle}>
           <div className="flex items-center justify-between mb-3">
             <div className="text-sm font-medium opacity-90">Active Platforms</div>
             <Target className="w-10 h-10 opacity-80" />
@@ -273,14 +432,14 @@ export default function Analytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                tickFormatter={formatXAxisDate}
                 stroke="#9ca3af"
               />
               <YAxis stroke="#9ca3af" />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                formatter={(value: number) => [`$${value.toFixed(2)}`, 'Earnings']}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                labelFormatter={formatTooltipDate}
+                formatter={formatEarningsTooltip}
               />
               <Legend />
               <Area
@@ -298,14 +457,14 @@ export default function Analytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                tickFormatter={formatXAxisDate}
                 stroke="#9ca3af"
               />
               <YAxis stroke="#9ca3af" />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                formatter={(value: number) => [`$${value.toFixed(2)}`, 'Earnings']}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                labelFormatter={formatTooltipDate}
+                formatter={formatEarningsTooltip}
               />
               <Legend />
               <Line
@@ -324,14 +483,14 @@ export default function Analytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                tickFormatter={formatXAxisDate}
                 stroke="#9ca3af"
               />
               <YAxis stroke="#9ca3af" />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                formatter={(value: number) => [`$${value.toFixed(2)}`, 'Earnings']}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                labelFormatter={formatTooltipDate}
+                formatter={formatEarningsTooltip}
               />
               <Legend />
               <Bar
@@ -354,14 +513,14 @@ export default function Analytics() {
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey="date"
-              tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              tickFormatter={formatXAxisDate}
               stroke="#9ca3af"
             />
             <YAxis yAxisId="left" stroke="#9ca3af" />
             <YAxis yAxisId="right" orientation="right" stroke="#9ca3af" />
             <Tooltip
-              contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-              labelFormatter={(value) => new Date(value).toLocaleDateString()}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
+              labelFormatter={formatTooltipDate}
             />
             <Legend />
             <Bar
@@ -402,23 +561,23 @@ export default function Analytics() {
                   cy="50%"
                   innerRadius={60}
                   outerRadius={100}
-                  label={(entry) => `${entry.percentage.toFixed(1)}%`}
+                  label={(entry: PieChartEntry) => `${entry.percentage.toFixed(1)}%`}
                   labelLine={{ stroke: '#6b7280', strokeWidth: 1 }}
                   animationDuration={1000}
                 >
-                  {analytics.earningsByPlatform.map((entry, index) => (
+                  {analytics.earningsByPlatform.map((entry: PlatformEarnings, index: number) => (
                     <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                  formatter={(value: number) => `$${value.toFixed(2)}`}
+                  contentStyle={TOOLTIP_CONTENT_STYLE}
+                  formatter={formatCurrencyTooltip}
                 />
                 <Legend
                   verticalAlign="bottom"
                   height={36}
                   iconType="circle"
-                  formatter={(value) => <span className="text-gray-700 dark:text-gray-300">{value}</span>}
+                  formatter={(value: string): LegendFormatterReturn => <span className="text-gray-700 dark:text-gray-300">{value}</span>}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -439,8 +598,8 @@ export default function Analytics() {
                 <XAxis dataKey="platform" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                  formatter={(value: number) => [`$${value.toFixed(2)}`, 'Earnings']}
+                  contentStyle={TOOLTIP_CONTENT_STYLE}
+                  formatter={formatEarningsTooltip}
                 />
                 <Legend />
                 <Bar
@@ -449,7 +608,7 @@ export default function Analytics() {
                   radius={[8, 8, 0, 0]}
                   animationDuration={1000}
                 >
-                  {analytics.earningsByPlatform.map((entry, index) => (
+                  {analytics.earningsByPlatform.map((entry: PlatformEarnings, index: number) => (
                     <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
                   ))}
                 </Bar>
@@ -473,10 +632,10 @@ export default function Analytics() {
               <XAxis dataKey="category" stroke="#9ca3af" />
               <YAxis stroke="#9ca3af" />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                formatter={(value: number, name: string) => {
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                formatter={(value: number, name: string): TooltipFormatterReturn => {
                   if (name === 'amount') return [`$${value.toFixed(2)}`, 'Earnings'];
-                  return [value, 'Transactions'];
+                  return [value.toString(), 'Transactions'];
                 }}
               />
               <Legend />
@@ -506,7 +665,7 @@ export default function Analytics() {
               />
               <Tooltip
                 contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                formatter={(value: number) => [`$${value.toFixed(2)}`, 'Earnings']}
+                formatter={formatEarningsTooltip}
               />
               <Legend />
             </RadarChart>
@@ -545,7 +704,7 @@ export default function Analytics() {
                   </td>
                 </tr>
               ) : (
-                analytics.earningsByPlatform.map((platform, index) => (
+                analytics.earningsByPlatform.map((platform: PlatformEarnings, index: number) => (
                   <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
@@ -585,7 +744,7 @@ export default function Analytics() {
       </div>
 
       {/* Hours Trend */}
-      {analytics.earningsByDate.some(d => d.hours > 0) && (
+      {analytics.earningsByDate.some((d: DateEarnings) => d.hours > 0) && (
         <div className="bg-white dark:bg-gray-800 shadow-soft rounded-lg p-6 animate-fade-in-up">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Hours Worked Trend</h2>
           <ResponsiveContainer width="100%" height={320}>
@@ -599,14 +758,14 @@ export default function Analytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                tickFormatter={formatXAxisDate}
                 stroke="#9ca3af"
               />
               <YAxis stroke="#9ca3af" />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                formatter={(value: number) => [value.toFixed(1), 'Hours']}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                labelFormatter={formatTooltipDate}
+                formatter={(value: number): TooltipFormatterReturn => [value.toFixed(1), 'Hours']}
               />
               <Legend />
               <Area

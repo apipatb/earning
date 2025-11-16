@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Lock, Trash2, Save, Bell, Settings2, Eye, Database, Palette, Download, Upload, Calendar, DollarSign, Globe, Monitor, Zap, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, Lock, Trash2, Save, Bell, Settings2, Eye, Database, Palette, Download, Upload, Calendar, DollarSign, Globe, Monitor, Zap, RefreshCw, ChevronDown, ChevronUp, LucideIcon } from 'lucide-react';
 import api from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 import { SUPPORTED_CURRENCIES } from '../lib/currency';
@@ -10,6 +10,7 @@ import { FormValidation } from '../lib/validation';
 import ThemeCustomizer from '../components/ThemeCustomizer';
 import NotificationPreferences from '../components/NotificationPreferences';
 
+// User Profile Types
 interface ProfileData {
   id: string;
   email: string;
@@ -20,27 +21,145 @@ interface ProfileData {
   updatedAt: string;
 }
 
+interface ProfileFormData {
+  name: string;
+  timezone: string;
+  currency: string;
+}
+
+interface PasswordFormData {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+// App Preferences Types
+type DateFormat = 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD';
+type TimeFormat = '12h' | '24h';
+type WeekStartDay = 'sunday' | 'monday';
+type ChartType = 'bar' | 'line' | 'area';
+type NumberSeparator = ',' | '.' | ' ';
+type DecimalSeparator = ',' | '.';
+
 interface AppPreferences {
-  dateFormat: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD';
-  timeFormat: '12h' | '24h';
-  weekStartDay: 'sunday' | 'monday';
+  dateFormat: DateFormat;
+  timeFormat: TimeFormat;
+  weekStartDay: WeekStartDay;
   fiscalYearStart: number; // 1-12
   compactView: boolean;
   animationsEnabled: boolean;
   autoSave: boolean;
   autoSaveInterval: number; // minutes
-  chartType: 'bar' | 'line' | 'area';
+  chartType: ChartType;
   showDecimals: boolean;
-  thousandSeparator: ',' | '.' | ' ';
-  decimalSeparator: ',' | '.';
+  thousandSeparator: NumberSeparator;
+  decimalSeparator: DecimalSeparator;
+}
+
+// Settings Category Types
+interface SettingsSectionProps {
+  id: string;
+  title: string;
+  icon: LucideIcon;
+  iconColor: string;
+  children: React.ReactNode;
+  borderColor?: string;
+}
+
+interface ExpandedSections {
+  profile: boolean;
+  preferences: boolean;
+  display: boolean;
+  themes: boolean;
+  dataPrivacy: boolean;
+  backup: boolean;
+  notifications: boolean;
+  advanced: boolean;
+  danger: boolean;
+}
+
+// Month Selection Type
+interface MonthOption {
+  value: number;
+  label: string;
+}
+
+// Backup/Export Data Types
+interface BackupEarning {
+  id: string;
+  amount: number;
+  date: string;
+  platformId?: string;
+  description?: string;
+  [key: string]: unknown;
+}
+
+interface BackupPlatform {
+  id: string;
+  name: string;
+  color?: string;
+  [key: string]: unknown;
+}
+
+interface BackupGoal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  [key: string]: unknown;
+}
+
+interface BackupClient {
+  id: string;
+  name: string;
+  email?: string;
+  [key: string]: unknown;
+}
+
+interface BackupTimeEntry {
+  id: string;
+  duration: number;
+  date: string;
+  [key: string]: unknown;
+}
+
+interface BackupBudget {
+  id: string;
+  name: string;
+  amount: number;
+  [key: string]: unknown;
+}
+
+interface ExportData {
+  earnings: BackupEarning[];
+  platforms: BackupPlatform[];
+  goals: BackupGoal[];
+  clients: BackupClient[];
+  timeEntries: BackupTimeEntry[];
+  budgets: BackupBudget[];
+  preferences: AppPreferences;
+  exportedAt: string;
+  version: string;
+}
+
+interface ImportData {
+  earnings?: BackupEarning[];
+  platforms?: BackupPlatform[];
+  goals?: BackupGoal[];
+  clients?: BackupClient[];
+  timeEntries?: BackupTimeEntry[];
+  budgets?: BackupBudget[];
+  preferences?: AppPreferences;
+  exportedAt?: string;
+  version?: string;
 }
 
 export default function Settings() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
   const { user, logout } = useAuthStore();
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+  const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
     profile: true,
     preferences: false,
     display: false,
@@ -52,13 +171,13 @@ export default function Settings() {
     danger: false,
   });
 
-  const [profileData, setProfileData] = useState({
+  const [profileData, setProfileData] = useState<ProfileFormData>({
     name: '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     currency: 'USD',
   });
 
-  const [passwordData, setPasswordData] = useState({
+  const [passwordData, setPasswordData] = useState<PasswordFormData>({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
@@ -201,13 +320,13 @@ export default function Settings() {
   };
 
   const handleExportData = () => {
-    const data = {
-      earnings: getStorageJSON('earnings', []),
-      platforms: getStorageJSON('platforms', []),
-      goals: getStorageJSON('savings_goals', []),
-      clients: getStorageJSON('clients', []),
-      timeEntries: getStorageJSON('time_entries', []),
-      budgets: getStorageJSON('budgets', []),
+    const data: ExportData = {
+      earnings: getStorageJSON<BackupEarning[]>('earnings', []),
+      platforms: getStorageJSON<BackupPlatform[]>('platforms', []),
+      goals: getStorageJSON<BackupGoal[]>('savings_goals', []),
+      clients: getStorageJSON<BackupClient[]>('clients', []),
+      timeEntries: getStorageJSON<BackupTimeEntry[]>('time_entries', []),
+      budgets: getStorageJSON<BackupBudget[]>('budgets', []),
       preferences: preferences,
       exportedAt: new Date().toISOString(),
       version: '1.0',
@@ -231,9 +350,15 @@ export default function Settings() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = (event: ProgressEvent<FileReader>) => {
       try {
-        const data = JSON.parse(event.target?.result as string);
+        const result = event.target?.result;
+        if (typeof result !== 'string') {
+          notify.error('Import Failed', 'Could not read file contents.');
+          return;
+        }
+
+        const data: ImportData = JSON.parse(result);
 
         if (!confirm('This will replace all your current data. Are you sure you want to continue?')) {
           return;
@@ -278,11 +403,11 @@ export default function Settings() {
     setTimeout(() => window.location.reload(), 1000);
   };
 
-  const toggleSection = (section: string) => {
+  const toggleSection = (section: keyof ExpandedSections) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const timezones = [
+  const timezones: string[] = [
     'UTC',
     'America/New_York',
     'America/Chicago',
@@ -295,7 +420,7 @@ export default function Settings() {
     'Australia/Sydney',
   ];
 
-  const months = [
+  const months: MonthOption[] = [
     { value: 1, label: 'January' },
     { value: 2, label: 'February' },
     { value: 3, label: 'March' },
@@ -325,14 +450,7 @@ export default function Settings() {
     iconColor,
     children,
     borderColor
-  }: {
-    id: string;
-    title: string;
-    icon: any;
-    iconColor: string;
-    children: React.ReactNode;
-    borderColor?: string;
-  }) => (
+  }: SettingsSectionProps) => (
     <div className={`bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden ${borderColor || ''}`}>
       <button
         onClick={() => toggleSection(id)}

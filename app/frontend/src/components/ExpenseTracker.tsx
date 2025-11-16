@@ -2,20 +2,77 @@ import { useState, useEffect } from 'react';
 import { TrendingDown, Plus, Edit2, Trash2, Tag, Calendar, DollarSign, PieChart, Filter } from 'lucide-react';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
+// Payment method types
+type PaymentMethod = 'credit_card' | 'debit_card' | 'cash' | 'bank_transfer' | 'paypal' | 'other';
+
+// Expense category types
+type ExpenseCategory =
+  | 'Office Supplies'
+  | 'Software & Tools'
+  | 'Marketing'
+  | 'Equipment'
+  | 'Travel'
+  | 'Meals & Entertainment'
+  | 'Professional Services'
+  | 'Insurance'
+  | 'Rent & Utilities'
+  | 'Training & Education'
+  | 'Other';
+
+// Main expense interface
 interface Expense {
   id: string;
   amount: number;
-  category: string;
+  category: ExpenseCategory;
   description: string;
   date: string;
-  paymentMethod: string;
+  paymentMethod: PaymentMethod;
   isRecurring: boolean;
   tags: string[];
   receipt?: string;
   createdAt: string;
 }
 
-const EXPENSE_CATEGORIES = [
+// Earning interface for cross-tracking with ExpenseTracker
+interface Earning {
+  id: string;
+  amount: number;
+  date: string;
+  source?: string;
+  description?: string;
+  createdAt?: string;
+}
+
+// Category-based expense aggregation
+interface CategoryExpenseData {
+  name: ExpenseCategory;
+  value: number;
+}
+
+// Period-based expense summary
+interface PeriodExpenseSummary {
+  totalExpenses: number;
+  monthlyExpenses: number;
+  expenseCount: number;
+  recurringExpenseCount: number;
+}
+
+// Budget vs actual comparison
+interface BudgetVsActual {
+  monthlyEarnings: number;
+  monthlyExpenses: number;
+  profitMargin: number;
+  netProfit: number;
+}
+
+// Chart tooltip payload type
+interface TooltipPayload {
+  name: string;
+  value: number;
+  payload: CategoryExpenseData;
+}
+
+const EXPENSE_CATEGORIES: readonly ExpenseCategory[] = [
   'Office Supplies',
   'Software & Tools',
   'Marketing',
@@ -27,9 +84,9 @@ const EXPENSE_CATEGORIES = [
   'Rent & Utilities',
   'Training & Education',
   'Other',
-];
+] as const;
 
-const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#f43f5e', '#6366f1', '#14b8a6', '#84cc16', '#64748b'];
+const COLORS: readonly string[] = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#f43f5e', '#6366f1', '#14b8a6', '#84cc16', '#64748b'] as const;
 
 export default function ExpenseTracker() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -128,7 +185,7 @@ export default function ExpenseTracker() {
 
   const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-  const expensesByCategory = EXPENSE_CATEGORIES.map(cat => ({
+  const expensesByCategory: CategoryExpenseData[] = EXPENSE_CATEGORIES.map(cat => ({
     name: cat,
     value: expenses.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0),
   })).filter(item => item.value > 0);
@@ -139,12 +196,12 @@ export default function ExpenseTracker() {
     return expDate.getMonth() === now.getMonth() && expDate.getFullYear() === now.getFullYear();
   }).reduce((sum, e) => sum + e.amount, 0);
 
-  const earnings = JSON.parse(localStorage.getItem('earnings') || '[]');
-  const monthlyEarnings = earnings.filter((e: any) => {
+  const earnings: Earning[] = JSON.parse(localStorage.getItem('earnings') || '[]');
+  const monthlyEarnings: number = earnings.filter((e: Earning) => {
     const earnDate = new Date(e.date);
     const now = new Date();
     return earnDate.getMonth() === now.getMonth() && earnDate.getFullYear() === now.getFullYear();
-  }).reduce((sum: number, e: any) => sum + e.amount, 0);
+  }).reduce((sum: number, e: Earning) => sum + e.amount, 0);
 
   const profitMargin = monthlyEarnings > 0 ? ((monthlyEarnings - monthlyExpenses) / monthlyEarnings) * 100 : 0;
 
@@ -237,7 +294,7 @@ export default function ExpenseTracker() {
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value: any) => `$${value.toFixed(2)}`} />
+              <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
             </RePieChart>
           </ResponsiveContainer>
         </div>

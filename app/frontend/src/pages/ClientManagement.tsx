@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Users, DollarSign, Briefcase, Mail, Phone } from 'lucide-react';
 import { notify } from '../store/notification.store';
 
+/**
+ * Core client data structure
+ */
 interface Client {
   id: string;
   name: string;
@@ -15,33 +18,106 @@ interface Client {
   createdAt: string;
 }
 
+/**
+ * Form data structure for client creation and editing
+ */
+interface ClientFormData {
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  hourlyRate: string;
+  notes: string;
+}
+
+/**
+ * Client metrics for dashboard statistics
+ */
+interface ClientMetrics {
+  totalClients: number;
+  activeClients: number;
+  totalRevenue: number;
+}
+
+/**
+ * Project tracking data associated with a client
+ */
+interface ClientProject {
+  id: string;
+  clientId: string;
+  name: string;
+  status: 'active' | 'completed' | 'on-hold';
+  startDate: string;
+  endDate?: string;
+  totalHours: number;
+  revenue: number;
+}
+
+/**
+ * Invoice tracking data associated with a client
+ */
+interface ClientInvoice {
+  id: string;
+  clientId: string;
+  invoiceNumber: string;
+  amount: number;
+  status: 'pending' | 'paid' | 'overdue';
+  issueDate: string;
+  dueDate: string;
+  paidDate?: string;
+}
+
+/**
+ * Extended client data with related entities
+ */
+interface ClientWithRelations extends Client {
+  projects?: ClientProject[];
+  invoices?: ClientInvoice[];
+}
+
+/**
+ * Input change event type for form fields
+ */
+type FormInputChangeEvent = React.ChangeEvent<HTMLInputElement>;
+type FormTextareaChangeEvent = React.ChangeEvent<HTMLTextAreaElement>;
+
+/**
+ * Initial form data state
+ */
+const INITIAL_FORM_DATA: ClientFormData = {
+  name: '',
+  email: '',
+  phone: '',
+  company: '',
+  hourlyRate: '',
+  notes: '',
+};
+
 export default function ClientManagement() {
   const [clients, setClients] = useState<Client[]>([]);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState<boolean>(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    company: '',
-    hourlyRate: '',
-    notes: '',
-  });
+  const [formData, setFormData] = useState<ClientFormData>(INITIAL_FORM_DATA);
 
   useEffect(() => {
     const saved = localStorage.getItem('clients');
     if (saved) {
-      setClients(JSON.parse(saved));
+      try {
+        const parsedClients = JSON.parse(saved) as Client[];
+        setClients(parsedClients);
+      } catch (error) {
+        console.error('Failed to parse clients from localStorage:', error);
+        setClients([]);
+      }
     }
   }, []);
 
-  const saveToStorage = (data: Client[]) => {
+  const saveToStorage = (data: Client[]): void => {
     localStorage.setItem('clients', JSON.stringify(data));
     setClients(data);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
 
     if (!formData.name || !formData.email) {
@@ -50,7 +126,7 @@ export default function ClientManagement() {
     }
 
     if (editingId) {
-      const updated = clients.map((c) =>
+      const updated = clients.map((c: Client): Client =>
         c.id === editingId
           ? {
               ...c,
@@ -85,7 +161,7 @@ export default function ClientManagement() {
     resetForm();
   };
 
-  const handleEdit = (client: Client) => {
+  const handleEdit = (client: Client): void => {
     setEditingId(client.id);
     setFormData({
       name: client.name,
@@ -98,33 +174,48 @@ export default function ClientManagement() {
     setShowForm(true);
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = (id: string, name: string): void => {
     if (!confirm(`Delete client "${name}"?`)) return;
 
-    const updated = clients.filter((c) => c.id !== id);
+    const updated = clients.filter((c: Client): boolean => c.id !== id);
     saveToStorage(updated);
     notify.success('Client Deleted', `${name} has been removed`);
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      company: '',
-      hourlyRate: '',
-      notes: '',
-    });
+  const resetForm = (): void => {
+    setFormData(INITIAL_FORM_DATA);
     setEditingId(null);
     setShowForm(false);
   };
 
-  const getTotalEarned = () => {
-    return clients.reduce((sum, c) => sum + c.totalEarned, 0);
+  const getTotalEarned = (): number => {
+    return clients.reduce((sum: number, c: Client): number => sum + c.totalEarned, 0);
   };
 
-  const getActiveClients = () => {
-    return clients.filter((c) => c.activeProjects > 0).length;
+  const getActiveClients = (): number => {
+    return clients.filter((c: Client): boolean => c.activeProjects > 0).length;
+  };
+
+  const getClientMetrics = (): ClientMetrics => {
+    return {
+      totalClients: clients.length,
+      activeClients: getActiveClients(),
+      totalRevenue: getTotalEarned(),
+    };
+  };
+
+  const metrics: ClientMetrics = getClientMetrics();
+
+  const handleInputChange = (field: keyof ClientFormData) => (
+    e: FormInputChangeEvent
+  ): void => {
+    setFormData({ ...formData, [field]: e.target.value });
+  };
+
+  const handleTextareaChange = (field: keyof ClientFormData) => (
+    e: FormTextareaChangeEvent
+  ): void => {
+    setFormData({ ...formData, [field]: e.target.value });
   };
 
   return (
@@ -138,7 +229,7 @@ export default function ClientManagement() {
           </p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={(): void => setShowForm(!showForm)}
           className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -153,7 +244,7 @@ export default function ClientManagement() {
             <div>
               <p className="text-gray-500 dark:text-gray-400 text-sm">Total Clients</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                {clients.length}
+                {metrics.totalClients}
               </p>
             </div>
             <Users className="h-10 w-10 text-blue-500" />
@@ -165,7 +256,7 @@ export default function ClientManagement() {
             <div>
               <p className="text-gray-500 dark:text-gray-400 text-sm">Active Clients</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                {getActiveClients()}
+                {metrics.activeClients}
               </p>
             </div>
             <Briefcase className="h-10 w-10 text-green-500" />
@@ -177,7 +268,7 @@ export default function ClientManagement() {
             <div>
               <p className="text-gray-500 dark:text-gray-400 text-sm">Total Revenue</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                ${getTotalEarned().toFixed(2)}
+                ${metrics.totalRevenue.toFixed(2)}
               </p>
             </div>
             <DollarSign className="h-10 w-10 text-yellow-500" />
@@ -201,7 +292,7 @@ export default function ClientManagement() {
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={handleInputChange('name')}
                   placeholder="John Doe"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   required
@@ -215,7 +306,7 @@ export default function ClientManagement() {
                 <input
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={handleInputChange('email')}
                   placeholder="john@example.com"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   required
@@ -229,7 +320,7 @@ export default function ClientManagement() {
                 <input
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={handleInputChange('phone')}
                   placeholder="+1 234 567 8900"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
@@ -242,7 +333,7 @@ export default function ClientManagement() {
                 <input
                   type="text"
                   value={formData.company}
-                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                  onChange={handleInputChange('company')}
                   placeholder="Acme Inc."
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
@@ -255,7 +346,7 @@ export default function ClientManagement() {
                 <input
                   type="number"
                   value={formData.hourlyRate}
-                  onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
+                  onChange={handleInputChange('hourlyRate')}
                   placeholder="0.00"
                   step="0.01"
                   min="0"
@@ -269,7 +360,7 @@ export default function ClientManagement() {
                 </label>
                 <textarea
                   value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  onChange={handleTextareaChange('notes')}
                   placeholder="Additional notes about this client..."
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -305,7 +396,7 @@ export default function ClientManagement() {
             <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Add your first client</p>
           </div>
         ) : (
-          clients.map((client) => (
+          clients.map((client: Client) => (
             <div
               key={client.id}
               className="bg-white dark:bg-gray-800 shadow-soft rounded-lg p-6 hover:shadow-lg transition-shadow animate-fade-in"
@@ -321,13 +412,13 @@ export default function ClientManagement() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleEdit(client)}
+                    onClick={(): void => handleEdit(client)}
                     className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
                   >
                     <Edit2 className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(client.id, client.name)}
+                    onClick={(): void => handleDelete(client.id, client.name)}
                     className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                   >
                     <Trash2 className="h-4 w-4" />
