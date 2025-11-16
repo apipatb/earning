@@ -2,6 +2,84 @@ import { useState, useEffect } from 'react';
 import { TrendingUp, BarChart3, PieChart as PieIcon, Activity, Target, Clock, DollarSign, Calendar, TrendingDown } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart } from 'recharts';
 
+// Data structure interfaces
+interface Earning {
+  id: string;
+  date: string;
+  amount: number;
+  clientId?: string;
+  platformId?: string;
+  description?: string;
+}
+
+interface Expense {
+  id: string;
+  date: string;
+  amount: number;
+  category: string;
+  description?: string;
+}
+
+interface TimeEntry {
+  id: string;
+  startTime: string;
+  duration: number; // in seconds
+  totalAmount: number;
+  clientId?: string;
+  description?: string;
+}
+
+interface Client {
+  id: string;
+  name: string;
+  status: 'active' | 'inactive';
+  email?: string;
+  phone?: string;
+}
+
+// Analytics data structure interfaces
+interface TrendData {
+  date: string;
+  earnings: number;
+}
+
+interface CategoryBreakdownData {
+  name: string;
+  value: number;
+}
+
+interface ClientDistributionData {
+  name: string;
+  value: number;
+}
+
+interface HourlyPerformanceData {
+  hour: string;
+  earnings: number;
+  hours: number;
+}
+
+interface WeeklyComparisonData {
+  day: string;
+  earnings: number;
+  expenses: number;
+  net: number;
+}
+
+interface MonthlyGrowthData {
+  month: string;
+  earnings: number;
+  expenses: number;
+  net: number;
+}
+
+interface PlatformPerformanceData {
+  name: string;
+  earnings: number;
+  count: number;
+  average: number;
+}
+
 interface AnalyticsData {
   overview: {
     totalEarnings: number;
@@ -13,13 +91,35 @@ interface AnalyticsData {
     totalHours: number;
     activeClients: number;
   };
-  trends: any[];
-  categoryBreakdown: any[];
-  clientDistribution: any[];
-  hourlyPerformance: any[];
-  weeklyComparison: any[];
-  monthlyGrowth: any[];
-  platformPerformance: any[];
+  trends: TrendData[];
+  categoryBreakdown: CategoryBreakdownData[];
+  clientDistribution: ClientDistributionData[];
+  hourlyPerformance: HourlyPerformanceData[];
+  weeklyComparison: WeeklyComparisonData[];
+  monthlyGrowth: MonthlyGrowthData[];
+  platformPerformance: PlatformPerformanceData[];
+}
+
+// Helper type for accumulator objects
+interface HourlyAccumulator {
+  earnings: number;
+  hours: number;
+}
+
+interface PlatformAccumulator {
+  earnings: number;
+  count: number;
+}
+
+interface WeekDayAccumulator {
+  earnings: number;
+  expenses: number;
+  count: number;
+}
+
+interface MonthDataAccumulator {
+  earnings: number;
+  expenses: number;
 }
 
 export default function AdvancedAnalytics() {
@@ -31,70 +131,70 @@ export default function AdvancedAnalytics() {
     generateAnalytics();
   }, [period]);
 
-  const generateAnalytics = () => {
-    const earnings = JSON.parse(localStorage.getItem('earnings') || '[]');
-    const expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
-    const timeEntries = JSON.parse(localStorage.getItem('time_entries') || '[]');
-    const clients = JSON.parse(localStorage.getItem('clients') || '[]');
+  const generateAnalytics = (): void => {
+    const earnings: Earning[] = JSON.parse(localStorage.getItem('earnings') || '[]');
+    const expenses: Expense[] = JSON.parse(localStorage.getItem('expenses') || '[]');
+    const timeEntries: TimeEntry[] = JSON.parse(localStorage.getItem('time_entries') || '[]');
+    const clients: Client[] = JSON.parse(localStorage.getItem('clients') || '[]');
 
     // Filter by period
     const now = new Date();
     const periodStart = getPeriodStart(period, now);
 
-    const filteredEarnings = earnings.filter((e: any) => new Date(e.date) >= periodStart);
-    const filteredExpenses = expenses.filter((e: any) => new Date(e.date) >= periodStart);
-    const filteredTimeEntries = timeEntries.filter((t: any) => new Date(t.startTime) >= periodStart);
+    const filteredEarnings = earnings.filter((e: Earning) => new Date(e.date) >= periodStart);
+    const filteredExpenses = expenses.filter((e: Expense) => new Date(e.date) >= periodStart);
+    const filteredTimeEntries = timeEntries.filter((t: TimeEntry) => new Date(t.startTime) >= periodStart);
 
     // Overview calculations
-    const totalEarnings = filteredEarnings.reduce((sum: number, e: any) => sum + e.amount, 0);
-    const totalExpenses = filteredExpenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+    const totalEarnings = filteredEarnings.reduce((sum: number, e: Earning) => sum + e.amount, 0);
+    const totalExpenses = filteredExpenses.reduce((sum: number, e: Expense) => sum + e.amount, 0);
     const netIncome = totalEarnings - totalExpenses;
     const profitMargin = totalEarnings > 0 ? (netIncome / totalEarnings) * 100 : 0;
 
     const daysDiff = Math.max(1, Math.ceil((now.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)));
     const avgDailyEarnings = totalEarnings / daysDiff;
 
-    const totalHours = filteredTimeEntries.reduce((sum: number, t: any) => sum + (t.duration / 3600), 0);
+    const totalHours = filteredTimeEntries.reduce((sum: number, t: TimeEntry) => sum + (t.duration / 3600), 0);
     const avgHourlyRate = totalHours > 0 ? totalEarnings / totalHours : 0;
-    const activeClients = clients.filter((c: any) => c.status === 'active').length;
+    const activeClients = clients.filter((c: Client) => c.status === 'active').length;
 
     // Trends - daily earnings over period
     const trends = generateDailyTrends(filteredEarnings, periodStart, now);
 
     // Category breakdown
     const categoryMap: Record<string, number> = {};
-    filteredExpenses.forEach((e: any) => {
+    filteredExpenses.forEach((e: Expense) => {
       categoryMap[e.category] = (categoryMap[e.category] || 0) + e.amount;
     });
-    const categoryBreakdown = Object.entries(categoryMap).map(([name, value]) => ({
+    const categoryBreakdown: CategoryBreakdownData[] = Object.entries(categoryMap).map(([name, value]) => ({
       name,
       value,
     }));
 
     // Client distribution
     const clientMap: Record<string, number> = {};
-    filteredEarnings.forEach((e: any) => {
+    filteredEarnings.forEach((e: Earning) => {
       const clientId = e.clientId || 'Unknown';
       clientMap[clientId] = (clientMap[clientId] || 0) + e.amount;
     });
-    const clientDistribution = Object.entries(clientMap).map(([name, value]) => ({
-      name: name === 'Unknown' ? 'Unknown' : clients.find((c: any) => c.id === name)?.name || name,
+    const clientDistribution: ClientDistributionData[] = Object.entries(clientMap).map(([name, value]) => ({
+      name: name === 'Unknown' ? 'Unknown' : clients.find((c: Client) => c.id === name)?.name || name,
       value,
     }));
 
     // Hourly performance
-    const hourlyMap: Record<number, { earnings: number; hours: number }> = {};
+    const hourlyMap: Record<number, HourlyAccumulator> = {};
     for (let hour = 0; hour < 24; hour++) {
       hourlyMap[hour] = { earnings: 0, hours: 0 };
     }
 
-    filteredTimeEntries.forEach((t: any) => {
+    filteredTimeEntries.forEach((t: TimeEntry) => {
       const hour = new Date(t.startTime).getHours();
       hourlyMap[hour].earnings += t.totalAmount;
       hourlyMap[hour].hours += t.duration / 3600;
     });
 
-    const hourlyPerformance = Array.from({ length: 24 }, (_, hour) => ({
+    const hourlyPerformance: HourlyPerformanceData[] = Array.from({ length: 24 }, (_, hour) => ({
       hour: `${hour}:00`,
       earnings: hourlyMap[hour].earnings,
       hours: parseFloat(hourlyMap[hour].hours.toFixed(2)),
@@ -107,8 +207,8 @@ export default function AdvancedAnalytics() {
     const monthlyGrowth = generateMonthlyGrowth(earnings, expenses);
 
     // Platform performance
-    const platformMap: Record<string, { earnings: number; count: number }> = {};
-    filteredEarnings.forEach((e: any) => {
+    const platformMap: Record<string, PlatformAccumulator> = {};
+    filteredEarnings.forEach((e: Earning) => {
       const platform = e.platformId || 'Unknown';
       if (!platformMap[platform]) {
         platformMap[platform] = { earnings: 0, count: 0 };
@@ -117,7 +217,7 @@ export default function AdvancedAnalytics() {
       platformMap[platform].count += 1;
     });
 
-    const platformPerformance = Object.entries(platformMap).map(([name, data]) => ({
+    const platformPerformance: PlatformPerformanceData[] = Object.entries(platformMap).map(([name, data]) => ({
       name,
       earnings: data.earnings,
       count: data.count,
@@ -164,7 +264,7 @@ export default function AdvancedAnalytics() {
     return start;
   };
 
-  const generateDailyTrends = (earnings: any[], start: Date, end: Date) => {
+  const generateDailyTrends = (earnings: Earning[], start: Date, end: Date): TrendData[] => {
     const days: Record<string, number> = {};
     let current = new Date(start);
 
@@ -174,7 +274,7 @@ export default function AdvancedAnalytics() {
       current.setDate(current.getDate() + 1);
     }
 
-    earnings.forEach((e: any) => {
+    earnings.forEach((e: Earning) => {
       const dateStr = e.date.split('T')[0];
       if (days[dateStr] !== undefined) {
         days[dateStr] += e.amount;
@@ -187,21 +287,21 @@ export default function AdvancedAnalytics() {
     }));
   };
 
-  const generateWeeklyComparison = (earnings: any[], expenses: any[]) => {
+  const generateWeeklyComparison = (earnings: Earning[], expenses: Expense[]): WeeklyComparisonData[] => {
     const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const weekData: Record<number, { earnings: number; expenses: number; count: number }> = {};
+    const weekData: Record<number, WeekDayAccumulator> = {};
 
     for (let day = 0; day < 7; day++) {
       weekData[day] = { earnings: 0, expenses: 0, count: 0 };
     }
 
-    earnings.forEach((e: any) => {
+    earnings.forEach((e: Earning) => {
       const day = new Date(e.date).getDay();
       weekData[day].earnings += e.amount;
       weekData[day].count += 1;
     });
 
-    expenses.forEach((e: any) => {
+    expenses.forEach((e: Expense) => {
       const day = new Date(e.date).getDay();
       weekData[day].expenses += e.amount;
     });
@@ -214,18 +314,23 @@ export default function AdvancedAnalytics() {
     }));
   };
 
-  const generateMonthlyGrowth = (earnings: any[], expenses: any[]) => {
-    const monthData: Record<string, { earnings: number; expenses: number }> = {};
+  const generateMonthlyGrowth = (earnings: Earning[], expenses: Expense[]): MonthlyGrowthData[] => {
+    const monthData: Record<string, MonthDataAccumulator> = {};
 
-    [...earnings, ...expenses].forEach((item: any) => {
-      const date = new Date(item.date || item.startTime);
+    // Type-safe union type for items that can be either Earning or Expense
+    type FinancialItem = Earning | Expense;
+    const allItems: FinancialItem[] = [...earnings, ...expenses];
+
+    allItems.forEach((item: FinancialItem) => {
+      const date = new Date(item.date);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
       if (!monthData[monthKey]) {
         monthData[monthKey] = { earnings: 0, expenses: 0 };
       }
 
-      if (earnings.includes(item)) {
+      // Type guard to check if item is an Earning
+      if (earnings.includes(item as Earning)) {
         monthData[monthKey].earnings += item.amount;
       } else {
         monthData[monthKey].expenses += item.amount;
@@ -436,12 +541,12 @@ export default function AdvancedAnalytics() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }: { name: string; percent: number }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {analytics.categoryBreakdown.map((entry, index) => (
+                    {analytics.categoryBreakdown.map((entry: CategoryBreakdownData, index: number) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -470,12 +575,12 @@ export default function AdvancedAnalytics() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, value }) => `${name}: $${value.toFixed(0)}`}
+                    label={({ name, value }: { name: string; value: number }) => `${name}: $${value.toFixed(0)}`}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {analytics.clientDistribution.map((entry, index) => (
+                    {analytics.clientDistribution.map((entry: ClientDistributionData, index: number) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -486,7 +591,7 @@ export default function AdvancedAnalytics() {
                       borderRadius: '0.5rem',
                       color: '#fff',
                     }}
-                    formatter={(value: any) => `$${value.toFixed(2)}`}
+                    formatter={(value: number) => `$${value.toFixed(2)}`}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -495,7 +600,7 @@ export default function AdvancedAnalytics() {
         </div>
 
         {/* Hourly Performance */}
-        {analytics.hourlyPerformance.some(h => h.earnings > 0) && (
+        {analytics.hourlyPerformance.some((h: HourlyPerformanceData) => h.earnings > 0) && (
           <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
               Hourly Performance
@@ -527,9 +632,9 @@ export default function AdvancedAnalytics() {
             </h3>
             <div className="space-y-3">
               {analytics.platformPerformance
-                .sort((a, b) => b.earnings - a.earnings)
+                .sort((a: PlatformPerformanceData, b: PlatformPerformanceData) => b.earnings - a.earnings)
                 .slice(0, 5)
-                .map((platform, index) => (
+                .map((platform: PlatformPerformanceData, index: number) => (
                   <div key={index} className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
