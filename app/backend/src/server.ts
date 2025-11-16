@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
+import { logger } from './utils/logger';
 
 // Load environment variables
 dotenv.config();
@@ -104,8 +105,10 @@ app.use(notFound);
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+  logger.info('Server started', {
+    port: PORT,
+    environment: NODE_ENV,
+  });
 });
 
 export default app;

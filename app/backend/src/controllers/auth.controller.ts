@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { hashPassword, comparePassword, validatePassword } from '../utils/password';
 import { generateToken } from '../utils/jwt';
+import { logger } from '../utils/logger';
 
 const registerSchema = z.object({
   email: z.string().email('Invalid email format'),
@@ -72,7 +73,7 @@ export const register = async (req: Request, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Registration error:', error);
+    logger.error('Registration failed', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Registration failed',
@@ -124,7 +125,7 @@ export const login = async (req: Request, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Login error:', error);
+    logger.error('Login failed', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Login failed',

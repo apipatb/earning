@@ -4,6 +4,7 @@ import api from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 import { SUPPORTED_CURRENCIES } from '../lib/currency';
 import { notify, requestNotificationPermission } from '../store/notification.store';
+import { getErrorMessage, isApiError } from '../lib/error';
 import ThemeCustomizer from '../components/ThemeCustomizer';
 import NotificationPreferences from '../components/NotificationPreferences';
 
@@ -153,12 +154,12 @@ export default function Settings() {
         newPassword: '',
         confirmPassword: '',
       });
-    } catch (error: any) {
-      console.error('Failed to change password:', error);
-      if (error.response?.data?.error === 'Current password is incorrect') {
+    } catch (error) {
+      const apiError = getErrorMessage(error);
+      if (isApiError(error, 'Current password is incorrect')) {
         notify.error('Incorrect Password', 'Current password is incorrect');
       } else {
-        notify.error('Error', 'Failed to change password. Please try again.');
+        notify.error('Error', apiError.message);
       }
     } finally {
       setSaving(false);

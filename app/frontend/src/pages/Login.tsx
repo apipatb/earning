@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
+import { getErrorMessage } from '../lib/error';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -20,8 +21,9 @@ export default function Login() {
       const response = await authAPI.login({ email, password });
       setAuth(response.data.user, response.data.token);
       navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
+    } catch (err) {
+      const error = getErrorMessage(err);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
