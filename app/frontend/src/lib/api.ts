@@ -42,9 +42,13 @@ export const authAPI = {
 };
 
 export const platformsAPI = {
+  getAll: () => api.get('/platforms').then(res => res.data),
   getPlatforms: () => api.get('/platforms').then(res => res.data),
+  create: (data: any) => api.post('/platforms', data).then(res => res.data),
   createPlatform: (data: any) => api.post('/platforms', data).then(res => res.data),
+  update: (id: string, data: any) => api.put(`/platforms/${id}`, data).then(res => res.data),
   updatePlatform: (id: string, data: any) => api.put(`/platforms/${id}`, data).then(res => res.data),
+  delete: (id: string) => api.delete(`/platforms/${id}`).then(res => res.data),
   deletePlatform: (id: string) => api.delete(`/platforms/${id}`).then(res => res.data),
 };
 
@@ -66,4 +70,19 @@ export const goalsAPI = {
   updateGoal: (id: string, data: any) => api.put(`/goals/${id}`, data).then(res => res.data),
   deleteGoal: (id: string) => api.delete(`/goals/${id}`).then(res => res.data),
   updateGoalProgress: (id: string) => api.post(`/goals/${id}/update-progress`).then(res => res.data),
+};
+
+export const productsAPI = {
+  getAll: (isActive?: boolean) => api.get('/products', { params: { isActive } }).then(res => res.data),
+  create: (data: any) => api.post('/products', data).then(res => res.data),
+  update: (id: string, data: any) => api.put(`/products/${id}`, data).then(res => res.data),
+  delete: (id: string) => api.delete(`/products/${id}`).then(res => res.data),
+};
+
+export const salesAPI = {
+  getAll: (params?: any) => api.get('/sales', { params }).then(res => res.data),
+  create: (data: any) => api.post('/sales', data).then(res => res.data),
+  update: (id: string, data: any) => api.put(`/sales/${id}`, data).then(res => res.data),
+  delete: (id: string) => api.delete(`/sales/${id}`).then(res => res.data),
+  getSummary: (period?: string) => api.get('/sales/summary', { params: { period } }).then(res => res.data),
 };
