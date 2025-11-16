@@ -17,6 +17,13 @@ model User {
   name         String?
   timezone     String     @default("UTC")
   currency     String     @default("USD") @db.VarChar(3)
+
+  // Email notification preferences
+  emailNotificationsEnabled Boolean @default(true) @map("email_notifications_enabled")
+  weeklyReportEnabled Boolean @default(true) @map("weekly_report_enabled")
+  invoiceNotificationEnabled Boolean @default(true) @map("invoice_notification_enabled")
+  expenseAlertEnabled Boolean @default(true) @map("expense_alert_enabled")
+
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
@@ -31,6 +38,8 @@ model User {
   invoices       Invoice[]
   documents      Document[]
 
+  // Index for email-based lookups (for authentication)
+  @@index([email])
   @@map("users")
 }
 
@@ -67,8 +76,12 @@ model Earning {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   platform   Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
 
+  // Index for user earnings by date (most common query)
   @@index([userId, date(sort: Desc)])
+  // Index for platform earnings history
   @@index([platformId, date(sort: Desc)])
+  // Composite index for filtered earnings queries (userId + date range)
+  @@index([userId, platformId, date(sort: Desc)])
   @@map("earnings")
 }
 
@@ -84,6 +97,8 @@ model Goal {
 
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Index for user-scoped goal queries
+  @@index([userId, isActive])
   @@map("goals")
 }
 
@@ -132,8 +147,12 @@ model Sale {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  // Index for user-scoped sales by date
   @@index([userId, saleDate(sort: Desc)])
+  // Index for product sales history
   @@index([productId, saleDate(sort: Desc)])
+  // Index for sale status filtering
+  @@index([userId, status])
   @@map("sales")
 }
 
@@ -180,7 +199,14 @@ model Customer {
   invoices     Invoice[]
 
   @@unique([userId, email])
+  // Index for basic user-scoped queries
   @@index([userId, isActive])
+  // Indexes for common sorting patterns (LTV, recency, frequency)
+  @@index([userId, totalPurchases(sort: Desc)])
+  @@index([userId, lastPurchase(sort: Desc)])
+  @@index([userId, purchaseCount(sort: Desc)])
+  // Index for customer name search (full-text would be better in production)
+  @@index([userId, name])
   @@map("customers")
 }
 
@@ -240,8 +266,14 @@ model Invoice {
   lineItems    InvoiceLineItem[]
 
   @@unique([userId, invoiceNumber])
+  // Index for invoice list by date
   @@index([userId, invoiceDate(sort: Desc)])
+  // Index for filtering by status
   @@index([userId, status])
+  // Index for overdue invoice detection (dueDate + status filter)
+  @@index([userId, dueDate(sort: Asc), status])
+  // Index for customer-scoped invoice queries
+  @@index([customerId, userId])
   @@map("invoices")
 }
 
@@ -272,4 +304,38 @@ model Document {
   @@unique([userId, id])
   @@index([userId, uploadedAt(sort: Desc)])
   @@map("documents")
+}
+
+model Job {
+  id           String   @id @default(uuid())
+  jobName      String   @map("job_name") @db.VarChar(255)
+  status       String   @default("idle") @db.VarChar(50) // idle, running, success, error
+  lastRun      DateTime? @map("last_run")
+  nextRun      DateTime? @map("next_run")
+  error        String?  @db.Text
+  isEnabled    Boolean  @default(true) @map("is_enabled")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  logs         JobLog[]
+
+  @@unique([jobName])
+  @@index([status])
+  @@index([nextRun])
+  @@map("jobs")
+}
+
+model JobLog {
+  id           String   @id @default(uuid())
+  jobId        String   @map("job_id")
+  status       String   @db.VarChar(50) // success, error, skipped
+  duration      Int      @db.Integer // Duration in milliseconds
+  error        String?  @db.Text
+  metadata     String?  @db.Text // JSON string for additional data
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, createdAt(sort: Desc)])
+  @@map("job_logs")
 }

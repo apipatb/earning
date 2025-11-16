@@ -2,9 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import http from 'http';
+import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import logger, { logInfo, logDebug, logError } from './lib/logger';
 import { swaggerSpec } from './lib/swagger';
+import { initializeRedisClient, disconnectRedis } from './lib/redis';
+import cacheMiddleware from './middleware/cache.middleware';
 
 // Load environment variables
 dotenv.config();
@@ -23,12 +26,16 @@ import customerRoutes from './routes/customer.routes';
 import expenseRoutes from './routes/expense.routes';
 import invoiceRoutes from './routes/invoice.routes';
 import uploadRoutes from './routes/upload.routes';
+import notificationRoutes from './routes/notification.routes';
+import jobsRoutes from './routes/jobs.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
 import { notFound } from './middleware/notFound.middleware';
 import loggingMiddleware from './middleware/logging.middleware';
 import securityHeadersMiddleware from './middleware/security-headers.middleware';
+import sanitizationMiddleware from './middleware/sanitization.middleware';
+import inputValidationMiddleware from './middleware/input-validation.middleware';
 import {
   globalLimiter,
   authLimiter,
@@ -41,12 +48,41 @@ import { wsAuthMiddleware } from './middleware/ws-auth.middleware';
 import { setupEarningsEvents } from './websocket/events/earnings.events';
 import { setupNotificationEvents } from './websocket/events/notifications.events';
 
+// Import Job Scheduler
+import { scheduler } from './jobs/scheduler';
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const IS_PRODUCTION = NODE_ENV === 'production';
 
-// Security middleware (applied first, before any other middleware)
+// Security middleware (in proper order for defense in depth)
+// 1. Helmet for XSS/CSRF/security headers protection
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000, // 1 year in seconds
+    includeSubDomains: true,
+    preload: true,
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  xssFilter: true,
+}));
+
+// 2. Security headers middleware
 app.use(securityHeadersMiddleware);
 
 // CORS Configuration
@@ -67,11 +103,26 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 
-// Middleware (in order: CORS → body parsing → logging → global rate limit)
+// 3. CORS middleware
 app.use(cors(corsOptions));
+
+// 4. Body parsing middleware
 app.use(express.json({ limit: '50mb' })); // Limit payload size (supports file uploads)
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// 5. Logging middleware
 app.use(loggingMiddleware); // Request/Response logging
+
+// 5a. Cache middleware (HTTP response caching)
+app.use(cacheMiddleware);
+
+// 6. Input sanitization middleware (removes XSS, trims whitespace)
+app.use(sanitizationMiddleware);
+
+// 7. Input validation middleware (detects injection attacks, length violations)
+app.use(inputValidationMiddleware);
+
+// 8. Rate limiting
 app.use('/api/', globalLimiter); // Apply global rate limiting to API routes
 
 // Health check
@@ -101,7 +152,9 @@ app.use('/api/v1/inventory', inventoryRoutes);
 app.use('/api/v1/customers', customerRoutes);
 app.use('/api/v1/expenses', expenseRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/upload', uploadLimiter, uploadRoutes); // Stricter upload rate limit
+app.use('/api/v1/jobs', jobsRoutes); // Job scheduler routes (admin only)
 
 // Error handling
 app.use(notFound);
@@ -131,6 +184,18 @@ io.on('connection', (socket) => {
   setupNotificationEvents(socket);
 });
 
+// Initialize Redis (optional, gracefully handles if unavailable)
+initializeRedisClient().catch((error) => {
+  logError('Failed to initialize Redis client', error);
+  // Continue without Redis - caching will be disabled
+});
+
+// Initialize Job Scheduler
+scheduler.initialize().catch((error) => {
+  logError('Failed to initialize job scheduler', error);
+  // Continue without job scheduler
+});
+
 // Start server
 server.listen(PORT, () => {
   logInfo('Server started successfully', {
@@ -138,15 +203,27 @@ server.listen(PORT, () => {
     environment: NODE_ENV,
     nodeVersion: process.version,
     websocket: 'enabled',
+    caching: process.env.REDIS_ENABLED !== 'false' ? 'enabled' : 'disabled',
+    jobScheduler: process.env.ENABLE_JOBS === 'true' ? 'enabled' : 'disabled',
   });
 });
 
 // Graceful shutdown
-const gracefulShutdown = (signal: string) => {
+const gracefulShutdown = async (signal: string) => {
   logInfo(`Graceful shutdown initiated by ${signal}`);
 
   // Close WebSocket connections
   io.close();
+
+  // Stop job scheduler
+  await scheduler.stop().catch((error) => {
+    logError('Error stopping job scheduler', error);
+  });
+
+  // Disconnect Redis
+  await disconnectRedis().catch((error) => {
+    logError('Error disconnecting Redis', error);
+  });
 
   server.close(() => {
     logInfo('Server closed');

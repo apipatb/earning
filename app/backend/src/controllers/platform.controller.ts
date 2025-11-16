@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import CacheService from '../services/cache.service';
 
 const platformSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -14,40 +15,52 @@ export const getAllPlatforms = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
-    const platforms = await prisma.platform.findMany({
-      where: { userId },
-      include: {
-        earnings: {
-          select: {
-            amount: true,
-            hours: true,
+    // Cache TTL: 30 minutes (1800 seconds)
+    const CACHE_TTL = parseInt(process.env.CACHE_TTL_PLATFORMS || '1800', 10);
+    const cacheKey = `platforms:${userId}`;
+
+    const data = await CacheService.withCache(
+      cacheKey,
+      async () => {
+        const platforms = await prisma.platform.findMany({
+          where: { userId },
+          include: {
+            earnings: {
+              select: {
+                amount: true,
+                hours: true,
+              },
+            },
           },
-        },
+        });
+
+        // Calculate stats for each platform
+        return platforms.map((platform) => {
+          const totalEarnings = platform.earnings.reduce((sum, e) => sum + Number(e.amount), 0);
+          const totalHours = platform.earnings.reduce((sum, e) => sum + Number(e.hours || 0), 0);
+          const avgHourlyRate = totalHours > 0 ? totalEarnings / totalHours : 0;
+
+          return {
+            id: platform.id,
+            name: platform.name,
+            category: platform.category,
+            color: platform.color,
+            expectedRate: platform.expectedRate ? Number(platform.expectedRate) : null,
+            isActive: platform.isActive,
+            stats: {
+              total_earnings: totalEarnings,
+              total_hours: totalHours,
+              avg_hourly_rate: avgHourlyRate,
+            },
+          };
+        });
       },
-    });
+      CACHE_TTL
+    );
 
-    // Calculate stats for each platform
-    const platformsWithStats = platforms.map((platform) => {
-      const totalEarnings = platform.earnings.reduce((sum, e) => sum + Number(e.amount), 0);
-      const totalHours = platform.earnings.reduce((sum, e) => sum + Number(e.hours || 0), 0);
-      const avgHourlyRate = totalHours > 0 ? totalEarnings / totalHours : 0;
-
-      return {
-        id: platform.id,
-        name: platform.name,
-        category: platform.category,
-        color: platform.color,
-        expectedRate: platform.expectedRate ? Number(platform.expectedRate) : null,
-        isActive: platform.isActive,
-        stats: {
-          total_earnings: totalEarnings,
-          total_hours: totalHours,
-          avg_hourly_rate: avgHourlyRate,
-        },
-      };
-    });
-
-    res.json({ platforms: platformsWithStats });
+    // Add cache headers
+    res.setHeader('Cache-Control', `public, max-age=${CACHE_TTL}`);
+    res.json({ platforms: data });
   } catch (error) {
     console.error('Get platforms error:', error);
     res.status(500).json({
@@ -71,6 +84,9 @@ export const createPlatform = async (req: AuthRequest, res: Response) => {
         expectedRate: data.expectedRate,
       },
     });
+
+    // Invalidate cache
+    await CacheService.invalidatePattern(`platforms:${userId}`);
 
     res.status(201).json({ platform });
   } catch (error) {
@@ -111,6 +127,9 @@ export const updatePlatform = async (req: AuthRequest, res: Response) => {
       data,
     });
 
+    // Invalidate cache
+    await CacheService.invalidatePattern(`platforms:${userId}`);
+
     res.json({ platform: updated });
   } catch (error) {
     console.error('Update platform error:', error);
@@ -141,6 +160,9 @@ export const deletePlatform = async (req: AuthRequest, res: Response) => {
     await prisma.platform.delete({
       where: { id: platformId },
     });
+
+    // Invalidate cache
+    await CacheService.invalidatePattern(`platforms:${userId}`);
 
     res.json({ message: 'Platform deleted successfully' });
   } catch (error) {

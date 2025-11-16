@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice {{invoiceNumber}}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .email-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            padding: 30px 20px;
+            color: #333333;
+        }
+        .invoice-header {
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+        .invoice-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+        .invoice-meta div {
+            flex: 1;
+        }
+        .invoice-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .invoice-table th {
+            background-color: #f0f0f0;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+            font-weight: 600;
+        }
+        .invoice-table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        .invoice-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .amount-right {
+            text-align: right;
+        }
+        .totals {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        .totals td {
+            padding: 10px 20px;
+            border: none;
+        }
+        .totals tr.total-row {
+            border-top: 2px solid #667eea;
+            border-bottom: 2px solid #667eea;
+        }
+        .totals .total-row td {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .totals .label {
+            text-align: right;
+            font-weight: 500;
+        }
+        .totals .value {
+            text-align: right;
+            width: 150px;
+        }
+        .notes {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+            margin-top: 20px;
+            border-radius: 4px;
+        }
+        .footer {
+            background-color: #f5f5f5;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #666666;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>Invoice {{invoiceNumber}}</h1>
+        </div>
+        <div class="content">
+            <div class="invoice-header">
+                <p><strong>From:</strong> {{senderName}}<br>
+                {{senderEmail}}</p>
+
+                <p><strong>Bill To:</strong><br>
+                {{customerName}}<br>
+                {{customerEmail}}</p>
+
+                <div class="invoice-meta">
+                    <div>
+                        <strong>Invoice Date:</strong><br>{{invoiceDate}}
+                    </div>
+                    <div>
+                        <strong>Due Date:</strong><br>{{dueDate}}
+                    </div>
+                </div>
+            </div>
+
+            <table class="invoice-table">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th class="amount-right">Qty</th>
+                        <th class="amount-right">Unit Price</th>
+                        <th class="amount-right">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each items}}
+                    <tr>
+                        <td>{{this.description}}</td>
+                        <td class="amount-right">{{this.quantity}}</td>
+                        <td class="amount-right">${{this.unitPrice}}</td>
+                        <td class="amount-right"><strong>${{this.totalPrice}}</strong></td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+
+            <table class="totals">
+                <tr>
+                    <td class="label">Subtotal:</td>
+                    <td class="value">${{subtotal}}</td>
+                </tr>
+                {{#if taxAmount}}
+                <tr>
+                    <td class="label">Tax:</td>
+                    <td class="value">${{taxAmount}}</td>
+                </tr>
+                {{/if}}
+                {{#if discountAmount}}
+                <tr>
+                    <td class="label">Discount:</td>
+                    <td class="value">-${{discountAmount}}</td>
+                </tr>
+                {{/if}}
+                <tr class="total-row">
+                    <td class="label">TOTAL:</td>
+                    <td class="value">${{totalAmount}}</td>
+                </tr>
+            </table>
+
+            {{#if notes}}
+            <div class="notes">
+                <strong>Notes:</strong><br>
+                {{notes}}
+            </div>
+            {{/if}}
+
+            <p style="margin-top: 30px; text-align: center; color: #666;">
+                Thank you for your business!
+            </p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2024 EarnTrack. All rights reserved.</p>
+            <p>This is an automated message. Please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+</html>

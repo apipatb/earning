@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Summary Report</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .email-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 30px 20px;
+            color: #333333;
+        }
+        .summary-period {
+            text-align: center;
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 30px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 30px 0;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 4px;
+        }
+        .metric-card.earnings {
+            border-left-color: #10b981;
+        }
+        .metric-card.expenses {
+            border-left-color: #ef4444;
+        }
+        .metric-card.income {
+            border-left-color: #f59e0b;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        .metric-value.earnings {
+            color: #10b981;
+        }
+        .metric-value.expenses {
+            color: #ef4444;
+        }
+        .metric-value.income {
+            color: #f59e0b;
+        }
+        .platforms-section {
+            margin-top: 30px;
+            border-top: 2px solid #e5e7eb;
+            padding-top: 20px;
+        }
+        .platforms-section h3 {
+            color: #667eea;
+            margin-top: 0;
+        }
+        .platform-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+            background-color: #f9fafb;
+            margin-bottom: 8px;
+            border-radius: 4px;
+        }
+        .platform-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        .platform-name {
+            font-weight: 600;
+            color: #374151;
+        }
+        .platform-amount {
+            color: #10b981;
+            font-weight: 700;
+        }
+        .goal-progress {
+            background-color: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 20px 0;
+            font-weight: 600;
+        }
+        .footer {
+            background-color: #f5f5f5;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #666666;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>📊 Your Weekly Summary</h1>
+            <p>{{weekStartDate}} to {{weekEndDate}}</p>
+        </div>
+        <div class="content">
+            <p>Hi {{userName}},</p>
+
+            <p>Here's your weekly earnings and expense summary for EarnTrack.</p>
+
+            <div class="summary-period">
+                Week of {{weekStartDate}} to {{weekEndDate}}
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-card earnings">
+                    <div class="metric-label">Total Earnings</div>
+                    <div class="metric-value earnings">${{totalEarnings}}</div>
+                </div>
+                <div class="metric-card expenses">
+                    <div class="metric-label">Total Expenses</div>
+                    <div class="metric-value expenses">${{totalExpenses}}</div>
+                </div>
+                <div class="metric-card income">
+                    <div class="metric-label">Net Income</div>
+                    <div class="metric-value income">${{netIncome}}</div>
+                </div>
+                {{#if goalProgress}}
+                <div class="metric-card">
+                    <div class="metric-label">Goal Progress</div>
+                    <div class="metric-value">{{goalProgress}}%</div>
+                </div>
+                {{/if}}
+            </div>
+
+            {{#if topPlatform}}
+            <div class="platforms-section">
+                <h3>Top Platform</h3>
+                <div class="platform-item">
+                    <span class="platform-name">{{topPlatform}}</span>
+                    <span class="platform-amount">${{topPlatformEarnings}}</span>
+                </div>
+            </div>
+            {{/if}}
+
+            {{#if summaryDetails}}
+            <div class="platforms-section">
+                <h3>Earnings by Platform</h3>
+                {{#each summaryDetails}}
+                <div class="platform-item">
+                    <span class="platform-name">{{this.platform}}</span>
+                    <span class="platform-amount">${{this.earnings}}</span>
+                </div>
+                {{/each}}
+            </div>
+            {{/if}}
+
+            {{#if goalProgress}}
+            <div class="goal-progress">
+                <strong>Goal Achievement:</strong> You've achieved {{goalProgress}}% of your weekly goal! Keep up the great work! 🎉
+            </div>
+            {{/if}}
+
+            <p style="margin-top: 30px; text-align: center;">
+                <a href="{{dashboardUrl}}" class="cta-button">View Full Dashboard</a>
+            </p>
+
+            <p>Thank you for using EarnTrack!<br>
+            <strong>The EarnTrack Team</strong></p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2024 EarnTrack. All rights reserved.</p>
+            <p>This is an automated message. Please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+</html>

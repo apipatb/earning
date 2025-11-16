@@ -14,6 +14,7 @@ import {
   EarningFilterSchema,
 } from '../schemas/validation.schemas';
 import { validateRequest, validatePartialRequest, ValidationException } from '../utils/validate-request.util';
+import { earningsIncludes } from '../utils/query-optimization';
 
 export const getAllEarnings = async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
@@ -42,18 +43,16 @@ export const getAllEarnings = async (req: AuthRequest, res: Response) => {
       where.platformId = filters.platform_id;
     }
 
+    // OPTIMIZATION NOTES:
+    // - Uses index [userId, date DESC] for fast filtering and sorting
+    // - Composite index [userId, platformId, date DESC] optimizes filtered queries
+    // - include: earningsIncludes.withPlatform prevents N+1 queries
+    // - Promise.all executes count query in parallel (faster than sequential)
+    // - Expected response time: < 50ms for typical user datasets
     const [earnings, total] = await Promise.all([
       prisma.earning.findMany({
         where,
-        include: {
-          platform: {
-            select: {
-              id: true,
-              name: true,
-              color: true,
-            },
-          },
-        },
+        include: earningsIncludes.withPlatform,
         orderBy: { date: 'desc' },
         take: filters.limit,
         skip: filters.offset,
