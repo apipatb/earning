@@ -19,6 +19,7 @@ dotenv.config();
 
 // Import routes
 import authRoutes from './routes/auth.routes';
+import webauthnRoutes from './routes/webauthn.routes';
 import userRoutes from './routes/user.routes';
 import platformRoutes from './routes/platform.routes';
 import earningRoutes from './routes/earning.routes';
@@ -30,6 +31,13 @@ import inventoryRoutes from './routes/inventory.routes';
 import customerRoutes from './routes/customer.routes';
 import expenseRoutes from './routes/expense.routes';
 import invoiceRoutes from './routes/invoice.routes';
+import webhookRoutes from './routes/webhook.routes';
+import chatbotRoutes from './routes/chatbot.routes';
+import whatsappRoutes from './routes/whatsapp.routes';
+import fileRoutes, { folderRouter } from './routes/file.routes';
+import reportRoutes from './routes/report.routes';
+import workflowRoutes from './routes/workflow.routes';
+import emailRoutes from './routes/email.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -129,6 +137,7 @@ initSwagger(app);
 
 // API Routes
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/auth/webauthn', webauthnRoutes);
 app.use('/api/v1/user', userRoutes);
 app.use('/api/v1/platforms', platformRoutes);
 app.use('/api/v1/earnings', earningRoutes);
@@ -140,6 +149,14 @@ app.use('/api/v1/inventory', inventoryRoutes);
 app.use('/api/v1/customers', customerRoutes);
 app.use('/api/v1/expenses', expenseRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
+app.use('/api/v1/webhooks', webhookRoutes);
+app.use('/api/v1/chatbot', chatbotRoutes);
+app.use('/api/v1/whatsapp', whatsappRoutes);
+app.use('/api/v1/files', fileRoutes);
+app.use('/api/v1/folders', folderRouter);
+app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/workflows', workflowRoutes);
+app.use('/api/v1/emails', emailRoutes);
 
 // Sentry error handler must be before other error handlers
 app.use(sentryErrorHandler());

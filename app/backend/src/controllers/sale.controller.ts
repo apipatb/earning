@@ -4,6 +4,7 @@ import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
 import { logger } from '../utils/logger';
+import { WebhookService } from '../services/webhook.service';
 
 const saleSchema = z.object({
   productId: z.string().uuid('Invalid product ID'),
@@ -150,6 +151,19 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       updatedAt: sale.updatedAt,
     };
 
+    // Trigger webhook event
+    WebhookService.triggerEvent(userId, 'SALE_CREATED', {
+      id: sale.id,
+      productId: sale.productId,
+      productName: sale.product.name,
+      quantity: Number(sale.quantity),
+      totalAmount: Number(sale.totalAmount),
+      customer: sale.customer,
+      status: sale.status,
+      saleDate: sale.saleDate.toISOString(),
+      createdAt: sale.createdAt.toISOString(),
+    });
+
     res.status(201).json({ sale: formattedSale });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -227,6 +241,19 @@ export const updateSale = async (req: AuthRequest, res: Response) => {
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     };
+
+    // Trigger webhook event
+    WebhookService.triggerEvent(userId, 'SALE_UPDATED', {
+      id: updated.id,
+      productId: updated.productId,
+      productName: updated.product.name,
+      quantity: Number(updated.quantity),
+      totalAmount: Number(updated.totalAmount),
+      customer: updated.customer,
+      status: updated.status,
+      saleDate: updated.saleDate.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
+    });
 
     res.json({ sale: formattedSale });
   } catch (error) {

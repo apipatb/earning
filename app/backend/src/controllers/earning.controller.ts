@@ -4,6 +4,7 @@ import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam } from '../utils/validation';
 import { logger } from '../utils/logger';
+import { WebhookService } from '../services/webhook.service';
 
 const earningSchema = z.object({
   platformId: z.string().uuid(),
@@ -119,6 +120,18 @@ export const createEarning = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Trigger webhook event
+    WebhookService.triggerEvent(userId, 'EARNING_CREATED', {
+      id: earning.id,
+      platformId: earning.platformId,
+      platformName: earning.platform.name,
+      date: earning.date.toISOString().split('T')[0],
+      hours: earning.hours ? Number(earning.hours) : null,
+      amount: Number(earning.amount),
+      notes: earning.notes,
+      createdAt: earning.createdAt.toISOString(),
+    });
+
     res.status(201).json({ earning });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -173,6 +186,18 @@ export const updateEarning = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Trigger webhook event
+    WebhookService.triggerEvent(userId, 'EARNING_UPDATED', {
+      id: updated.id,
+      platformId: updated.platformId,
+      platformName: updated.platform.name,
+      date: updated.date.toISOString().split('T')[0],
+      hours: updated.hours ? Number(updated.hours) : null,
+      amount: Number(updated.amount),
+      notes: updated.notes,
+      updatedAt: updated.updatedAt.toISOString(),
+    });
+
     res.json({ earning: updated });
   } catch (error) {
     logger.error('Update earning error:', error instanceof Error ? error : new Error(String(error)));
@@ -202,6 +227,14 @@ export const deleteEarning = async (req: AuthRequest, res: Response) => {
 
     await prisma.earning.delete({
       where: { id: earningId },
+    });
+
+    // Trigger webhook event
+    WebhookService.triggerEvent(userId, 'EARNING_DELETED', {
+      id: earningId,
+      platformId: earning.platformId,
+      date: earning.date.toISOString().split('T')[0],
+      amount: Number(earning.amount),
     });
 
     res.json({ message: 'Earning deleted successfully' });

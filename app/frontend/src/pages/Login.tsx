@@ -1,16 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 import { getErrorMessage } from '../lib/error';
+import { useAuthenticateWebAuthn, isWebAuthnSupported } from '../hooks/useWebAuthn';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [webauthnSupported, setWebauthnSupported] = useState(false);
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
+  const { authenticate: authenticateWebAuthn, loading: webauthnLoading } = useAuthenticateWebAuthn();
+
+  useEffect(() => {
+    setWebauthnSupported(isWebAuthnSupported());
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +33,24 @@ export default function Login() {
       setError(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    setError('');
+
+    try {
+      const result = await authenticateWebAuthn();
+
+      if (result.success && result.user && result.token) {
+        setAuth(result.user, result.token);
+        navigate('/');
+      } else if (result.error) {
+        setError(result.error.message);
+      }
+    } catch (err) {
+      const error = getErrorMessage(err);
+      setError(error.message);
     }
   };
 
@@ -94,6 +119,43 @@ export default function Login() {
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </div>
+
+          {webauthnSupported && (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-gray-50 text-gray-500">Or</span>
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={handlePasskeyLogin}
+                  disabled={webauthnLoading}
+                  className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
+                >
+                  <svg
+                    className="w-5 h-5 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    />
+                  </svg>
+                  {webauthnLoading ? 'Authenticating...' : 'Sign in with Passkey'}
+                </button>
+              </div>
+            </>
+          )}
         </form>
       </div>
     </div>

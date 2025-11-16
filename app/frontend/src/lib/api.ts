@@ -248,6 +248,84 @@ export interface InvoiceFormData extends InvoiceData {
   lineItems: InvoiceLineItem[];
 }
 
+// Workflow types
+export interface WorkflowAction {
+  type: 'send_email' | 'create_task' | 'update_record' | 'call_webhook';
+  config: Record<string, any>;
+}
+
+export interface WorkflowData {
+  name: string;
+  trigger: 'EARNING_CREATED' | 'INVOICE_PAID' | 'LOW_STOCK' | 'CUSTOMER_CREATED' | 'GOAL_COMPLETED';
+  actions: WorkflowAction[];
+  isActive: boolean;
+}
+
+export interface Workflow extends WorkflowData {
+  id: string;
+  userId: string;
+  executionCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowExecution {
+  id: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  executedAt: string;
+  result: any;
+  error?: string;
+  createdAt: string;
+}
+
+// Email types
+export interface EmailTemplateData {
+  name: string;
+  subject: string;
+  htmlBody: string;
+  variables?: string[];
+}
+
+export interface EmailTemplate extends EmailTemplateData {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailSequenceStep {
+  delay: number;
+  templateId?: string;
+  subject: string;
+  body: string;
+}
+
+export interface EmailSequenceData {
+  name: string;
+  steps: EmailSequenceStep[];
+  trigger: string;
+  isActive: boolean;
+}
+
+export interface EmailSequence extends EmailSequenceData {
+  id: string;
+  userId: string;
+  emailsSent: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailLog {
+  id: string;
+  sequenceId?: string;
+  sequenceName?: string;
+  recipientEmail: string;
+  subject: string;
+  status: 'SENT' | 'FAILED' | 'BOUNCED';
+  sentAt: string;
+  error?: string;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1';
 
 const api = axios.create({
@@ -412,4 +490,32 @@ export const invoicesAPI = {
   update: (id: string, data: Partial<InvoiceData>) => api.put(`/invoices/${id}`, data).then(res => res.data),
   markPaid: (id: string, data?: Record<string, unknown>) => api.patch(`/invoices/${id}/mark-paid`, data).then(res => res.data),
   delete: (id: string) => api.delete(`/invoices/${id}`).then(res => res.data),
+};
+
+export const workflowsAPI = {
+  getAll: () => api.get('/workflows').then(res => res.data),
+  getById: (id: string) => api.get(`/workflows/${id}`).then(res => res.data),
+  create: (data: WorkflowData) => api.post('/workflows', data).then(res => res.data),
+  update: (id: string, data: Partial<WorkflowData>) => api.put(`/workflows/${id}`, data).then(res => res.data),
+  delete: (id: string) => api.delete(`/workflows/${id}`).then(res => res.data),
+  execute: (id: string, data?: Record<string, any>) => api.post(`/workflows/${id}/execute`, { data }).then(res => res.data),
+  getExecutions: (id: string, params?: QueryParams) => api.get(`/workflows/${id}/executions`, { params }).then(res => res.data),
+};
+
+export const emailsAPI = {
+  // Templates
+  getTemplates: () => api.get('/emails/templates').then(res => res.data),
+  createTemplate: (data: EmailTemplateData) => api.post('/emails/templates', data).then(res => res.data),
+  updateTemplate: (id: string, data: Partial<EmailTemplateData>) => api.put(`/emails/templates/${id}`, data).then(res => res.data),
+  deleteTemplate: (id: string) => api.delete(`/emails/templates/${id}`).then(res => res.data),
+
+  // Sequences
+  getSequences: () => api.get('/emails/sequences').then(res => res.data),
+  createSequence: (data: EmailSequenceData) => api.post('/emails/sequences', data).then(res => res.data),
+  updateSequence: (id: string, data: Partial<EmailSequenceData>) => api.put(`/emails/sequences/${id}`, data).then(res => res.data),
+  deleteSequence: (id: string) => api.delete(`/emails/sequences/${id}`).then(res => res.data),
+
+  // Logs and Stats
+  getLogs: (params?: QueryParams) => api.get('/emails/logs', { params }).then(res => res.data),
+  getStats: () => api.get('/emails/stats').then(res => res.data),
 };
