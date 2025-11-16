@@ -6,6 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:check": "tsc && vite build",
+    "build:analyze": "vite build --outDir dist-analysis && echo 'Bundle analysis report generated in dist-analysis/stats.html'",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx",
     "test": "vitest",
