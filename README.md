@@ -1,7 +1,41 @@
-# Daily Earning Strategy Guide
-### Complete System for Building Sustainable Income Through Online & Offline Work
+# EarnTrack - Complete Earning & Platform Management Suite
+
+Welcome to EarnTrack - Your all-in-one platform for managing earnings, inventory, and income tracking!
 
 ---
+
+## 🚀 EARNTRACK APPLICATION
+
+### For Developers & DevOps
+
+- **[QUICK_START.md](QUICK_START.md)** - Get running in 5 minutes
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Deploy to production (Railway + Vercel)
+- **[PRODUCTION_RUNBOOK.md](PRODUCTION_RUNBOOK.md)** - Operations & monitoring
+- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** - Pre/post deployment checks
+- **[INFRASTRUCTURE.md](INFRASTRUCTURE.md)** - Architecture & tech stack
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contributing guidelines
+
+**Key Features:**
+- Track earnings across multiple platforms
+- Manage products and inventory
+- Monitor sales and revenue
+- Track expenses and create invoices
+- Generate detailed reports and analytics
+- Real-time dashboard and insights
+
+**Tech Stack:**
+- Frontend: React 18 + Vite + TypeScript
+- Backend: Node.js + Express + TypeScript
+- Database: PostgreSQL
+- Deployment: Vercel (Frontend) + Railway (Backend)
+
+---
+
+## 📚 EARNING STRATEGY GUIDES
+
+### Complete System for Building Sustainable Income Through Online & Offline Work
+
+This repository also contains comprehensive guides for building sustainable income:
 
 ## 📚 WHAT'S INCLUDED
 
