@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Target, TrendingUp, Clock, DollarSign, Award, CheckCircle, AlertCircle, Lightbulb, Calendar } from 'lucide-react';
+import { generateRandomId } from '../lib/random';
 
 interface DailyStrategy {
   date: string;
@@ -101,7 +102,7 @@ export default function DailyStrategyGuide() {
       "Great things never come from comfort zones.",
       "The harder you work for something, the greater you'll feel when you achieve it.",
     ];
-    const motivationalQuote = quotes[Math.floor(Math.random() * quotes.length)];
+    const motivationalQuote = quotes[parseInt(generateRandomId(1), 36) % quotes.length];
 
     // Generate goals for today
     const avgDailyEarnings = earnings.length > 0
