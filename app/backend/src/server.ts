@@ -2,7 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
+import http from 'http';
+import swaggerUi from 'swagger-ui-express';
 import logger, { logInfo, logDebug, logError } from './lib/logger';
+import { swaggerSpec } from './lib/swagger';
 
 // Load environment variables
 dotenv.config();
@@ -25,6 +28,12 @@ import invoiceRoutes from './routes/invoice.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { notFound } from './middleware/notFound.middleware';
 import loggingMiddleware from './middleware/logging.middleware';
+
+// Import WebSocket
+import { initializeWebSocket } from './websocket/ws';
+import { wsAuthMiddleware } from './middleware/ws-auth.middleware';
+import { setupEarningsEvents } from './websocket/events/earnings.events';
+import { setupNotificationEvents } from './websocket/events/notifications.events';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -88,6 +97,15 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Swagger/OpenAPI Documentation
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// OpenAPI JSON endpoint
+app.get('/api/openapi.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
 // API Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/user', userRoutes);
@@ -106,17 +124,46 @@ app.use('/api/v1/invoices', invoiceRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-const server = app.listen(PORT, () => {
+// Create HTTP server for WebSocket support
+const server = http.createServer(app);
+
+// Initialize WebSocket
+const io = initializeWebSocket(server, corsOptions);
+
+// Register WebSocket authentication middleware
+io.use(wsAuthMiddleware);
+
+// Setup WebSocket event handlers
+io.on('connection', (socket) => {
+  const userId = socket.handshake.auth?.userId;
+  logDebug('User connected via WebSocket', {
+    socketId: socket.id,
+    userId,
+  });
+
+  // Setup earnings events
+  setupEarningsEvents(socket);
+
+  // Setup notification events
+  setupNotificationEvents(socket);
+});
+
+// Start server
+server.listen(PORT, () => {
   logInfo('Server started successfully', {
     port: PORT,
     environment: NODE_ENV,
     nodeVersion: process.version,
+    websocket: 'enabled',
   });
 });
 
 // Graceful shutdown
 const gracefulShutdown = (signal: string) => {
   logInfo(`Graceful shutdown initiated by ${signal}`);
+
+  // Close WebSocket connections
+  io.close();
 
   server.close(() => {
     logInfo('Server closed');

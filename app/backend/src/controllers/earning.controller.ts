@@ -3,6 +3,12 @@ import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { logInfo, logDebug, logError, logWarn } from '../lib/logger';
+import {
+  emitEarningCreated,
+  emitEarningUpdated,
+  emitEarningDeleted,
+} from '../websocket/events/earnings.events';
+import { sendSuccessNotification, sendErrorNotification } from '../websocket/events/notifications.events';
 
 const earningSchema = z.object({
   platformId: z.string().uuid(),
@@ -150,6 +156,26 @@ export const createEarning = async (req: AuthRequest, res: Response) => {
       platformId: earning.platformId,
     });
 
+    // Emit WebSocket event for real-time updates
+    const earningData = {
+      id: earning.id,
+      userId,
+      platformId: earning.platformId,
+      platform: earning.platform,
+      date: earning.date.toISOString().split('T')[0],
+      hours: earning.hours ? Number(earning.hours) : null,
+      amount: Number(earning.amount),
+      hourly_rate: earning.hours ? Number(earning.amount) / Number(earning.hours) : null,
+      notes: earning.notes || undefined,
+    };
+
+    emitEarningCreated(userId, earningData);
+    sendSuccessNotification(
+      userId,
+      'Earning Created',
+      `New earning of ${earning.amount} added to ${earning.platform.name}`
+    );
+
     res.status(201).json({ earning });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -233,6 +259,20 @@ export const updateEarning = async (req: AuthRequest, res: Response) => {
       updatedFields: Object.keys(updateData),
     });
 
+    // Emit WebSocket event for real-time updates
+    emitEarningUpdated(userId, {
+      id: earningId,
+      userId,
+      changes: updateData,
+      updatedAt: new Date().toISOString(),
+    });
+
+    sendSuccessNotification(
+      userId,
+      'Earning Updated',
+      `Earning ${earningId} has been updated`
+    );
+
     res.json({ earning: updated });
   } catch (error) {
     logError('Failed to update earning', error, {
@@ -286,6 +326,14 @@ export const deleteEarning = async (req: AuthRequest, res: Response) => {
       earningId,
       deletedAmount: earning.amount,
     });
+
+    // Emit WebSocket event for real-time updates
+    emitEarningDeleted(userId, earningId);
+    sendSuccessNotification(
+      userId,
+      'Earning Deleted',
+      `Earning ${earningId} has been deleted`
+    );
 
     res.json({ message: 'Earning deleted successfully' });
   } catch (error) {
