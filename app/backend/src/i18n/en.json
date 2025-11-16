@@ -1,0 +1,126 @@
+{
+  "common": {
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Information",
+    "notFound": "Not found",
+    "unauthorized": "Unauthorized access",
+    "forbidden": "Forbidden",
+    "badRequest": "Bad request",
+    "internalError": "Internal server error",
+    "validationError": "Validation error"
+  },
+  "auth": {
+    "loginSuccess": "Login successful",
+    "loginFailed": "Login failed",
+    "logoutSuccess": "Logged out successfully",
+    "registerSuccess": "Registration successful",
+    "registerFailed": "Registration failed",
+    "invalidCredentials": "Invalid credentials",
+    "emailAlreadyExists": "Email already exists",
+    "passwordResetSent": "Password reset email sent",
+    "passwordResetSuccess": "Password reset successful",
+    "tokenExpired": "Token has expired",
+    "tokenInvalid": "Invalid token",
+    "unauthorized": "Unauthorized access"
+  },
+  "user": {
+    "profileUpdated": "Profile updated successfully",
+    "profileUpdateFailed": "Failed to update profile",
+    "userNotFound": "User not found",
+    "userCreated": "User created successfully",
+    "userDeleted": "User deleted successfully",
+    "languageUpdated": "Language preference updated",
+    "passwordChanged": "Password changed successfully",
+    "passwordChangeFailed": "Failed to change password",
+    "invalidPassword": "Invalid password"
+  },
+  "earnings": {
+    "created": "Earning created successfully",
+    "updated": "Earning updated successfully",
+    "deleted": "Earning deleted successfully",
+    "notFound": "Earning not found",
+    "listRetrieved": "Earnings retrieved successfully"
+  },
+  "platforms": {
+    "created": "Platform created successfully",
+    "updated": "Platform updated successfully",
+    "deleted": "Platform deleted successfully",
+    "notFound": "Platform not found",
+    "alreadyExists": "Platform with this name already exists"
+  },
+  "goals": {
+    "created": "Goal created successfully",
+    "updated": "Goal updated successfully",
+    "deleted": "Goal deleted successfully",
+    "completed": "Congratulations! Goal completed!",
+    "notFound": "Goal not found"
+  },
+  "invoices": {
+    "created": "Invoice created successfully",
+    "updated": "Invoice updated successfully",
+    "deleted": "Invoice deleted successfully",
+    "sent": "Invoice sent successfully",
+    "paid": "Invoice marked as paid",
+    "notFound": "Invoice not found",
+    "pdfGenerated": "PDF generated successfully"
+  },
+  "products": {
+    "created": "Product created successfully",
+    "updated": "Product updated successfully",
+    "deleted": "Product deleted successfully",
+    "notFound": "Product not found",
+    "lowStock": "Low stock alert for {{name}}",
+    "outOfStock": "{{name}} is out of stock"
+  },
+  "customers": {
+    "created": "Customer created successfully",
+    "updated": "Customer updated successfully",
+    "deleted": "Customer deleted successfully",
+    "notFound": "Customer not found"
+  },
+  "expenses": {
+    "created": "Expense created successfully",
+    "updated": "Expense updated successfully",
+    "deleted": "Expense deleted successfully",
+    "notFound": "Expense not found"
+  },
+  "reports": {
+    "generated": "Report generated successfully",
+    "notFound": "Report not found",
+    "exportSuccess": "Report exported successfully",
+    "exportFailed": "Failed to export report"
+  },
+  "emails": {
+    "sent": "Email sent successfully",
+    "sendFailed": "Failed to send email",
+    "templateNotFound": "Email template not found",
+    "invalidRecipient": "Invalid recipient email"
+  },
+  "notifications": {
+    "goalDeadlineApproaching": "Goal deadline approaching: {{title}}",
+    "invoiceOverdue": "Invoice {{number}} is overdue",
+    "lowStockAlert": "Low stock alert: {{product}}",
+    "newCustomer": "New customer registered: {{name}}",
+    "paymentReceived": "Payment received: {{amount}}"
+  },
+  "validation": {
+    "required": "{{field}} is required",
+    "invalidEmail": "Invalid email address",
+    "invalidDate": "Invalid date",
+    "invalidNumber": "Invalid number",
+    "minLength": "{{field}} must be at least {{min}} characters",
+    "maxLength": "{{field}} must not exceed {{max}} characters",
+    "passwordMismatch": "Passwords do not match"
+  },
+  "languages": {
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "th": "Thai"
+  }
+}

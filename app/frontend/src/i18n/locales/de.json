@@ -1,0 +1,53 @@
+{
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "add": "Hinzufügen",
+    "search": "Suchen",
+    "filter": "Filtern",
+    "export": "Exportieren",
+    "import": "Importieren",
+    "loading": "Laden...",
+    "noData": "Keine Daten verfügbar",
+    "yes": "Ja",
+    "no": "Nein"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "platforms": "Plattformen",
+    "earnings": "Einnahmen",
+    "goals": "Ziele",
+    "analytics": "Analysen",
+    "settings": "Einstellungen",
+    "logout": "Abmelden"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalEarned": "Gesamt verdient",
+    "thisMonth": "Dieser Monat",
+    "hoursWorked": "Arbeitsstunden"
+  },
+  "earnings": {
+    "title": "Einnahmen",
+    "addEarning": "Einnahme hinzufügen",
+    "platform": "Plattform",
+    "date": "Datum",
+    "amount": "Betrag"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "language": "Sprache",
+    "theme": "Design"
+  },
+  "auth": {
+    "login": "Anmelden",
+    "logout": "Abmelden",
+    "email": "E-Mail",
+    "password": "Passwort"
+  },
+  "notifications": {
+    "languageChanged": "Sprache erfolgreich geändert!"
+  }
+}

@@ -248,6 +248,84 @@ export interface InvoiceFormData extends InvoiceData {
   lineItems: InvoiceLineItem[];
 }
 
+// Workflow types
+export interface WorkflowAction {
+  type: 'send_email' | 'create_task' | 'update_record' | 'call_webhook';
+  config: Record<string, any>;
+}
+
+export interface WorkflowData {
+  name: string;
+  trigger: 'EARNING_CREATED' | 'INVOICE_PAID' | 'LOW_STOCK' | 'CUSTOMER_CREATED' | 'GOAL_COMPLETED';
+  actions: WorkflowAction[];
+  isActive: boolean;
+}
+
+export interface Workflow extends WorkflowData {
+  id: string;
+  userId: string;
+  executionCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowExecution {
+  id: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  executedAt: string;
+  result: any;
+  error?: string;
+  createdAt: string;
+}
+
+// Email types
+export interface EmailTemplateData {
+  name: string;
+  subject: string;
+  htmlBody: string;
+  variables?: string[];
+}
+
+export interface EmailTemplate extends EmailTemplateData {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailSequenceStep {
+  delay: number;
+  templateId?: string;
+  subject: string;
+  body: string;
+}
+
+export interface EmailSequenceData {
+  name: string;
+  steps: EmailSequenceStep[];
+  trigger: string;
+  isActive: boolean;
+}
+
+export interface EmailSequence extends EmailSequenceData {
+  id: string;
+  userId: string;
+  emailsSent: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailLog {
+  id: string;
+  sequenceId?: string;
+  sequenceName?: string;
+  recipientEmail: string;
+  subject: string;
+  status: 'SENT' | 'FAILED' | 'BOUNCED';
+  sentAt: string;
+  error?: string;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1';
 
 const api = axios.create({
@@ -412,4 +490,177 @@ export const invoicesAPI = {
   update: (id: string, data: Partial<InvoiceData>) => api.put(`/invoices/${id}`, data).then(res => res.data),
   markPaid: (id: string, data?: Record<string, unknown>) => api.patch(`/invoices/${id}/mark-paid`, data).then(res => res.data),
   delete: (id: string) => api.delete(`/invoices/${id}`).then(res => res.data),
+};
+
+export const workflowsAPI = {
+  getAll: () => api.get('/workflows').then(res => res.data),
+  getById: (id: string) => api.get(`/workflows/${id}`).then(res => res.data),
+  create: (data: WorkflowData) => api.post('/workflows', data).then(res => res.data),
+  update: (id: string, data: Partial<WorkflowData>) => api.put(`/workflows/${id}`, data).then(res => res.data),
+  delete: (id: string) => api.delete(`/workflows/${id}`).then(res => res.data),
+  execute: (id: string, data?: Record<string, any>) => api.post(`/workflows/${id}/execute`, { data }).then(res => res.data),
+  getExecutions: (id: string, params?: QueryParams) => api.get(`/workflows/${id}/executions`, { params }).then(res => res.data),
+};
+
+export const emailsAPI = {
+  // Templates
+  getTemplates: () => api.get('/emails/templates').then(res => res.data),
+  createTemplate: (data: EmailTemplateData) => api.post('/emails/templates', data).then(res => res.data),
+  updateTemplate: (id: string, data: Partial<EmailTemplateData>) => api.put(`/emails/templates/${id}`, data).then(res => res.data),
+  deleteTemplate: (id: string) => api.delete(`/emails/templates/${id}`).then(res => res.data),
+
+  // Sequences
+  getSequences: () => api.get('/emails/sequences').then(res => res.data),
+  createSequence: (data: EmailSequenceData) => api.post('/emails/sequences', data).then(res => res.data),
+  updateSequence: (id: string, data: Partial<EmailSequenceData>) => api.put(`/emails/sequences/${id}`, data).then(res => res.data),
+  deleteSequence: (id: string) => api.delete(`/emails/sequences/${id}`).then(res => res.data),
+
+  // Logs and Stats
+  getLogs: (params?: QueryParams) => api.get('/emails/logs', { params }).then(res => res.data),
+  getStats: () => api.get('/emails/stats').then(res => res.data),
+};
+
+// ============================================
+// SMS Types
+// ============================================
+
+export interface SMSTemplateData {
+  name: string;
+  content: string;
+  variables?: string[];
+}
+
+export interface SMSTemplate extends SMSTemplateData {
+  id: string;
+  userId: string;
+  campaignCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SMSCampaignData {
+  name: string;
+  templateId: string;
+  recipients: string[];
+  scheduledFor?: string;
+}
+
+export interface SMSCampaign {
+  id: string;
+  userId: string;
+  name: string;
+  template: {
+    id: string;
+    name: string;
+    content?: string;
+  } | null;
+  recipients?: string[];
+  recipientCount: number;
+  messageCount: number;
+  status: "DRAFT" | "SCHEDULED" | "SENDING" | "SENT" | "CANCELLED";
+  scheduledFor: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SMSLog {
+  id: string;
+  phoneNumber: string;
+  message: string;
+  status: "PENDING" | "SENT" | "FAILED" | "DELIVERED";
+  messageId: string | null;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  error: string | null;
+  createdAt: string;
+}
+
+export interface PhoneContact {
+  id: string;
+  phoneNumber: string;
+  name: string | null;
+  isVerified: boolean;
+  verifiedAt: string | null;
+  isOptedIn: boolean;
+  optedOutAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================
+// SMS API
+// ============================================
+
+export const smsAPI = {
+  // Templates
+  getTemplates: () => api.get("/sms/templates").then(res => res.data),
+  getTemplate: (id: string) => api.get(`/sms/templates/${id}`).then(res => res.data),
+  createTemplate: (data: SMSTemplateData) => api.post("/sms/templates", data).then(res => res.data),
+  updateTemplate: (id: string, data: Partial<SMSTemplateData>) => api.put(`/sms/templates/${id}`, data).then(res => res.data),
+  deleteTemplate: (id: string) => api.delete(`/sms/templates/${id}`).then(res => res.data),
+
+  // Campaigns
+  getCampaigns: (params?: QueryParams) => api.get("/sms/campaigns", { params }).then(res => res.data),
+  getCampaign: (id: string) => api.get(`/sms/campaigns/${id}`).then(res => res.data),
+  createCampaign: (data: SMSCampaignData) => api.post("/sms/campaigns", data).then(res => res.data),
+  sendCampaign: (id: string) => api.post(`/sms/campaigns/${id}/send`).then(res => res.data),
+  getCampaignLogs: (id: string, params?: QueryParams) => api.get(`/sms/campaigns/${id}/logs`, { params }).then(res => res.data),
+
+  // Contacts
+  getContacts: (params?: QueryParams) => api.get("/sms/contacts", { params }).then(res => res.data),
+  addContact: (data: { phoneNumber: string; name?: string; notes?: string }) => api.post("/sms/contacts", data).then(res => res.data),
+  updateContact: (id: string, data: Partial<{ phoneNumber: string; name?: string; notes?: string }>) => api.put(`/sms/contacts/${id}`, data).then(res => res.data),
+  deleteContact: (id: string) => api.delete(`/sms/contacts/${id}`).then(res => res.data),
+
+  // Unsubscribe
+  unsubscribe: (phoneNumber: string) => api.post("/sms/unsubscribe", { phoneNumber }).then(res => res.data),
+};
+
+// ============================================
+// Funnel Analysis API
+// ============================================
+
+export const funnelAPI = {
+  // Funnel Management
+  getFunnels: () => api.get('/funnels').then(res => res.data),
+  getFunnel: (id: string) => api.get(`/funnels/${id}`).then(res => res.data),
+  createFunnel: (data: {
+    name: string;
+    description?: string;
+    steps: { name: string; order: number; conditions?: Record<string, any> }[];
+    trackingEnabled?: boolean;
+    metadata?: Record<string, any>;
+  }) => api.post('/funnels', data).then(res => res.data),
+  updateFunnel: (id: string, data: Partial<{
+    name: string;
+    description?: string;
+    steps: { name: string; order: number; conditions?: Record<string, any> }[];
+    trackingEnabled?: boolean;
+    metadata?: Record<string, any>;
+  }>) => api.put(`/funnels/${id}`, data).then(res => res.data),
+  deleteFunnel: (id: string) => api.delete(`/funnels/${id}`).then(res => res.data),
+  createPresetFunnels: () => api.post('/funnels/presets').then(res => res.data),
+
+  // Event Tracking
+  trackEvent: (data: {
+    funnelId: string;
+    sessionId: string;
+    step: string;
+    stepNumber: number;
+    metadata?: Record<string, any>;
+  }) => api.post('/funnels/events', data).then(res => res.data),
+
+  // Metrics & Analysis
+  getFunnelMetrics: (id: string, period?: string) => api.get(`/funnels/${id}/metrics`, { params: { period } }).then(res => res.data),
+  calculateMetrics: (id: string, periodStart: string, periodEnd: string) =>
+    api.post(`/funnels/${id}/metrics/calculate`, { periodStart, periodEnd }).then(res => res.data),
+  getFunnelAnalysis: (id: string, periodStart?: string, periodEnd?: string) =>
+    api.get(`/funnels/${id}/analysis`, { params: { periodStart, periodEnd } }).then(res => res.data),
+  getCohortAnalysis: (id: string, periodStart: string, periodEnd: string, cohortBy: 'day' | 'week' | 'month' = 'day') =>
+    api.get(`/funnels/${id}/cohort-analysis`, { params: { periodStart, periodEnd, cohortBy } }).then(res => res.data),
+  getSegmentAnalysis: (id: string, segmentBy: string, periodStart?: string, periodEnd?: string) =>
+    api.get(`/funnels/${id}/segment-analysis`, { params: { segmentBy, periodStart, periodEnd } }).then(res => res.data),
 };

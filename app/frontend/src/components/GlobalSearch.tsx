@@ -1,45 +1,23 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, X, TrendingUp, DollarSign, Target, Users, Clock, FileText, LucideIcon } from 'lucide-react';
+import {
+  Search,
+  X,
+  TrendingUp,
+  DollarSign,
+  Target,
+  Users,
+  Clock,
+  FileText,
+  LucideIcon,
+  Ticket,
+  MessageSquare,
+  Loader2,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-// Data structure interfaces for localStorage items
-interface Earning {
-  id: string;
-  platformName: string;
-  amount: number;
-  description?: string;
-  date: string;
-}
-
-interface Client {
-  id: string;
-  name: string;
-  company?: string;
-  email?: string;
-}
-
-interface Budget {
-  id: string;
-  name: string;
-  spentAmount: number;
-  plannedAmount: number;
-}
-
-interface SavingsGoal {
-  id: string;
-  name: string;
-  currentAmount: number;
-  targetAmount: number;
-}
-
-interface TimeEntry {
-  id: string;
-  projectName: string;
-  description?: string;
-}
+import { useGlobalSearch } from '../hooks/useElasticsearch';
 
 // Search result types
-type SearchResultType = 'earning' | 'platform' | 'goal' | 'client' | 'budget' | 'invoice';
+type SearchResultType = 'ticket' | 'message' | 'customer' | 'document';
 
 interface SearchResult {
   id: string;
@@ -49,15 +27,97 @@ interface SearchResult {
   path: string;
   icon: LucideIcon;
   color: string;
+  highlight?: Record<string, string[]>;
+  score?: number;
 }
 
 export default function GlobalSearch() {
   const [isOpen, setIsOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+
+  const {
+    query,
+    results: searchResults,
+    loading,
+    error,
+    hasResults,
+    handleSearch,
+    clearSearch,
+  } = useGlobalSearch({
+    debounceDelay: 300,
+    minChars: 2,
+    autoSearch: true,
+  });
+
+  // Transform Elasticsearch results to UI format
+  const results: SearchResult[] = [];
+
+  if (searchResults) {
+    // Add tickets
+    searchResults.tickets?.hits?.forEach((hit) => {
+      results.push({
+        id: hit.id,
+        type: 'ticket',
+        title: hit.subject || 'Untitled Ticket',
+        subtitle: hit.description || `Status: ${hit.status}`,
+        path: `/tickets/${hit.id}`,
+        icon: Ticket,
+        color: 'text-red-600',
+        highlight: hit.highlight,
+        score: hit.score,
+      });
+    });
+
+    // Add messages
+    searchResults.chat_messages?.hits?.forEach((hit) => {
+      results.push({
+        id: hit.id,
+        type: 'message',
+        title: hit.content?.substring(0, 50) || 'Message',
+        subtitle: `Room: ${hit.roomId}`,
+        path: `/chat/${hit.roomId}`,
+        icon: MessageSquare,
+        color: 'text-blue-600',
+        highlight: hit.highlight,
+        score: hit.score,
+      });
+    });
+
+    // Add customers
+    searchResults.customers?.hits?.forEach((hit) => {
+      results.push({
+        id: hit.id,
+        type: 'customer',
+        title: hit.name || 'Unnamed Customer',
+        subtitle: hit.email || hit.company || 'No details',
+        path: `/customers/${hit.id}`,
+        icon: Users,
+        color: 'text-green-600',
+        highlight: hit.highlight,
+        score: hit.score,
+      });
+    });
+
+    // Add documents
+    searchResults.documents?.hits?.forEach((hit) => {
+      results.push({
+        id: hit.id,
+        type: 'document',
+        title: hit.filename || 'Unnamed Document',
+        subtitle: hit.contentType || 'Document',
+        path: `/documents/${hit.id}`,
+        icon: FileText,
+        color: 'text-purple-600',
+        highlight: hit.highlight,
+        score: hit.score,
+      });
+    });
+  }
+
+  // Sort by score
+  results.sort((a, b) => (b.score || 0) - (a.score || 0));
 
   // Keyboard shortcut to open search (Cmd/Ctrl + K)
   useEffect(() => {
@@ -68,13 +128,13 @@ export default function GlobalSearch() {
       }
       if (e.key === 'Escape') {
         setIsOpen(false);
-        setQuery('');
+        clearSearch();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [clearSearch]);
 
   // Focus input when opened
   useEffect(() => {
@@ -83,111 +143,15 @@ export default function GlobalSearch() {
     }
   }, [isOpen]);
 
-  // Search functionality
+  // Reset selected index when results change
   useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
-
-    const searchResults: SearchResult[] = [];
-    const lowerQuery = query.toLowerCase();
-
-    // Search in earnings
-    const earnings: Earning[] = JSON.parse(localStorage.getItem('earnings') || '[]');
-    earnings.forEach((earning: Earning) => {
-      if (
-        earning.platformName?.toLowerCase().includes(lowerQuery) ||
-        earning.description?.toLowerCase().includes(lowerQuery)
-      ) {
-        searchResults.push({
-          id: earning.id,
-          type: 'earning',
-          title: `${earning.platformName} - $${earning.amount}`,
-          subtitle: earning.description || earning.date,
-          path: '/earnings',
-          icon: DollarSign,
-          color: 'text-green-600',
-        });
-      }
-    });
-
-    // Search in clients
-    const clients: Client[] = JSON.parse(localStorage.getItem('clients') || '[]');
-    clients.forEach((client: Client) => {
-      if (
-        client.name?.toLowerCase().includes(lowerQuery) ||
-        client.company?.toLowerCase().includes(lowerQuery) ||
-        client.email?.toLowerCase().includes(lowerQuery)
-      ) {
-        searchResults.push({
-          id: client.id,
-          type: 'client',
-          title: client.name,
-          subtitle: client.company || client.email,
-          path: '/clients',
-          icon: Users,
-          color: 'text-blue-600',
-        });
-      }
-    });
-
-    // Search in budgets
-    const budgets: Budget[] = JSON.parse(localStorage.getItem('budget_categories') || '[]');
-    budgets.forEach((budget: Budget) => {
-      if (budget.name?.toLowerCase().includes(lowerQuery)) {
-        searchResults.push({
-          id: budget.id,
-          type: 'budget',
-          title: budget.name,
-          subtitle: `$${budget.spentAmount} / $${budget.plannedAmount}`,
-          path: '/budget',
-          icon: TrendingUp,
-          color: 'text-purple-600',
-        });
-      }
-    });
-
-    // Search in goals
-    const goals: SavingsGoal[] = JSON.parse(localStorage.getItem('savings_goals') || '[]');
-    goals.forEach((goal: SavingsGoal) => {
-      if (goal.name?.toLowerCase().includes(lowerQuery)) {
-        searchResults.push({
-          id: goal.id,
-          type: 'goal',
-          title: goal.name,
-          subtitle: `$${goal.currentAmount} / $${goal.targetAmount}`,
-          path: '/budget',
-          icon: Target,
-          color: 'text-orange-600',
-        });
-      }
-    });
-
-    // Search in time entries
-    const timeEntries: TimeEntry[] = JSON.parse(localStorage.getItem('time_entries') || '[]');
-    timeEntries.forEach((entry: TimeEntry) => {
-      if (entry.projectName?.toLowerCase().includes(lowerQuery)) {
-        searchResults.push({
-          id: entry.id,
-          type: 'earning',
-          title: entry.projectName,
-          subtitle: entry.description,
-          path: '/time-tracking',
-          icon: Clock,
-          color: 'text-indigo-600',
-        });
-      }
-    });
-
-    setResults(searchResults.slice(0, 8)); // Limit to 8 results
     setSelectedIndex(0);
-  }, [query]);
+  }, [results.length]);
 
   const handleSelectResult = (result: SearchResult) => {
     navigate(result.path);
     setIsOpen(false);
-    setQuery('');
+    clearSearch();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -236,15 +200,17 @@ export default function GlobalSearch() {
               ref={inputRef}
               type="text"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Search earnings, clients, budgets, goals..."
+              placeholder="Search tickets, messages, customers, documents..."
               className="flex-1 bg-transparent border-none outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+              disabled={loading}
             />
+            {loading && <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />}
             <button
               onClick={() => {
                 setIsOpen(false);
-                setQuery('');
+                clearSearch();
               }}
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             >
@@ -254,7 +220,17 @@ export default function GlobalSearch() {
 
           {/* Results */}
           <div className="max-h-96 overflow-y-auto">
-            {results.length === 0 && query ? (
+            {error ? (
+              <div className="p-8 text-center text-red-500">
+                <X className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>Search error: {error}</p>
+              </div>
+            ) : loading ? (
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                <Loader2 className="h-12 w-12 mx-auto mb-3 opacity-50 animate-spin" />
+                <p>Searching...</p>
+              </div>
+            ) : results.length === 0 && query ? (
               <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p>No results found for "{query}"</p>
@@ -263,15 +239,15 @@ export default function GlobalSearch() {
               <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                 <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p className="mb-2">Start typing to search...</p>
-                <p className="text-sm">Search across earnings, clients, budgets, and more</p>
+                <p className="text-sm">Search across tickets, messages, customers, and documents</p>
               </div>
             ) : (
               <div className="py-2">
-                {results.map((result, index) => {
+                {results.slice(0, 10).map((result, index) => {
                   const Icon = result.icon;
                   return (
                     <button
-                      key={result.id}
+                      key={`${result.type}-${result.id}`}
                       onClick={() => handleSelectResult(result)}
                       className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
                         index === selectedIndex ? 'bg-gray-100 dark:bg-gray-700' : ''
@@ -282,12 +258,25 @@ export default function GlobalSearch() {
                       </div>
                       <div className="flex-1 text-left">
                         <div className="font-medium text-gray-900 dark:text-white">
-                          {result.title}
+                          {result.highlight?.subject?.[0] ? (
+                            <span dangerouslySetInnerHTML={{ __html: result.highlight.subject[0] }} />
+                          ) : (
+                            result.title
+                          )}
                         </div>
                         {result.subtitle && (
                           <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {result.subtitle}
+                            {result.highlight?.description?.[0] ? (
+                              <span dangerouslySetInnerHTML={{ __html: result.highlight.description[0] }} />
+                            ) : result.highlight?.content?.[0] ? (
+                              <span dangerouslySetInnerHTML={{ __html: result.highlight.content[0] }} />
+                            ) : (
+                              result.subtitle
+                            )}
                           </div>
+                        )}
+                        {result.score && (
+                          <div className="text-xs text-gray-400 mt-1">Score: {result.score.toFixed(2)}</div>
                         )}
                       </div>
                       <span className="text-xs text-gray-400 dark:text-gray-500 uppercase">

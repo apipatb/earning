@@ -4,6 +4,7 @@ import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
 import { logger } from '../utils/logger';
+import { WebhookService } from '../services/webhook.service';
 
 const invoiceLineItemSchema = z.object({
   description: z.string().min(1).max(1000),
@@ -137,6 +138,18 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Trigger webhook event
+    WebhookService.triggerEvent(userId, 'INVOICE_CREATED', {
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      customer: invoice.customer,
+      totalAmount: Number(invoice.totalAmount),
+      status: invoice.status,
+      invoiceDate: invoice.invoiceDate.toISOString(),
+      dueDate: invoice.dueDate.toISOString(),
+      createdAt: invoice.createdAt.toISOString(),
+    });
+
     res.status(201).json({
       invoice: {
         ...invoice,
@@ -197,6 +210,29 @@ export const updateInvoice = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Trigger appropriate webhook events based on status change
+    if (data.status && data.status !== invoice.status) {
+      if (data.status.toUpperCase() === 'SENT') {
+        WebhookService.triggerEvent(userId, 'INVOICE_SENT', {
+          id: updated.id,
+          invoiceNumber: updated.invoiceNumber,
+          customer: updated.customer,
+          totalAmount: Number(updated.totalAmount),
+          status: updated.status,
+          invoiceDate: updated.invoiceDate.toISOString(),
+          dueDate: updated.dueDate.toISOString(),
+        });
+      } else if (data.status.toUpperCase() === 'OVERDUE') {
+        WebhookService.triggerEvent(userId, 'INVOICE_OVERDUE', {
+          id: updated.id,
+          invoiceNumber: updated.invoiceNumber,
+          customer: updated.customer,
+          totalAmount: Number(updated.totalAmount),
+          dueDate: updated.dueDate.toISOString(),
+        });
+      }
+    }
+
     res.json({
       invoice: {
         ...updated,
@@ -243,6 +279,16 @@ export const markInvoicePaid = async (req: AuthRequest, res: Response) => {
         customer: true,
         lineItems: true,
       },
+    });
+
+    // Trigger webhook event
+    WebhookService.triggerEvent(userId, 'INVOICE_PAID', {
+      id: updated.id,
+      invoiceNumber: updated.invoiceNumber,
+      customer: updated.customer,
+      totalAmount: Number(updated.totalAmount),
+      paidDate: updated.paidDate?.toISOString(),
+      paymentMethod: updated.paymentMethod,
     });
 
     res.json({ invoice: updated });

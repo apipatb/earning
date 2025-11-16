@@ -1,0 +1,53 @@
+{
+  "common": {
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "delete": "ลบ",
+    "edit": "แก้ไข",
+    "add": "เพิ่ม",
+    "search": "ค้นหา",
+    "filter": "กรอง",
+    "export": "ส่งออก",
+    "import": "นำเข้า",
+    "loading": "กำลังโหลด...",
+    "noData": "ไม่มีข้อมูล",
+    "yes": "ใช่",
+    "no": "ไม่ใช่"
+  },
+  "nav": {
+    "dashboard": "หน้าหลัก",
+    "platforms": "แพลตฟอร์ม",
+    "earnings": "รายได้",
+    "goals": "เป้าหมาย",
+    "analytics": "วิเคราะห์",
+    "settings": "ตั้งค่า",
+    "logout": "ออกจากระบบ"
+  },
+  "dashboard": {
+    "title": "หน้าหลัก",
+    "totalEarned": "รายได้ทั้งหมด",
+    "thisMonth": "เดือนนี้",
+    "hoursWorked": "ชั่วโมงทำงาน"
+  },
+  "earnings": {
+    "title": "รายได้",
+    "addEarning": "เพิ่มรายได้",
+    "platform": "แพลตฟอร์ม",
+    "date": "วันที่",
+    "amount": "จำนวนเงิน"
+  },
+  "settings": {
+    "title": "ตั้งค่า",
+    "language": "ภาษา",
+    "theme": "ธีม"
+  },
+  "auth": {
+    "login": "เข้าสู่ระบบ",
+    "logout": "ออกจากระบบ",
+    "email": "อีเมล",
+    "password": "รหัสผ่าน"
+  },
+  "notifications": {
+    "languageChanged": "เปลี่ยนภาษาเรียบร้อยแล้ว!"
+  }
+}

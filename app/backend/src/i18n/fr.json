@@ -1,0 +1,126 @@
+{
+  "common": {
+    "success": "Succès",
+    "error": "Erreur",
+    "warning": "Avertissement",
+    "info": "Information",
+    "notFound": "Non trouvé",
+    "unauthorized": "Accès non autorisé",
+    "forbidden": "Interdit",
+    "badRequest": "Mauvaise requête",
+    "internalError": "Erreur interne du serveur",
+    "validationError": "Erreur de validation"
+  },
+  "auth": {
+    "loginSuccess": "Connexion réussie",
+    "loginFailed": "Échec de la connexion",
+    "logoutSuccess": "Déconnexion réussie",
+    "registerSuccess": "Inscription réussie",
+    "registerFailed": "Échec de l'inscription",
+    "invalidCredentials": "Identifiants invalides",
+    "emailAlreadyExists": "L'e-mail existe déjà",
+    "passwordResetSent": "E-mail de réinitialisation du mot de passe envoyé",
+    "passwordResetSuccess": "Réinitialisation du mot de passe réussie",
+    "tokenExpired": "Le jeton a expiré",
+    "tokenInvalid": "Jeton invalide",
+    "unauthorized": "Accès non autorisé"
+  },
+  "user": {
+    "profileUpdated": "Profil mis à jour avec succès",
+    "profileUpdateFailed": "Échec de la mise à jour du profil",
+    "userNotFound": "Utilisateur non trouvé",
+    "userCreated": "Utilisateur créé avec succès",
+    "userDeleted": "Utilisateur supprimé avec succès",
+    "languageUpdated": "Préférence de langue mise à jour",
+    "passwordChanged": "Mot de passe modifié avec succès",
+    "passwordChangeFailed": "Échec de la modification du mot de passe",
+    "invalidPassword": "Mot de passe invalide"
+  },
+  "earnings": {
+    "created": "Revenu créé avec succès",
+    "updated": "Revenu mis à jour avec succès",
+    "deleted": "Revenu supprimé avec succès",
+    "notFound": "Revenu non trouvé",
+    "listRetrieved": "Revenus récupérés avec succès"
+  },
+  "platforms": {
+    "created": "Plateforme créée avec succès",
+    "updated": "Plateforme mise à jour avec succès",
+    "deleted": "Plateforme supprimée avec succès",
+    "notFound": "Plateforme non trouvée",
+    "alreadyExists": "Une plateforme avec ce nom existe déjà"
+  },
+  "goals": {
+    "created": "Objectif créé avec succès",
+    "updated": "Objectif mis à jour avec succès",
+    "deleted": "Objectif supprimé avec succès",
+    "completed": "Félicitations ! Objectif atteint !",
+    "notFound": "Objectif non trouvé"
+  },
+  "invoices": {
+    "created": "Facture créée avec succès",
+    "updated": "Facture mise à jour avec succès",
+    "deleted": "Facture supprimée avec succès",
+    "sent": "Facture envoyée avec succès",
+    "paid": "Facture marquée comme payée",
+    "notFound": "Facture non trouvée",
+    "pdfGenerated": "PDF généré avec succès"
+  },
+  "products": {
+    "created": "Produit créé avec succès",
+    "updated": "Produit mis à jour avec succès",
+    "deleted": "Produit supprimé avec succès",
+    "notFound": "Produit non trouvé",
+    "lowStock": "Alerte de stock faible pour {{name}}",
+    "outOfStock": "{{name}} est en rupture de stock"
+  },
+  "customers": {
+    "created": "Client créé avec succès",
+    "updated": "Client mis à jour avec succès",
+    "deleted": "Client supprimé avec succès",
+    "notFound": "Client non trouvé"
+  },
+  "expenses": {
+    "created": "Dépense créée avec succès",
+    "updated": "Dépense mise à jour avec succès",
+    "deleted": "Dépense supprimée avec succès",
+    "notFound": "Dépense non trouvée"
+  },
+  "reports": {
+    "generated": "Rapport généré avec succès",
+    "notFound": "Rapport non trouvé",
+    "exportSuccess": "Rapport exporté avec succès",
+    "exportFailed": "Échec de l'exportation du rapport"
+  },
+  "emails": {
+    "sent": "E-mail envoyé avec succès",
+    "sendFailed": "Échec de l'envoi de l'e-mail",
+    "templateNotFound": "Modèle d'e-mail non trouvé",
+    "invalidRecipient": "E-mail du destinataire invalide"
+  },
+  "notifications": {
+    "goalDeadlineApproaching": "Date limite de l'objectif approche : {{title}}",
+    "invoiceOverdue": "La facture {{number}} est en retard",
+    "lowStockAlert": "Alerte de stock faible : {{product}}",
+    "newCustomer": "Nouveau client enregistré : {{name}}",
+    "paymentReceived": "Paiement reçu : {{amount}}"
+  },
+  "validation": {
+    "required": "{{field}} est requis",
+    "invalidEmail": "Adresse e-mail invalide",
+    "invalidDate": "Date invalide",
+    "invalidNumber": "Numéro invalide",
+    "minLength": "{{field}} doit contenir au moins {{min}} caractères",
+    "maxLength": "{{field}} ne doit pas dépasser {{max}} caractères",
+    "passwordMismatch": "Les mots de passe ne correspondent pas"
+  },
+  "languages": {
+    "en": "Anglais",
+    "es": "Espagnol",
+    "fr": "Français",
+    "de": "Allemand",
+    "zh": "Chinois",
+    "ja": "Japonais",
+    "th": "Thaï"
+  }
+}

@@ -21,3 +21,6 @@ export { useInfiniteScroll, useInfiniteScrollPagination } from './useInfiniteScr
 export { useLocalStorage } from './useLocalStorage';
 export { useDebounce } from './useDebounce';
 export { useCurrency } from './useCurrency';
+
+// Internationalization
+export { useI18n } from './useI18n';

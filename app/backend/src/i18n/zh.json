@@ -1,0 +1,126 @@
+{
+  "common": {
+    "success": "成功",
+    "error": "错误",
+    "warning": "警告",
+    "info": "信息",
+    "notFound": "未找到",
+    "unauthorized": "未授权访问",
+    "forbidden": "禁止访问",
+    "badRequest": "错误请求",
+    "internalError": "服务器内部错误",
+    "validationError": "验证错误"
+  },
+  "auth": {
+    "loginSuccess": "登录成功",
+    "loginFailed": "登录失败",
+    "logoutSuccess": "登出成功",
+    "registerSuccess": "注册成功",
+    "registerFailed": "注册失败",
+    "invalidCredentials": "凭据无效",
+    "emailAlreadyExists": "电子邮件已存在",
+    "passwordResetSent": "密码重置邮件已发送",
+    "passwordResetSuccess": "密码重置成功",
+    "tokenExpired": "令牌已过期",
+    "tokenInvalid": "无效令牌",
+    "unauthorized": "未授权访问"
+  },
+  "user": {
+    "profileUpdated": "个人资料更新成功",
+    "profileUpdateFailed": "个人资料更新失败",
+    "userNotFound": "用户未找到",
+    "userCreated": "用户创建成功",
+    "userDeleted": "用户删除成功",
+    "languageUpdated": "语言偏好已更新",
+    "passwordChanged": "密码修改成功",
+    "passwordChangeFailed": "密码修改失败",
+    "invalidPassword": "密码无效"
+  },
+  "earnings": {
+    "created": "收入创建成功",
+    "updated": "收入更新成功",
+    "deleted": "收入删除成功",
+    "notFound": "收入未找到",
+    "listRetrieved": "收入列表获取成功"
+  },
+  "platforms": {
+    "created": "平台创建成功",
+    "updated": "平台更新成功",
+    "deleted": "平台删除成功",
+    "notFound": "平台未找到",
+    "alreadyExists": "此名称的平台已存在"
+  },
+  "goals": {
+    "created": "目标创建成功",
+    "updated": "目标更新成功",
+    "deleted": "目标删除成功",
+    "completed": "恭喜！目标完成！",
+    "notFound": "目标未找到"
+  },
+  "invoices": {
+    "created": "发票创建成功",
+    "updated": "发票更新成功",
+    "deleted": "发票删除成功",
+    "sent": "发票发送成功",
+    "paid": "发票标记为已付款",
+    "notFound": "发票未找到",
+    "pdfGenerated": "PDF生成成功"
+  },
+  "products": {
+    "created": "产品创建成功",
+    "updated": "产品更新成功",
+    "deleted": "产品删除成功",
+    "notFound": "产品未找到",
+    "lowStock": "{{name}}库存不足警告",
+    "outOfStock": "{{name}}已缺货"
+  },
+  "customers": {
+    "created": "客户创建成功",
+    "updated": "客户更新成功",
+    "deleted": "客户删除成功",
+    "notFound": "客户未找到"
+  },
+  "expenses": {
+    "created": "支出创建成功",
+    "updated": "支出更新成功",
+    "deleted": "支出删除成功",
+    "notFound": "支出未找到"
+  },
+  "reports": {
+    "generated": "报告生成成功",
+    "notFound": "报告未找到",
+    "exportSuccess": "报告导出成功",
+    "exportFailed": "报告导出失败"
+  },
+  "emails": {
+    "sent": "邮件发送成功",
+    "sendFailed": "邮件发送失败",
+    "templateNotFound": "邮件模板未找到",
+    "invalidRecipient": "收件人邮箱无效"
+  },
+  "notifications": {
+    "goalDeadlineApproaching": "目标截止日期临近：{{title}}",
+    "invoiceOverdue": "发票{{number}}已逾期",
+    "lowStockAlert": "库存不足警告：{{product}}",
+    "newCustomer": "新客户注册：{{name}}",
+    "paymentReceived": "收到付款：{{amount}}"
+  },
+  "validation": {
+    "required": "{{field}}是必填项",
+    "invalidEmail": "电子邮件地址无效",
+    "invalidDate": "日期无效",
+    "invalidNumber": "数字无效",
+    "minLength": "{{field}}必须至少包含{{min}}个字符",
+    "maxLength": "{{field}}不得超过{{max}}个字符",
+    "passwordMismatch": "密码不匹配"
+  },
+  "languages": {
+    "en": "英语",
+    "es": "西班牙语",
+    "fr": "法语",
+    "de": "德语",
+    "zh": "中文",
+    "ja": "日语",
+    "th": "泰语"
+  }
+}

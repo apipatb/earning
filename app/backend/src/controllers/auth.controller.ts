@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { hashPassword, comparePassword, validatePassword } from '../utils/password';
 import { generateToken } from '../utils/jwt';
 import { logger } from '../utils/logger';
+import { TwoFactorService } from '../services/2fa.service';
 
 const registerSchema = z.object({
   email: z.string().email('Invalid email format'),
@@ -104,6 +105,38 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({
         error: 'Invalid Credentials',
         message: 'Email or password incorrect',
+      });
+    }
+
+    // Check if 2FA is enabled
+    const twoFactorStatus = await TwoFactorService.getStatus(user.id);
+
+    if (twoFactorStatus.enabled) {
+      // Generate a temporary token for 2FA verification
+      const tempToken = generateToken(user.id, user.email, '15m');
+
+      // Send OTP for SMS/Email methods if enabled
+      const enabledMethods = twoFactorStatus.methods.filter((m: any) => m.isEnabled);
+      const smsMethod = enabledMethods.find((m: any) => m.type === 'SMS');
+      const emailMethod = enabledMethods.find((m: any) => m.type === 'EMAIL');
+
+      if (smsMethod) {
+        await TwoFactorService.sendLoginCode(user.id, 'SMS');
+      }
+      if (emailMethod) {
+        await TwoFactorService.sendLoginCode(user.id, 'EMAIL');
+      }
+
+      return res.status(200).json({
+        requiresTwoFactor: true,
+        tempToken,
+        methods: twoFactorStatus.methods
+          .filter((m: any) => m.isEnabled)
+          .map((m: any) => ({
+            type: m.type,
+            phoneNumber: m.phoneNumber,
+          })),
+        message: '2FA verification required',
       });
     }
 
