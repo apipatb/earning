@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/auth.store';
 import { SUPPORTED_CURRENCIES } from '../lib/currency';
 import { notify, requestNotificationPermission } from '../store/notification.store';
 import { getErrorMessage, isApiError } from '../lib/error';
+import { getStorageJSON } from '../lib/storage';
 import ThemeCustomizer from '../components/ThemeCustomizer';
 import NotificationPreferences from '../components/NotificationPreferences';
 
@@ -203,12 +204,12 @@ export default function Settings() {
 
   const handleExportData = () => {
     const data = {
-      earnings: JSON.parse(localStorage.getItem('earnings') || '[]'),
-      platforms: JSON.parse(localStorage.getItem('platforms') || '[]'),
-      goals: JSON.parse(localStorage.getItem('savings_goals') || '[]'),
-      clients: JSON.parse(localStorage.getItem('clients') || '[]'),
-      timeEntries: JSON.parse(localStorage.getItem('time_entries') || '[]'),
-      budgets: JSON.parse(localStorage.getItem('budgets') || '[]'),
+      earnings: getStorageJSON('earnings', []),
+      platforms: getStorageJSON('platforms', []),
+      goals: getStorageJSON('savings_goals', []),
+      clients: getStorageJSON('clients', []),
+      timeEntries: getStorageJSON('time_entries', []),
+      budgets: getStorageJSON('budgets', []),
       preferences: preferences,
       exportedAt: new Date().toISOString(),
       version: '1.0',

@@ -191,7 +191,10 @@ export default function Reports() {
   };
 
   const generatePrintableReport = () => {
-    window.print();
+    // window.print() is generally safe but guard against undefined window
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
   };
 
   const handleExportPDF = async () => {
