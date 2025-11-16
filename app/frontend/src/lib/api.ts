@@ -86,3 +86,39 @@ export const salesAPI = {
   delete: (id: string) => api.delete(`/sales/${id}`).then(res => res.data),
   getSummary: (period?: string) => api.get('/sales/summary', { params: { period } }).then(res => res.data),
 };
+
+export const inventoryAPI = {
+  getAll: (params?: any) => api.get('/inventory', { params }).then(res => res.data),
+  getHistory: (params?: any) => api.get('/inventory/history', { params }).then(res => res.data),
+  getLowStockAlerts: () => api.get('/inventory/alerts/low-stock').then(res => res.data),
+  logChange: (data: any) => api.post('/inventory/log', data).then(res => res.data),
+  updateStock: (id: string, data: any) => api.put(`/inventory/${id}/stock`, data).then(res => res.data),
+};
+
+export const customersAPI = {
+  getAll: (params?: any) => api.get('/customers', { params }).then(res => res.data),
+  getDetails: (id: string) => api.get(`/customers/${id}`).then(res => res.data),
+  getTopCustomers: (limit?: number) => api.get('/customers/top', { params: { limit } }).then(res => res.data),
+  create: (data: any) => api.post('/customers', data).then(res => res.data),
+  update: (id: string, data: any) => api.put(`/customers/${id}`, data).then(res => res.data),
+  delete: (id: string) => api.delete(`/customers/${id}`).then(res => res.data),
+};
+
+export const expensesAPI = {
+  getAll: (params?: any) => api.get('/expenses', { params }).then(res => res.data),
+  getSummary: (period?: string) => api.get('/expenses/summary', { params: { period } }).then(res => res.data),
+  getProfitMargin: (period?: string) => api.get('/expenses/profit/margin', { params: { period } }).then(res => res.data),
+  create: (data: any) => api.post('/expenses', data).then(res => res.data),
+  update: (id: string, data: any) => api.put(`/expenses/${id}`, data).then(res => res.data),
+  delete: (id: string) => api.delete(`/expenses/${id}`).then(res => res.data),
+};
+
+export const invoicesAPI = {
+  getAll: (params?: any) => api.get('/invoices', { params }).then(res => res.data),
+  getSummary: () => api.get('/invoices/summary').then(res => res.data),
+  getOverdue: () => api.get('/invoices/overdue').then(res => res.data),
+  create: (data: any) => api.post('/invoices', data).then(res => res.data),
+  update: (id: string, data: any) => api.put(`/invoices/${id}`, data).then(res => res.data),
+  markPaid: (id: string, data?: any) => api.patch(`/invoices/${id}/mark-paid`, data).then(res => res.data),
+  delete: (id: string) => api.delete(`/invoices/${id}`).then(res => res.data),
+};

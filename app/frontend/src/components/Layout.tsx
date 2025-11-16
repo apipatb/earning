@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, Receipt, Calculator, RepeatIcon, Clock, Users, Wallet, Settings as SettingsIcon, LogOut, Moon, Sun, Languages, Package, ShoppingCart } from 'lucide-react';
+import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, Receipt, Calculator, RepeatIcon, Clock, Users, Wallet, Settings as SettingsIcon, LogOut, Moon, Sun, Languages, Package, ShoppingCart, TrendingDown, Briefcase } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { useThemeStore } from '../store/theme.store';
 import { useCurrencyStore } from '../store/currency.store';
@@ -145,6 +145,39 @@ export default function Layout() {
             >
               <ShoppingCart className="mr-3 h-5 w-5" />
               Sales
+            </Link>
+            <Link
+              to="/inventory"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/inventory')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Package className="mr-3 h-5 w-5" />
+              Inventory
+            </Link>
+            <Link
+              to="/customers"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/customers')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Briefcase className="mr-3 h-5 w-5" />
+              Customers
+            </Link>
+            <Link
+              to="/expenses"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/expenses')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <TrendingDown className="mr-3 h-5 w-5" />
+              Expenses
             </Link>
             <Link
               to="/recurring"
