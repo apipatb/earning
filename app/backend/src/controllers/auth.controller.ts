@@ -4,23 +4,15 @@ import prisma from '../lib/prisma';
 import { hashPassword, comparePassword, validatePassword } from '../utils/password';
 import { generateToken } from '../utils/jwt';
 import { logInfo, logDebug, logError, logWarn } from '../lib/logger';
-
-const registerSchema = z.object({
-  email: z.string().email('Invalid email format'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  name: z.string().optional(),
-});
-
-const loginSchema = z.object({
-  email: z.string().email('Invalid email format'),
-  password: z.string(),
-});
+import { RegisterInputSchema, LoginInputSchema } from '../schemas/validation.schemas';
+import { validateRequest, ValidationException } from '../utils/validate-request.util';
 
 export const register = async (req: Request, res: Response) => {
   const requestId = (req as any).requestId || 'unknown';
 
   try {
-    const data = registerSchema.parse(req.body);
+    // Validate request using centralized schema
+    const data = await validateRequest(req.body, RegisterInputSchema);
     logDebug('Registration request received', {
       requestId,
       email: data.email,
@@ -89,14 +81,16 @@ export const register = async (req: Request, res: Response) => {
       token,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
+    if (error instanceof ValidationException) {
+      const requestId = (req as any).requestId || 'unknown';
       logWarn('Validation error during registration', {
         requestId,
         errors: error.errors,
       });
-      return res.status(400).json({
+      return res.status(error.statusCode).json({
         error: 'Validation Error',
-        message: error.errors[0].message,
+        message: 'Registration validation failed',
+        errors: error.errors,
       });
     }
     logError('Registration error', error, {
@@ -114,7 +108,8 @@ export const login = async (req: Request, res: Response) => {
   const requestId = (req as any).requestId || 'unknown';
 
   try {
-    const data = loginSchema.parse(req.body);
+    // Validate request using centralized schema
+    const data = await validateRequest(req.body, LoginInputSchema);
     logDebug('Login request received', {
       requestId,
       email: data.email,
@@ -169,14 +164,16 @@ export const login = async (req: Request, res: Response) => {
       token,
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
+    if (error instanceof ValidationException) {
+      const requestId = (req as any).requestId || 'unknown';
       logWarn('Validation error during login', {
         requestId,
         errors: error.errors,
       });
-      return res.status(400).json({
+      return res.status(error.statusCode).json({
         error: 'Validation Error',
-        message: error.errors[0].message,
+        message: 'Login validation failed',
+        errors: error.errors,
       });
     }
     logError('Login error', error, {

@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import rateLimit from 'express-rate-limit';
 import http from 'http';
 import swaggerUi from 'swagger-ui-express';
 import logger, { logInfo, logDebug, logError } from './lib/logger';
@@ -29,6 +28,12 @@ import uploadRoutes from './routes/upload.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { notFound } from './middleware/notFound.middleware';
 import loggingMiddleware from './middleware/logging.middleware';
+import securityHeadersMiddleware from './middleware/security-headers.middleware';
+import {
+  globalLimiter,
+  authLimiter,
+  uploadLimiter,
+} from './middleware/rate-limit.middleware';
 
 // Import WebSocket
 import { initializeWebSocket } from './websocket/ws';
@@ -41,32 +46,8 @@ const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const IS_PRODUCTION = NODE_ENV === 'production';
 
-// Security: Set security HTTP headers
-app.use((req, res, next) => {
-  // Prevent XSS attacks
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-
-  // Prevent clickjacking
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-
-  // HTTPS enforcement
-  if (IS_PRODUCTION) {
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  }
-
-  next();
-});
-
-// Rate limiting (more restrictive in production)
-const limiter = rateLimit({
-  windowMs: IS_PRODUCTION ? 15 * 60 * 1000 : parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
-  max: IS_PRODUCTION ? 50 : parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// Security middleware (applied first, before any other middleware)
+app.use(securityHeadersMiddleware);
 
 // CORS Configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000'];
@@ -86,12 +67,12 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 
-// Middleware
+// Middleware (in order: CORS → body parsing → logging → global rate limit)
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' })); // Limit payload size (supports file uploads)
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(loggingMiddleware); // Request/Response logging
-app.use('/api/', limiter);
+app.use('/api/', globalLimiter); // Apply global rate limiting to API routes
 
 // Health check
 app.get('/health', (req, res) => {
@@ -107,8 +88,8 @@ app.get('/api/openapi.json', (req, res) => {
   res.send(swaggerSpec);
 });
 
-// API Routes
-app.use('/api/v1/auth', authRoutes);
+// API Routes with rate limiting
+app.use('/api/v1/auth', authLimiter, authRoutes); // Stricter auth rate limit
 app.use('/api/v1/user', userRoutes);
 app.use('/api/v1/platforms', platformRoutes);
 app.use('/api/v1/earnings', earningRoutes);
@@ -120,7 +101,7 @@ app.use('/api/v1/inventory', inventoryRoutes);
 app.use('/api/v1/customers', customerRoutes);
 app.use('/api/v1/expenses', expenseRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
-app.use('/api/v1/upload', uploadRoutes);
+app.use('/api/v1/upload', uploadLimiter, uploadRoutes); // Stricter upload rate limit
 
 // Error handling
 app.use(notFound);

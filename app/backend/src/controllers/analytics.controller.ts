@@ -1,14 +1,18 @@
 import { Response } from 'express';
 import { AuthRequest, AnalyticsSummary, PlatformBreakdown, DailyBreakdown } from '../types';
 import prisma from '../lib/prisma';
-import { logInfo, logDebug, logError } from '../lib/logger';
+import { logInfo, logDebug, logError, logWarn } from '../lib/logger';
+import { AnalyticsPeriodSchema } from '../schemas/validation.schemas';
+import { validateRequest, ValidationException } from '../utils/validate-request.util';
 
 export const getSummary = async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
   const requestId = (req as any).requestId || 'unknown';
 
   try {
-    const { period = 'month', start_date, end_date } = req.query;
+    // Validate query parameters
+    const params = await validateRequest(req.query, AnalyticsPeriodSchema);
+    const { period = 'month', start_date, end_date } = params;
 
     logDebug('Fetching analytics summary', {
       requestId,
@@ -22,8 +26,8 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
     let endDate: Date = new Date();
 
     if (start_date && end_date) {
-      startDate = new Date(start_date as string);
-      endDate = new Date(end_date as string);
+      startDate = new Date(start_date);
+      endDate = new Date(end_date);
     } else {
       const now = new Date();
       switch (period) {
@@ -139,6 +143,18 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
 
     res.json(summary);
   } catch (error) {
+    if (error instanceof ValidationException) {
+      logWarn('Validation error fetching analytics', {
+        requestId,
+        userId,
+        errors: error.errors,
+      });
+      return res.status(error.statusCode).json({
+        error: 'Validation Error',
+        message: 'Invalid analytics parameters',
+        errors: error.errors,
+      });
+    }
     logError('Failed to fetch analytics summary', error, {
       requestId,
       userId,

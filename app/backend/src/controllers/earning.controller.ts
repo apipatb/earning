@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { logInfo, logDebug, logError, logWarn } from '../lib/logger';
@@ -9,39 +8,38 @@ import {
   emitEarningDeleted,
 } from '../websocket/events/earnings.events';
 import { sendSuccessNotification, sendErrorNotification } from '../websocket/events/notifications.events';
-
-const earningSchema = z.object({
-  platformId: z.string().uuid(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD
-  hours: z.number().positive().optional(),
-  amount: z.number().positive(),
-  notes: z.string().optional(),
-});
+import {
+  CreateEarningSchema,
+  UpdateEarningSchema,
+  EarningFilterSchema,
+} from '../schemas/validation.schemas';
+import { validateRequest, validatePartialRequest, ValidationException } from '../utils/validate-request.util';
 
 export const getAllEarnings = async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
   const requestId = (req as any).requestId || 'unknown';
 
   try {
-    const { start_date, end_date, platform_id, limit = '100', offset = '0' } = req.query;
+    // Validate query parameters
+    const filters = await validateRequest(req.query, EarningFilterSchema);
 
     logDebug('Fetching earnings', {
       requestId,
       userId,
-      filters: { start_date, end_date, platform_id, limit, offset },
+      filters,
     });
 
     const where: any = { userId };
 
-    if (start_date && end_date) {
+    if (filters.start_date && filters.end_date) {
       where.date = {
-        gte: new Date(start_date as string),
-        lte: new Date(end_date as string),
+        gte: new Date(filters.start_date),
+        lte: new Date(filters.end_date),
       };
     }
 
-    if (platform_id) {
-      where.platformId = platform_id;
+    if (filters.platform_id) {
+      where.platformId = filters.platform_id;
     }
 
     const [earnings, total] = await Promise.all([
@@ -57,8 +55,8 @@ export const getAllEarnings = async (req: AuthRequest, res: Response) => {
           },
         },
         orderBy: { date: 'desc' },
-        take: parseInt(limit as string),
-        skip: parseInt(offset as string),
+        take: filters.limit,
+        skip: filters.offset,
       }),
       prisma.earning.count({ where }),
     ]);
@@ -83,9 +81,21 @@ export const getAllEarnings = async (req: AuthRequest, res: Response) => {
     res.json({
       earnings: earningsWithRate,
       total,
-      has_more: total > parseInt(offset as string) + parseInt(limit as string),
+      has_more: total > filters.offset + filters.limit,
     });
   } catch (error) {
+    if (error instanceof ValidationException) {
+      const requestId = (req as any).requestId || 'unknown';
+      logWarn('Validation error fetching earnings', {
+        requestId,
+        errors: error.errors,
+      });
+      return res.status(error.statusCode).json({
+        error: 'Validation Error',
+        message: 'Invalid filter parameters',
+        errors: error.errors,
+      });
+    }
     logError('Failed to fetch earnings', error, {
       requestId,
       userId,
@@ -102,7 +112,8 @@ export const createEarning = async (req: AuthRequest, res: Response) => {
   const requestId = (req as any).requestId || 'unknown';
 
   try {
-    const data = earningSchema.parse(req.body);
+    // Validate request body
+    const data = await validateRequest(req.body, CreateEarningSchema);
     logDebug('Creating earning', {
       requestId,
       userId,
@@ -178,15 +189,17 @@ export const createEarning = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json({ earning });
   } catch (error) {
-    if (error instanceof z.ZodError) {
+    if (error instanceof ValidationException) {
+      const requestId = (req as any).requestId || 'unknown';
       logWarn('Validation error during earning creation', {
         requestId,
         userId,
         errors: error.errors,
       });
-      return res.status(400).json({
+      return res.status(error.statusCode).json({
         error: 'Validation Error',
-        message: error.errors[0].message,
+        message: 'Earning validation failed',
+        errors: error.errors,
       });
     }
     logError('Failed to create earning', error, {
@@ -207,7 +220,8 @@ export const updateEarning = async (req: AuthRequest, res: Response) => {
   const requestId = (req as any).requestId || 'unknown';
 
   try {
-    const data = earningSchema.partial().parse(req.body);
+    // Validate request body (partial update)
+    const data = await validatePartialRequest(req.body, UpdateEarningSchema);
     logDebug('Updating earning', {
       requestId,
       userId,
@@ -275,6 +289,20 @@ export const updateEarning = async (req: AuthRequest, res: Response) => {
 
     res.json({ earning: updated });
   } catch (error) {
+    if (error instanceof ValidationException) {
+      const requestId = (req as any).requestId || 'unknown';
+      logWarn('Validation error during earning update', {
+        requestId,
+        userId,
+        earningId,
+        errors: error.errors,
+      });
+      return res.status(error.statusCode).json({
+        error: 'Validation Error',
+        message: 'Earning validation failed',
+        errors: error.errors,
+      });
+    }
     logError('Failed to update earning', error, {
       requestId,
       userId,

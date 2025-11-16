@@ -1,38 +1,42 @@
 import { Response } from 'express';
-import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
-
-const customerSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(255),
-  email: z.string().email().max(255).optional(),
-  phone: z.string().max(20).optional(),
-  company: z.string().max(255).optional(),
-  address: z.string().optional(),
-  city: z.string().max(100).optional(),
-  country: z.string().max(100).optional(),
-  notes: z.string().optional(),
-});
+import { logInfo, logDebug, logError, logWarn } from '../lib/logger';
+import {
+  CreateCustomerSchema,
+  UpdateCustomerSchema,
+  CustomerFilterSchema,
+} from '../schemas/validation.schemas';
+import { validateRequest, validatePartialRequest, ValidationException } from '../utils/validate-request.util';
 
 export const getAllCustomers = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { isActive, search, sortBy = 'name' } = req.query;
+    const requestId = (req as any).requestId || 'unknown';
+
+    // Validate query parameters
+    const filters = await validateRequest(req.query, CustomerFilterSchema);
+
+    logDebug('Fetching customers', {
+      requestId,
+      userId,
+      filters,
+    });
 
     const where: any = { userId };
-    if (isActive !== undefined) {
-      where.isActive = isActive === 'true';
+    if (filters.isActive !== undefined) {
+      where.isActive = filters.isActive;
     }
-    if (search) {
+    if (filters.search) {
       where.OR = [
-        { name: { contains: search as string, mode: 'insensitive' } },
-        { email: { contains: search as string, mode: 'insensitive' } },
-        { phone: { contains: search as string, mode: 'insensitive' } },
+        { name: { contains: filters.search, mode: 'insensitive' } },
+        { email: { contains: filters.search, mode: 'insensitive' } },
+        { phone: { contains: filters.search, mode: 'insensitive' } },
       ];
     }
 
     const orderBy: any = {};
-    switch (sortBy) {
+    switch (filters.sortBy) {
       case 'ltv':
         orderBy.totalPurchases = 'desc';
         break;
@@ -49,7 +53,11 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
     const customers = await prisma.customer.findMany({
       where,
       orderBy,
+      take: filters.limit,
+      skip: filters.offset,
     });
+
+    const total = await prisma.customer.count({ where });
 
     const customersWithLTV = customers.map((customer: any) => ({
       id: customer.id,
@@ -70,9 +78,29 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
       createdAt: customer.createdAt,
     }));
 
-    res.json({ customers: customersWithLTV });
+    logInfo('Customers fetched successfully', {
+      requestId,
+      userId,
+      count: customers.length,
+      total,
+    });
+
+    res.json({ customers: customersWithLTV, total, limit: filters.limit, offset: filters.offset });
   } catch (error) {
-    console.error('Get customers error:', error);
+    if (error instanceof ValidationException) {
+      const requestId = (req as any).requestId || 'unknown';
+      logWarn('Validation error fetching customers', {
+        requestId,
+        errors: error.errors,
+      });
+      return res.status(error.statusCode).json({
+        error: 'Validation Error',
+        message: 'Invalid filter parameters',
+        errors: error.errors,
+      });
+    }
+    const requestId = (req as any).requestId || 'unknown';
+    logError('Failed to fetch customers', error, { requestId });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch customers',
@@ -83,7 +111,17 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
 export const createCustomer = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const data = customerSchema.parse(req.body);
+    const requestId = (req as any).requestId || 'unknown';
+
+    // Validate request body
+    const data = await validateRequest(req.body, CreateCustomerSchema);
+
+    logDebug('Creating customer', {
+      requestId,
+      userId,
+      customerName: data.name,
+      email: data.email,
+    });
 
     const customer = await prisma.customer.create({
       data: {
@@ -92,15 +130,29 @@ export const createCustomer = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    logInfo('Customer created successfully', {
+      requestId,
+      userId,
+      customerId: customer.id,
+      customerName: customer.name,
+    });
+
     res.status(201).json({ customer });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
+    if (error instanceof ValidationException) {
+      const requestId = (req as any).requestId || 'unknown';
+      logWarn('Validation error creating customer', {
+        requestId,
+        errors: error.errors,
+      });
+      return res.status(error.statusCode).json({
         error: 'Validation Error',
-        message: error.errors[0].message,
+        message: 'Customer validation failed',
+        errors: error.errors,
       });
     }
-    console.error('Create customer error:', error);
+    const requestId = (req as any).requestId || 'unknown';
+    logError('Failed to create customer', error, { requestId });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create customer',
@@ -112,7 +164,17 @@ export const updateCustomer = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const customerId = req.params.id;
-    const data = customerSchema.partial().parse(req.body);
+    const requestId = (req as any).requestId || 'unknown';
+
+    // Validate request body (partial update)
+    const data = await validatePartialRequest(req.body, UpdateCustomerSchema);
+
+    logDebug('Updating customer', {
+      requestId,
+      userId,
+      customerId,
+      updates: Object.keys(data),
+    });
 
     // Check ownership
     const customer = await prisma.customer.findFirst({
@@ -120,6 +182,11 @@ export const updateCustomer = async (req: AuthRequest, res: Response) => {
     });
 
     if (!customer) {
+      logWarn('Customer not found for update', {
+        requestId,
+        userId,
+        customerId,
+      });
       return res.status(404).json({
         error: 'Not Found',
         message: 'Customer not found',
@@ -131,9 +198,29 @@ export const updateCustomer = async (req: AuthRequest, res: Response) => {
       data,
     });
 
+    logInfo('Customer updated successfully', {
+      requestId,
+      userId,
+      customerId,
+      updatedFields: Object.keys(data),
+    });
+
     res.json({ customer: updated });
   } catch (error) {
-    console.error('Update customer error:', error);
+    if (error instanceof ValidationException) {
+      const requestId = (req as any).requestId || 'unknown';
+      logWarn('Validation error updating customer', {
+        requestId,
+        errors: error.errors,
+      });
+      return res.status(error.statusCode).json({
+        error: 'Validation Error',
+        message: 'Customer validation failed',
+        errors: error.errors,
+      });
+    }
+    const requestId = (req as any).requestId || 'unknown';
+    logError('Failed to update customer', error, { requestId });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update customer',

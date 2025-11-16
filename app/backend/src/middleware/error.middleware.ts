@@ -9,6 +9,7 @@ export const errorHandler = (
 ) => {
   const requestId = (req as any).requestId || 'unknown';
   const userId = (req as any).user?.id || 'unknown';
+  const rateLimit = (req as any).rateLimit;
 
   logError('Request error', err, {
     requestId,
@@ -17,6 +18,30 @@ export const errorHandler = (
     url: req.url,
     errorName: err.name,
   });
+
+  // Handle rate limit errors with additional context
+  if (err.message && err.message.includes('rate limit')) {
+    logDebug('Rate limit error occurred', {
+      requestId,
+      userId,
+      ip: req.ip,
+      rateLimit,
+    });
+
+    const retryAfter = rateLimit?.resetTime
+      ? Math.ceil((rateLimit.resetTime.getTime() - Date.now()) / 1000)
+      : 60;
+
+    res.setHeader('Retry-After', retryAfter.toString());
+
+    return res.status(429).json({
+      error: 'Too Many Requests',
+      message: err.message || 'Rate limit exceeded',
+      retryAfter,
+      remaining: rateLimit?.remaining || 0,
+      resetTime: rateLimit?.resetTime?.toISOString(),
+    });
+  }
 
   if (err.name === 'ZodError') {
     logDebug('Validation error occurred', {

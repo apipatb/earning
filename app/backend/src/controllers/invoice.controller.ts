@@ -1,50 +1,40 @@
 import { Response } from 'express';
-import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
-
-const invoiceLineItemSchema = z.object({
-  description: z.string().min(1).max(1000),
-  quantity: z.number().positive(),
-  unitPrice: z.number().positive(),
-  totalPrice: z.number().positive(),
-});
-
-const invoiceSchema = z.object({
-  customerId: z.string().uuid().optional(),
-  invoiceNumber: z.string().min(1).max(100),
-  subtotal: z.number().positive(),
-  taxAmount: z.number().min(0).default(0),
-  discountAmount: z.number().min(0).default(0),
-  totalAmount: z.number().positive(),
-  invoiceDate: z.string().datetime().or(z.string().date()).transform((val) => new Date(val)),
-  dueDate: z.string().datetime().or(z.string().date()).transform((val) => new Date(val)),
-  status: z.enum(['draft', 'sent', 'viewed', 'paid', 'overdue', 'cancelled']).default('draft'),
-  paymentMethod: z.string().max(50).optional(),
-  notes: z.string().optional(),
-  terms: z.string().optional(),
-  lineItems: z.array(invoiceLineItemSchema),
-});
+import { logInfo, logDebug, logError, logWarn } from '../lib/logger';
+import {
+  CreateInvoiceSchema,
+  UpdateInvoiceSchema,
+  InvoiceFilterSchema,
+} from '../schemas/validation.schemas';
+import { validateRequest, validatePartialRequest, ValidationException } from '../utils/validate-request.util';
 
 export const getAllInvoices = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { startDate, endDate, status, customerId, limit = '50', offset = '0' } = req.query;
+    const requestId = (req as any).requestId || 'unknown';
+
+    // Validate query parameters
+    const filters = await validateRequest(req.query, InvoiceFilterSchema);
+
+    logDebug('Fetching invoices', {
+      requestId,
+      userId,
+      filters,
+    });
 
     const where: any = { userId };
 
-    if (startDate && endDate) {
-      const start = new Date(startDate as string);
-      const end = new Date(endDate as string);
-      where.invoiceDate = { gte: start, lte: end };
+    if (filters.startDate && filters.endDate) {
+      where.invoiceDate = { gte: filters.startDate, lte: filters.endDate };
     }
 
-    if (status) {
-      where.status = status;
+    if (filters.status) {
+      where.status = filters.status;
     }
 
-    if (customerId) {
-      where.customerId = customerId;
+    if (filters.customerId) {
+      where.customerId = filters.customerId;
     }
 
     const invoices = await prisma.invoice.findMany({
@@ -54,8 +44,8 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
         lineItems: true,
       },
       orderBy: { invoiceDate: 'desc' },
-      take: parseInt(limit as string),
-      skip: parseInt(offset as string),
+      take: filters.limit,
+      skip: filters.offset,
     });
 
     const total = await prisma.invoice.count({ where });
@@ -83,9 +73,29 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
       createdAt: inv.createdAt,
     }));
 
-    res.json({ invoices: formatted, total, limit: parseInt(limit as string), offset: parseInt(offset as string) });
+    logInfo('Invoices fetched successfully', {
+      requestId,
+      userId,
+      count: invoices.length,
+      total,
+    });
+
+    res.json({ invoices: formatted, total, limit: filters.limit, offset: filters.offset });
   } catch (error) {
-    console.error('Get invoices error:', error);
+    if (error instanceof ValidationException) {
+      const requestId = (req as any).requestId || 'unknown';
+      logWarn('Validation error fetching invoices', {
+        requestId,
+        errors: error.errors,
+      });
+      return res.status(error.statusCode).json({
+        error: 'Validation Error',
+        message: 'Invalid filter parameters',
+        errors: error.errors,
+      });
+    }
+    const requestId = (req as any).requestId || 'unknown';
+    logError('Failed to fetch invoices', error, { requestId });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch invoices',
@@ -96,7 +106,17 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
 export const createInvoice = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const data = invoiceSchema.parse(req.body);
+    const requestId = (req as any).requestId || 'unknown';
+
+    // Validate request body
+    const data = await validateRequest(req.body, CreateInvoiceSchema);
+
+    logDebug('Creating invoice', {
+      requestId,
+      userId,
+      invoiceNumber: data.invoiceNumber,
+      totalAmount: data.totalAmount,
+    });
 
     // Verify customer ownership if provided
     if (data.customerId) {
@@ -104,6 +124,11 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
         where: { id: data.customerId, userId },
       });
       if (!customer) {
+        logWarn('Customer not found for invoice creation', {
+          requestId,
+          userId,
+          customerId: data.customerId,
+        });
         return res.status(404).json({
           error: 'Not Found',
           message: 'Customer not found',
@@ -127,6 +152,14 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    logInfo('Invoice created successfully', {
+      requestId,
+      userId,
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      totalAmount: invoice.totalAmount,
+    });
+
     res.status(201).json({
       invoice: {
         ...invoice,
@@ -137,13 +170,20 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
+    if (error instanceof ValidationException) {
+      const requestId = (req as any).requestId || 'unknown';
+      logWarn('Validation error creating invoice', {
+        requestId,
+        errors: error.errors,
+      });
+      return res.status(error.statusCode).json({
         error: 'Validation Error',
-        message: error.errors[0].message,
+        message: 'Invoice validation failed',
+        errors: error.errors,
       });
     }
-    console.error('Create invoice error:', error);
+    const requestId = (req as any).requestId || 'unknown';
+    logError('Failed to create invoice', error, { requestId });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create invoice',
@@ -155,13 +195,28 @@ export const updateInvoice = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const invoiceId = req.params.id;
-    const data = invoiceSchema.partial().parse(req.body);
+    const requestId = (req as any).requestId || 'unknown';
+
+    // Validate request body (partial update)
+    const data = await validatePartialRequest(req.body, UpdateInvoiceSchema);
+
+    logDebug('Updating invoice', {
+      requestId,
+      userId,
+      invoiceId,
+      updates: Object.keys(data),
+    });
 
     const invoice = await prisma.invoice.findFirst({
       where: { id: invoiceId, userId },
     });
 
     if (!invoice) {
+      logWarn('Invoice not found for update', {
+        requestId,
+        userId,
+        invoiceId,
+      });
       return res.status(404).json({
         error: 'Not Found',
         message: 'Invoice not found',
@@ -187,6 +242,13 @@ export const updateInvoice = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    logInfo('Invoice updated successfully', {
+      requestId,
+      userId,
+      invoiceId,
+      updatedFields: Object.keys(data),
+    });
+
     res.json({
       invoice: {
         ...updated,
@@ -197,7 +259,20 @@ export const updateInvoice = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Update invoice error:', error);
+    if (error instanceof ValidationException) {
+      const requestId = (req as any).requestId || 'unknown';
+      logWarn('Validation error updating invoice', {
+        requestId,
+        errors: error.errors,
+      });
+      return res.status(error.statusCode).json({
+        error: 'Validation Error',
+        message: 'Invoice validation failed',
+        errors: error.errors,
+      });
+    }
+    const requestId = (req as any).requestId || 'unknown';
+    logError('Failed to update invoice', error, { requestId });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update invoice',
