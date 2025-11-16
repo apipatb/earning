@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, Receipt, Calculator, RepeatIcon, Clock, Users, Wallet, Settings as SettingsIcon, LogOut, Moon, Sun, Languages } from 'lucide-react';
+import { LayoutDashboard, Layers, DollarSign, Target, BarChart3, FileText, Receipt, Calculator, RepeatIcon, Clock, Users, Wallet, Settings as SettingsIcon, LogOut, Moon, Sun, Languages, Package, ShoppingCart } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { useThemeStore } from '../store/theme.store';
 import { useCurrencyStore } from '../store/currency.store';
@@ -123,6 +123,28 @@ export default function Layout() {
             >
               <DollarSign className="mr-3 h-5 w-5" />
               Earnings
+            </Link>
+            <Link
+              to="/products"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/products')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Package className="mr-3 h-5 w-5" />
+              Products
+            </Link>
+            <Link
+              to="/sales"
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
+                isActive('/sales')
+                  ? 'bg-primary text-white dark:bg-blue-600'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <ShoppingCart className="mr-3 h-5 w-5" />
+              Sales
             </Link>
             <Link
               to="/recurring"

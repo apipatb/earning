@@ -13,6 +13,8 @@ import platformRoutes from './routes/platform.routes';
 import earningRoutes from './routes/earning.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import goalRoutes from './routes/goal.routes';
+import productRoutes from './routes/product.routes';
+import saleRoutes from './routes/sale.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -49,6 +51,8 @@ app.use('/api/v1/platforms', platformRoutes);
 app.use('/api/v1/earnings', earningRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/goals', goalRoutes);
+app.use('/api/v1/products', productRoutes);
+app.use('/api/v1/sales', saleRoutes);
 
 // Error handling
 app.use(notFound);

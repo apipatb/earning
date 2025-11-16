@@ -15,6 +15,8 @@ import TimeTracking from './pages/TimeTracking';
 import ClientManagement from './pages/ClientManagement';
 import BudgetPlanning from './pages/BudgetPlanning';
 import Settings from './pages/Settings';
+import Products from './pages/Products';
+import Sales from './pages/Sales';
 import Layout from './components/Layout';
 
 function App() {
@@ -41,6 +43,8 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="platforms" element={<Platforms />} />
           <Route path="earnings" element={<Earnings />} />
+          <Route path="products" element={<Products />} />
+          <Route path="sales" element={<Sales />} />
           <Route path="recurring" element={<RecurringEarnings />} />
           <Route path="time-tracking" element={<TimeTracking />} />
           <Route path="clients" element={<ClientManagement />} />
