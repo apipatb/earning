@@ -6,6 +6,7 @@ import { SUPPORTED_CURRENCIES } from '../lib/currency';
 import { notify, requestNotificationPermission } from '../store/notification.store';
 import { getErrorMessage, isApiError } from '../lib/error';
 import { getStorageJSON } from '../lib/storage';
+import { FormValidation } from '../lib/validation';
 import ThemeCustomizer from '../components/ThemeCustomizer';
 import NotificationPreferences from '../components/NotificationPreferences';
 
@@ -452,7 +453,7 @@ export default function Settings() {
               </label>
               <select
                 value={preferences.dateFormat}
-                onChange={(e) => setPreferences({ ...preferences, dateFormat: e.target.value as any })}
+                onChange={(e) => setPreferences({ ...preferences, dateFormat: FormValidation.parseDateFormat(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="MM/DD/YYYY">MM/DD/YYYY (12/31/2023)</option>
@@ -467,7 +468,7 @@ export default function Settings() {
               </label>
               <select
                 value={preferences.timeFormat}
-                onChange={(e) => setPreferences({ ...preferences, timeFormat: e.target.value as any })}
+                onChange={(e) => setPreferences({ ...preferences, timeFormat: FormValidation.parseTimeFormat(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="12h">12-hour (3:00 PM)</option>
@@ -481,7 +482,7 @@ export default function Settings() {
               </label>
               <select
                 value={preferences.weekStartDay}
-                onChange={(e) => setPreferences({ ...preferences, weekStartDay: e.target.value as any })}
+                onChange={(e) => setPreferences({ ...preferences, weekStartDay: FormValidation.parseWeekStartDay(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="monday">Monday</option>
@@ -511,7 +512,7 @@ export default function Settings() {
               </label>
               <select
                 value={preferences.thousandSeparator}
-                onChange={(e) => setPreferences({ ...preferences, thousandSeparator: e.target.value as any })}
+                onChange={(e) => setPreferences({ ...preferences, thousandSeparator: FormValidation.parseNumberSeparator(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value=",">Comma (1,000,000)</option>
@@ -526,7 +527,7 @@ export default function Settings() {
               </label>
               <select
                 value={preferences.decimalSeparator}
-                onChange={(e) => setPreferences({ ...preferences, decimalSeparator: e.target.value as any })}
+                onChange={(e) => setPreferences({ ...preferences, decimalSeparator: FormValidation.parseDecimalSeparator(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value=".">Period (1.50)</option>
@@ -593,7 +594,7 @@ export default function Settings() {
             </label>
             <select
               value={preferences.chartType}
-              onChange={(e) => setPreferences({ ...preferences, chartType: e.target.value as any })}
+              onChange={(e) => setPreferences({ ...preferences, chartType: FormValidation.parseChartType(e.target.value) })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
             >
               <option value="bar">Bar Chart</option>
