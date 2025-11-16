@@ -22,10 +22,19 @@ const updateStockSchema = z.object({
 export const getInventory = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { showLowStock = false } = req.query;
+    const { showLowStock = false, limit: limitParam, offset: offsetParam } = req.query;
+
+    // Parse pagination parameters with safe defaults
+    const limit = parseLimitParam(limitParam);
+    const offset = parseOffsetParam(offsetParam);
+
+    const where = { userId };
+
+    // Get total count for pagination
+    const total = await prisma.product.count({ where });
 
     const products = await prisma.product.findMany({
-      where: { userId },
+      where,
       include: {
         inventoryLogs: {
           select: { quantityChange: true, type: true, createdAt: true },
@@ -34,6 +43,8 @@ export const getInventory = async (req: AuthRequest, res: Response) => {
         },
       },
       orderBy: { quantity: 'asc' },
+      skip: offset,
+      take: limit,
     });
 
     const inventory = products
@@ -61,6 +72,11 @@ export const getInventory = async (req: AuthRequest, res: Response) => {
         low_stock_count: lowStockCount,
         total_inventory_value: totalValue,
       },
+      pagination: {
+        total,
+        limit,
+        offset,
+      }
     });
   } catch (error) {
     logger.error('Get inventory error:', error instanceof Error ? error : new Error(String(error)));
