@@ -1,5 +1,6 @@
-import axios from 'axios';
+import axios, { AxiosError, AxiosResponse } from 'axios';
 import { useAuthStore } from '../store/auth.store';
+import { getErrorMessage } from './error';
 
 // Type definitions for API requests
 export interface PlatformData {
@@ -254,25 +255,69 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 second timeout
 });
 
-// Add token to requests
-api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// Request interceptor - Add auth token and log requests
+api.interceptors.request.use(
+  (config) => {
+    const token = useAuthStore.getState().token;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
 
-// Handle 401 errors
-api.interceptors.response.use(
-  (response) => response,
+    // Log requests in development
+    if (import.meta.env.DEV) {
+      console.debug(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+    }
+
+    return config;
+  },
   (error) => {
-    if (error.response?.status === 401) {
+    console.error('[API] Request error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor - Handle errors and log responses
+api.interceptors.response.use(
+  (response) => {
+    // Log successful responses in development
+    if (import.meta.env.DEV) {
+      console.debug(`[API] Response ${response.status} ${response.config.url}`);
+    }
+    return response;
+  },
+  (error: AxiosError) => {
+    const status = error.response?.status;
+    const errorMessage = getErrorMessage(error);
+
+    // Log error details
+    console.error(`[API] Error ${status}: ${errorMessage}`, {
+      url: error.config?.url,
+      method: error.config?.method,
+      status,
+      data: error.response?.data,
+    });
+
+    // Handle authentication errors
+    if (status === 401) {
       useAuthStore.getState().logout();
       window.location.href = '/login';
+      return Promise.reject(new Error('Session expired. Please log in again.'));
     }
+
+    // Handle forbidden errors
+    if (status === 403) {
+      return Promise.reject(new Error('You do not have permission to perform this action.'));
+    }
+
+    // Handle server errors
+    if (status && status >= 500) {
+      return Promise.reject(new Error('Server error. Please try again later.'));
+    }
+
+    // Return the original error with better message
     return Promise.reject(error);
   }
 );
