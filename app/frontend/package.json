@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@sentry/react": "^7.99.0",
+    "@sentry/tracing": "^7.99.0",
     "axios": "^1.6.2",
     "clsx": "^2.0.0",
     "date-fns": "^3.0.1",
