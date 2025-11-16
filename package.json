@@ -1,0 +1,23 @@
+{
+  "name": "earntrack",
+  "version": "1.0.0",
+  "description": "EarnTrack - Complete Earnings & Business Management System",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm --prefix app/backend run dev\" \"npm --prefix app/frontend run dev\"",
+    "build": "npm --prefix app/backend run build && npm --prefix app/frontend run build",
+    "start": "npm --prefix app/backend start",
+    "backend:dev": "npm --prefix app/backend run dev",
+    "backend:build": "npm --prefix app/backend run build",
+    "backend:start": "npm --prefix app/backend start",
+    "backend:db:push": "npm --prefix app/backend run db:push",
+    "backend:db:migrate": "npm --prefix app/backend run db:migrate",
+    "frontend:dev": "npm --prefix app/frontend run dev",
+    "frontend:build": "npm --prefix app/frontend run build",
+    "frontend:preview": "npm --prefix app/frontend run preview",
+    "install:all": "npm install && npm --prefix app/backend install && npm --prefix app/frontend install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "app/frontend/dist",
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "app/backend/dist/server.js": {
+      "memory": 512,
+      "maxDuration": 30
+    }
+  }
+}
