@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
-import { AuthRequest } from '../types';
+import { AuthRequest, ControllerHandler, User } from '../types';
 import { hashPassword, comparePassword } from '../utils/password';
 
 const updateProfileSchema = z.object({
@@ -15,7 +15,7 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(6),
 });
 
-export const getProfile = async (req: AuthRequest, res: Response) => {
+export const getProfile: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
 
@@ -43,7 +43,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const updateProfile = async (req: AuthRequest, res: Response) => {
+export const updateProfile: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
     const data = updateProfileSchema.parse(req.body);
@@ -76,7 +76,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const changePassword = async (req: AuthRequest, res: Response) => {
+export const changePassword: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
     const data = changePasswordSchema.parse(req.body);
@@ -115,7 +115,7 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const deleteAccount = async (req: AuthRequest, res: Response) => {
+export const deleteAccount: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
 

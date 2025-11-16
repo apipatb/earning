@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { AuthRequest } from '../types';
+import { AuthRequest, ControllerHandler, ProductFilter, ProductWithStats } from '../types';
 import prisma from '../lib/prisma';
 
 const productSchema = z.object({
@@ -11,12 +11,16 @@ const productSchema = z.object({
   sku: z.string().max(100).optional(),
 });
 
-export const getAllProducts = async (req: AuthRequest, res: Response) => {
+export const getAllProducts: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { isActive } = req.query;
+    const { isActive } = req.query as ProductFilter;
 
-    const where: any = { userId };
+    interface ProductWhere {
+      userId: string;
+      isActive?: boolean;
+    }
+    const where: ProductWhere = { userId };
     if (isActive !== undefined) {
       where.isActive = isActive === 'true';
     }
@@ -68,7 +72,7 @@ export const getAllProducts = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const createProduct = async (req: AuthRequest, res: Response) => {
+export const createProduct: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const data = productSchema.parse(req.body);
@@ -100,7 +104,7 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const updateProduct = async (req: AuthRequest, res: Response) => {
+export const updateProduct: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const productId = req.params.id;
@@ -133,7 +137,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const deleteProduct = async (req: AuthRequest, res: Response) => {
+export const deleteProduct: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const productId = req.params.id;

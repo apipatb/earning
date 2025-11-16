@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { logError, logDebug } from '../lib/logger';
+import { ResponseUtil } from '../utils/response.util';
 
 export const errorHandler = (
   err: Error,
@@ -32,15 +33,14 @@ export const errorHandler = (
       ? Math.ceil((rateLimit.resetTime.getTime() - Date.now()) / 1000)
       : 60;
 
-    res.setHeader('Retry-After', retryAfter.toString());
-
-    return res.status(429).json({
-      error: 'Too Many Requests',
-      message: err.message || 'Rate limit exceeded',
+    return ResponseUtil.rateLimitExceeded(
+      res,
       retryAfter,
-      remaining: rateLimit?.remaining || 0,
-      resetTime: rateLimit?.resetTime?.toISOString(),
-    });
+      {
+        remaining: rateLimit?.remaining || 0,
+        resetTime: rateLimit?.resetTime?.toISOString(),
+      }
+    );
   }
 
   if (err.name === 'ZodError') {
@@ -50,11 +50,11 @@ export const errorHandler = (
       errorDetails: (err as any).errors,
     });
 
-    return res.status(400).json({
-      error: 'Validation Error',
-      message: 'Invalid request data',
-      details: (err as any).errors,
-    });
+    return ResponseUtil.validationError(
+      res,
+      'Invalid request data',
+      (err as any).errors
+    );
   }
 
   if (err.name === 'PrismaClientKnownRequestError') {
@@ -65,17 +65,13 @@ export const errorHandler = (
       meta: (err as any).meta,
     });
 
-    return res.status(400).json({
-      error: 'Database Error',
-      message: 'Database operation failed',
-    });
+    return ResponseUtil.error(
+      res,
+      'Database operation failed',
+      'DATABASE_ERROR',
+      400
+    );
   }
 
-  const isProd = process.env.NODE_ENV === 'production';
-
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: isProd ? 'Something went wrong' : err.message,
-    ...(isProd ? {} : { stack: err.stack }),
-  });
+  return ResponseUtil.internalError(res, err);
 };

@@ -29,11 +29,14 @@ import uploadRoutes from './routes/upload.routes';
 import notificationRoutes from './routes/notification.routes';
 import jobsRoutes from './routes/jobs.routes';
 import metricsRoutes from './routes/metrics.routes';
+import exportRoutes from './routes/export.routes';
+import quotaRoutes from './routes/quota.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
 import { notFound } from './middleware/notFound.middleware';
 import loggingMiddleware from './middleware/logging.middleware';
+import requestResponseMiddleware from './middleware/request-response.middleware';
 import securityHeadersMiddleware from './middleware/security-headers.middleware';
 import sanitizationMiddleware from './middleware/sanitization.middleware';
 import inputValidationMiddleware from './middleware/input-validation.middleware';
@@ -43,6 +46,7 @@ import {
   uploadLimiter,
 } from './middleware/rate-limit.middleware';
 import metricsFilterMiddleware from './middleware/metrics.middleware';
+import { quotaMiddleware, quotaInfoMiddleware } from './middleware/quota.middleware';
 import { registerMetrics, metricsRegistry } from './lib/metrics';
 
 // Import WebSocket
@@ -116,7 +120,10 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // 5. Logging middleware
 app.use(loggingMiddleware); // Request/Response logging
 
-// 5a. Metrics middleware (Performance monitoring)
+// 5a. Request/Response interceptor middleware (Request IDs and tracing)
+app.use(requestResponseMiddleware);
+
+// 5b. Metrics middleware (Performance monitoring)
 registerMetrics();
 app.use(metricsFilterMiddleware); // Only tracks /api/* routes
 
@@ -131,6 +138,10 @@ app.use(inputValidationMiddleware);
 
 // 8. Rate limiting
 app.use('/api/', globalLimiter); // Apply global rate limiting to API routes
+
+// 9. Quota middleware (check quotas before processing requests)
+app.use('/api/', quotaMiddleware); // Check quotas for quota-limited endpoints
+app.use('/api/', quotaInfoMiddleware); // Add quota info to response headers
 
 // Health check
 app.get('/health', (req, res) => {
@@ -173,7 +184,9 @@ app.use('/api/v1/invoices', invoiceRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/metrics', metricsRoutes); // Performance metrics collection (no auth required)
 app.use('/api/v1/upload', uploadLimiter, uploadRoutes); // Stricter upload rate limit
+app.use('/api/v1/export', exportRoutes); // Data export and backup routes
 app.use('/api/v1/jobs', jobsRoutes); // Job scheduler routes (admin only)
+app.use('/api/v1', quotaRoutes); // Quota management routes
 
 // Error handling
 app.use(notFound);

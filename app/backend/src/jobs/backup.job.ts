@@ -3,13 +3,14 @@ import logger from '../lib/logger';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import BackupService from '../services/backup.service';
 
 const prisma = new PrismaClient();
 
 /**
  * Backup Job
  * Runs: Daily at 3 AM
- * Task: Create database backup and upload to cloud storage
+ * Task: Create database backup and user data backups, upload to cloud storage
  */
 export async function backupJob(): Promise<void> {
   logger.info('Starting backup job');
@@ -29,10 +30,65 @@ export async function backupJob(): Promise<void> {
     // 4. Store backup metadata in database
     await storeBackupMetadata(backupPath);
 
+    // 5. Create automatic backups for all users (new feature)
+    await createUserBackups();
+
+    // 6. Clean up expired user backups
+    await cleanupExpiredUserBackups();
+
     logger.info('Backup job completed successfully');
   } catch (error) {
     logger.error('Backup job failed:', error);
     throw error;
+  }
+}
+
+/**
+ * Create automatic backups for all users
+ */
+async function createUserBackups(): Promise<void> {
+  try {
+    logger.info('Creating automatic user backups');
+
+    const users = await prisma.user.findMany({
+      select: { id: true, email: true },
+    });
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const user of users) {
+      try {
+        await BackupService.createBackup(user.id, {
+          backupType: 'automatic',
+          expiresInDays: 30, // Keep automatic backups for 30 days
+        });
+        successCount++;
+      } catch (error) {
+        logger.error(`Failed to create backup for user ${user.email}:`, error);
+        failureCount++;
+      }
+    }
+
+    logger.info(`User backup creation completed: ${successCount} successful, ${failureCount} failed`);
+  } catch (error) {
+    logger.error('Failed to create user backups:', error);
+    // Don't throw - continue with other backup operations
+  }
+}
+
+/**
+ * Clean up expired user backups
+ */
+async function cleanupExpiredUserBackups(): Promise<void> {
+  try {
+    logger.info('Cleaning up expired user backups');
+
+    const result = await BackupService.deleteExpiredBackups(30);
+    logger.info(`Expired backups cleanup: ${result.deletedCount} backups deleted`);
+  } catch (error) {
+    logger.error('Failed to cleanup expired user backups:', error);
+    // Don't throw - continue with other operations
   }
 }
 

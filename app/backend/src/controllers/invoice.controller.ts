@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { logInfo, logDebug, logError, logWarn } from '../lib/logger';
+import { QuotaService } from '../services/quota.service';
 import {
   CreateInvoiceSchema,
   UpdateInvoiceSchema,
@@ -165,6 +166,11 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       totalAmount: invoice.totalAmount,
+    });
+
+    // Track usage for quota system
+    QuotaService.trackUsage(userId, 'invoices').catch((error) => {
+      logWarn('Failed to track invoices quota', { userId, error });
     });
 
     res.status(201).json({

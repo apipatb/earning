@@ -1,11 +1,13 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { AuthRequest } from '../types';
+import { AuthRequest, ControllerHandler } from '../types';
 import prisma from '../lib/prisma';
 
 const inventoryLogSchema = z.object({
   productId: z.string().uuid('Invalid product ID'),
-  quantityChange: z.number().nonzero('Quantity change cannot be zero'),
+  quantityChange: z.number().refine((val) => val !== 0, {
+    message: 'Quantity change cannot be zero',
+  }),
   type: z.enum(['purchase', 'sale', 'adjustment', 'damage', 'return']),
   notes: z.string().max(1000).optional(),
 });
@@ -17,7 +19,7 @@ const updateStockSchema = z.object({
   supplierCost: z.number().positive().optional(),
 });
 
-export const getInventory = async (req: AuthRequest, res: Response) => {
+export const getInventory: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const { showLowStock = false } = req.query;
@@ -69,7 +71,7 @@ export const getInventory = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const updateProductStock = async (req: AuthRequest, res: Response) => {
+export const updateProductStock: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const productId = req.params.id;
@@ -116,7 +118,7 @@ export const updateProductStock = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const logInventoryChange = async (req: AuthRequest, res: Response) => {
+export const logInventoryChange: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const data = inventoryLogSchema.parse(req.body);
@@ -180,7 +182,7 @@ export const logInventoryChange = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getInventoryHistory = async (req: AuthRequest, res: Response) => {
+export const getInventoryHistory: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const { productId, type, limit = '50', offset = '0' } = req.query;
@@ -229,7 +231,7 @@ export const getInventoryHistory = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getLowStockAlerts = async (req: AuthRequest, res: Response) => {
+export const getLowStockAlerts: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
 

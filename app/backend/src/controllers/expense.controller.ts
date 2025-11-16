@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { AuthRequest } from '../types';
+import { AuthRequest, ControllerHandler } from '../types';
 import prisma from '../lib/prisma';
 
 const expenseSchema = z.object({
@@ -14,12 +14,21 @@ const expenseSchema = z.object({
   notes: z.string().optional(),
 });
 
-export const getAllExpenses = async (req: AuthRequest, res: Response) => {
+export const getAllExpenses: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const { startDate, endDate, category, isTaxDeductible, limit = '50', offset = '0' } = req.query;
 
-    const where: any = { userId };
+    interface ExpenseWhere {
+      userId: string;
+      expenseDate?: {
+        gte: Date;
+        lte: Date;
+      };
+      category?: string;
+      isTaxDeductible?: boolean;
+    }
+    const where: ExpenseWhere = { userId };
 
     if (startDate && endDate) {
       const start = new Date(startDate as string);
@@ -47,7 +56,7 @@ export const getAllExpenses = async (req: AuthRequest, res: Response) => {
 
     const total = await prisma.expense.count({ where });
 
-    const formatted = expenses.map((e) => ({
+    const formatted = expenses.map((e: typeof expenses[0]) => ({
       id: e.id,
       category: e.category,
       description: e.description,
@@ -70,7 +79,7 @@ export const getAllExpenses = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const createExpense = async (req: AuthRequest, res: Response) => {
+export const createExpense: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const data = expenseSchema.parse(req.body);
@@ -103,7 +112,7 @@ export const createExpense = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const updateExpense = async (req: AuthRequest, res: Response) => {
+export const updateExpense: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const expenseId = req.params.id;
@@ -140,7 +149,7 @@ export const updateExpense = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const deleteExpense = async (req: AuthRequest, res: Response) => {
+export const deleteExpense: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const expenseId = req.params.id;
@@ -170,10 +179,10 @@ export const deleteExpense = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getExpenseSummary = async (req: AuthRequest, res: Response) => {
+export const getExpenseSummary: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { period = 'month' } = req.query;
+    const { period = 'month' } = req.query as { period?: string };
 
     let startDate: Date;
     const endDate = new Date();
@@ -196,14 +205,14 @@ export const getExpenseSummary = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+    const totalExpenses = expenses.reduce((sum: number, e: typeof expenses[0]) => sum + Number(e.amount), 0);
     const taxDeductible = expenses
-      .filter((e) => e.isTaxDeductible)
-      .reduce((sum, e) => sum + Number(e.amount), 0);
+      .filter((e: typeof expenses[0]) => e.isTaxDeductible)
+      .reduce((sum: number, e: typeof expenses[0]) => sum + Number(e.amount), 0);
 
     // Group by category
     const byCategory = new Map<string, number>();
-    expenses.forEach((e) => {
+    expenses.forEach((e: typeof expenses[0]) => {
       const current = byCategory.get(e.category) || 0;
       byCategory.set(e.category, current + Number(e.amount));
     });
@@ -229,10 +238,10 @@ export const getExpenseSummary = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getProfitMargin = async (req: AuthRequest, res: Response) => {
+export const getProfitMargin: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { period = 'month' } = req.query;
+    const { period = 'month' } = req.query as { period?: string };
 
     let startDate: Date;
     const endDate = new Date();
@@ -264,8 +273,8 @@ export const getProfitMargin = async (req: AuthRequest, res: Response) => {
       }),
     ]);
 
-    const revenue = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
-    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+    const revenue = sales.reduce((sum: number, s: typeof sales[0]) => sum + Number(s.totalAmount), 0);
+    const totalExpenses = expenses.reduce((sum: number, e: typeof expenses[0]) => sum + Number(e.amount), 0);
     const profit = revenue - totalExpenses;
     const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
 

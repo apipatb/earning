@@ -1,13 +1,14 @@
 import { Request, Response } from 'express';
-import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { hashPassword, comparePassword, validatePassword } from '../utils/password';
 import { generateToken } from '../utils/jwt';
 import { logInfo, logDebug, logError, logWarn } from '../lib/logger';
 import { RegisterInputSchema, LoginInputSchema } from '../schemas/validation.schemas';
 import { validateRequest, ValidationException } from '../utils/validate-request.util';
+import { ResponseUtil } from '../utils/response.util';
+import { PublicControllerHandler } from '../types';
 
-export const register = async (req: Request, res: Response) => {
+export const register: PublicControllerHandler = async (req: Request, res: Response): Promise<void> => {
   const requestId = (req as any).requestId || 'unknown';
 
   try {
@@ -26,10 +27,7 @@ export const register = async (req: Request, res: Response) => {
         email: data.email,
         reason: passwordValidation.message,
       });
-      return res.status(400).json({
-        error: 'Invalid Password',
-        message: passwordValidation.message,
-      });
+      return ResponseUtil.badRequest(res, passwordValidation.message);
     }
 
     // Check if user exists
@@ -43,10 +41,7 @@ export const register = async (req: Request, res: Response) => {
         email: data.email,
         userId: existingUser.id,
       });
-      return res.status(400).json({
-        error: 'User Exists',
-        message: 'Email already registered',
-      });
+      return ResponseUtil.conflict(res, 'Email already registered');
     }
 
     // Hash password
@@ -76,7 +71,7 @@ export const register = async (req: Request, res: Response) => {
       email: user.email,
     });
 
-    res.status(201).json({
+    return ResponseUtil.created(res, {
       user,
       token,
     });
@@ -87,24 +82,21 @@ export const register = async (req: Request, res: Response) => {
         requestId,
         errors: error.errors,
       });
-      return res.status(error.statusCode).json({
-        error: 'Validation Error',
-        message: 'Registration validation failed',
-        errors: error.errors,
-      });
+      return ResponseUtil.validationError(
+        res,
+        'Registration validation failed',
+        error.errors
+      );
     }
     logError('Registration error', error, {
       requestId,
       email: req.body?.email,
     });
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Registration failed',
-    });
+    return ResponseUtil.internalError(res, error as Error);
   }
 };
 
-export const login = async (req: Request, res: Response) => {
+export const login: PublicControllerHandler = async (req: Request, res: Response): Promise<void> => {
   const requestId = (req as any).requestId || 'unknown';
 
   try {
@@ -125,10 +117,7 @@ export const login = async (req: Request, res: Response) => {
         requestId,
         email: data.email,
       });
-      return res.status(401).json({
-        error: 'Invalid Credentials',
-        message: 'Email or password incorrect',
-      });
+      return ResponseUtil.unauthorized(res, 'Email or password incorrect');
     }
 
     // Verify password
@@ -140,10 +129,7 @@ export const login = async (req: Request, res: Response) => {
         userId: user.id,
         email: user.email,
       });
-      return res.status(401).json({
-        error: 'Invalid Credentials',
-        message: 'Email or password incorrect',
-      });
+      return ResponseUtil.unauthorized(res, 'Email or password incorrect');
     }
 
     // Generate token
@@ -155,7 +141,7 @@ export const login = async (req: Request, res: Response) => {
       email: user.email,
     });
 
-    res.json({
+    return ResponseUtil.success(res, {
       user: {
         id: user.id,
         email: user.email,
@@ -170,19 +156,16 @@ export const login = async (req: Request, res: Response) => {
         requestId,
         errors: error.errors,
       });
-      return res.status(error.statusCode).json({
-        error: 'Validation Error',
-        message: 'Login validation failed',
-        errors: error.errors,
-      });
+      return ResponseUtil.validationError(
+        res,
+        'Login validation failed',
+        error.errors
+      );
     }
     logError('Login error', error, {
       requestId,
       email: req.body?.email,
     });
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Login failed',
-    });
+    return ResponseUtil.internalError(res, error as Error);
   }
 };

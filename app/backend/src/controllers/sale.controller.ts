@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { AuthRequest } from '../types';
+import { AuthRequest, ControllerHandler, SalesFilter, SaleWithProduct } from '../types';
 import prisma from '../lib/prisma';
 
 const saleSchema = z.object({
@@ -14,12 +14,21 @@ const saleSchema = z.object({
   status: z.enum(['completed', 'pending', 'cancelled']).default('completed'),
 });
 
-export const getAllSales = async (req: AuthRequest, res: Response) => {
+export const getAllSales: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { startDate, endDate, productId, status, limit = '50', offset = '0' } = req.query;
+    const { startDate, endDate, productId, status, limit = '50', offset = '0' } = req.query as SalesFilter;
 
-    const where: any = { userId };
+    interface SaleWhere {
+      userId: string;
+      saleDate?: {
+        gte: Date;
+        lte: Date;
+      };
+      productId?: string;
+      status?: string;
+    }
+    const where: SaleWhere = { userId };
 
     if (startDate && endDate) {
       const start = new Date(startDate as string);
@@ -82,7 +91,7 @@ export const getAllSales = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const createSale = async (req: AuthRequest, res: Response) => {
+export const createSale: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const data = saleSchema.parse(req.body);
@@ -154,7 +163,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const updateSale = async (req: AuthRequest, res: Response) => {
+export const updateSale: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const saleId = req.params.id;
@@ -226,7 +235,7 @@ export const updateSale = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const deleteSale = async (req: AuthRequest, res: Response) => {
+export const deleteSale: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const saleId = req.params.id;
@@ -258,10 +267,10 @@ export const deleteSale = async (req: AuthRequest, res: Response) => {
 };
 
 // Get sales summary/statistics
-export const getSalesSummary = async (req: AuthRequest, res: Response) => {
+export const getSalesSummary: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { period = 'month' } = req.query;
+    const { period = 'month' } = req.query as { period?: string };
 
     let startDate: Date;
     const endDate = new Date();
@@ -297,7 +306,14 @@ export const getSalesSummary = async (req: AuthRequest, res: Response) => {
     const totalSales = sales.length;
 
     // Group by product
-    const byProduct = new Map<string, any>();
+    interface ProductSummary {
+      productId: string;
+      productName: string;
+      sales: number;
+      quantity: number;
+      revenue: number;
+    }
+    const byProduct = new Map<string, ProductSummary>();
     sales.forEach((sale) => {
       if (!byProduct.has(sale.productId)) {
         byProduct.set(sale.productId, {
@@ -309,9 +325,11 @@ export const getSalesSummary = async (req: AuthRequest, res: Response) => {
         });
       }
       const product = byProduct.get(sale.productId);
-      product.sales += 1;
-      product.quantity += Number(sale.quantity);
-      product.revenue += Number(sale.totalAmount);
+      if (product) {
+        product.sales += 1;
+        product.quantity += Number(sale.quantity);
+        product.revenue += Number(sale.totalAmount);
+      }
     });
 
     res.json({

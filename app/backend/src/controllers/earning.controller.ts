@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { logInfo, logDebug, logError, logWarn } from '../lib/logger';
+import { QuotaService } from '../services/quota.service';
 import {
   emitEarningCreated,
   emitEarningUpdated,
@@ -178,6 +179,11 @@ export const createEarning = async (req: AuthRequest, res: Response) => {
       hourly_rate: earning.hours ? Number(earning.amount) / Number(earning.hours) : null,
       notes: earning.notes || undefined,
     };
+
+    // Track usage for quota system
+    QuotaService.trackUsage(userId, 'earnings').catch((error) => {
+      logWarn('Failed to track earnings quota', { userId, error });
+    });
 
     emitEarningCreated(userId, earningData);
     sendSuccessNotification(

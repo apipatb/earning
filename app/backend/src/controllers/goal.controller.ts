@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma';
-import { AuthRequest } from '../types';
+import prisma from '../lib/prisma';
+import { AuthRequest, ControllerHandler } from '../types';
 
 const createGoalSchema = z.object({
   title: z.string().min(1).max(200),
@@ -19,7 +19,7 @@ const updateGoalSchema = z.object({
   status: z.enum(['active', 'completed', 'cancelled']).optional(),
 });
 
-export const getGoals = async (req: AuthRequest, res: Response) => {
+export const getGoals: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
     const status = req.query.status as string | undefined;
@@ -42,7 +42,7 @@ export const getGoals = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getGoal = async (req: AuthRequest, res: Response) => {
+export const getGoal: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
     const { id } = req.params;
@@ -65,7 +65,7 @@ export const getGoal = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const createGoal = async (req: AuthRequest, res: Response) => {
+export const createGoal: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
     const data = createGoalSchema.parse(req.body);
@@ -92,7 +92,7 @@ export const createGoal = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const updateGoal = async (req: AuthRequest, res: Response) => {
+export const updateGoal: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
     const { id } = req.params;
@@ -129,7 +129,7 @@ export const updateGoal = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const deleteGoal = async (req: AuthRequest, res: Response) => {
+export const deleteGoal: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
     const { id } = req.params;
@@ -153,7 +153,7 @@ export const deleteGoal = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const updateGoalProgress = async (req: AuthRequest, res: Response) => {
+export const updateGoalProgress: ControllerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
     const { id } = req.params;
