@@ -100,6 +100,7 @@ model Platform {
 
   @@unique([userId, name])
   @@index([userId, isActive])
+  @@index([userId, createdAt(sort: Desc)])
   @@map("platforms")
 }
 
@@ -189,6 +190,7 @@ model Sale {
   @@index([userId, saleDate(sort: Desc)])
   @@index([productId, saleDate(sort: Desc)])
   @@index([userId, status])
+  @@index([userId, status, saleDate(sort: Desc)])
   @@map("sales")
 }
 
@@ -237,6 +239,8 @@ model Customer {
 
   @@unique([userId, email])
   @@index([userId, isActive])
+  @@index([userId, lastPurchase(sort: Desc)])
+  @@index([userId, totalPurchases(sort: Desc)])
   @@map("customers")
 }
 
@@ -261,6 +265,8 @@ model Expense {
 
   @@index([userId, expenseDate(sort: Desc)])
   @@index([userId, category])
+  @@index([userId, vendor])
+  @@index([userId, isTaxDeductible])
   @@map("expenses")
 }
 
@@ -298,6 +304,9 @@ model Invoice {
   @@unique([userId, invoiceNumber])
   @@index([userId, invoiceDate(sort: Desc)])
   @@index([userId, status])
+  @@index([userId, dueDate(sort: Asc)])
+  @@index([userId, status, dueDate])
+  @@index([customerId])
   @@map("invoices")
 }
 
@@ -311,5 +320,6 @@ model InvoiceLineItem {
 
   invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
+  @@index([invoiceId])
   @@map("invoice_line_items")
 }
