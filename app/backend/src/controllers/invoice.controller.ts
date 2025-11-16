@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
+import { logger } from '../utils/logger';
 
 const invoiceLineItemSchema = z.object({
   description: z.string().min(1).max(1000),
@@ -29,33 +31,41 @@ const invoiceSchema = z.object({
 export const getAllInvoices = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { startDate, endDate, status, customerId, limit = '50', offset = '0' } = req.query;
+    const { startDate, endDate, status, customerId, limit, offset } = req.query;
 
     const where: any = { userId };
 
     if (startDate && endDate) {
-      const start = new Date(startDate as string);
-      const end = new Date(endDate as string);
-      where.invoiceDate = { gte: start, lte: end };
+      const start = parseDateParam(startDate as string);
+      const end = parseDateParam(endDate as string);
+      if (start && end) {
+        where.invoiceDate = { gte: start, lte: end };
+      }
     }
 
+    // Validate and parse status parameter if provided
     if (status) {
-      where.status = status;
+      const validStatus = parseEnumParam(status as string, ['draft', 'sent', 'viewed', 'paid', 'overdue', 'cancelled']);
+      if (validStatus) {
+        where.status = validStatus;
+      }
     }
 
     if (customerId) {
       where.customerId = customerId;
     }
 
+    const parsedLimit = parseLimitParam(limit as string | undefined, 50);
+    const parsedOffset = parseOffsetParam(offset as string | undefined);
+
     const invoices = await prisma.invoice.findMany({
       where,
       include: {
         customer: { select: { id: true, name: true, email: true } },
-        lineItems: true,
       },
       orderBy: { invoiceDate: 'desc' },
-      take: parseInt(limit as string),
-      skip: parseInt(offset as string),
+      take: parsedLimit,
+      skip: parsedOffset,
     });
 
     const total = await prisma.invoice.count({ where });
@@ -83,9 +93,9 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
       createdAt: inv.createdAt,
     }));
 
-    res.json({ invoices: formatted, total, limit: parseInt(limit as string), offset: parseInt(offset as string) });
+    res.json({ invoices: formatted, total, limit: parsedLimit, offset: parsedOffset });
   } catch (error) {
-    console.error('Get invoices error:', error);
+    logger.error('Get invoices error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch invoices',
@@ -143,7 +153,7 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Create invoice error:', error);
+    logger.error('Create invoice error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create invoice',
@@ -197,7 +207,7 @@ export const updateInvoice = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Update invoice error:', error);
+    logger.error('Update invoice error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update invoice',
@@ -237,7 +247,7 @@ export const markInvoicePaid = async (req: AuthRequest, res: Response) => {
 
     res.json({ invoice: updated });
   } catch (error) {
-    console.error('Mark invoice paid error:', error);
+    logger.error('Mark invoice paid error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to mark invoice as paid',
@@ -267,7 +277,7 @@ export const deleteInvoice = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Invoice deleted successfully' });
   } catch (error) {
-    console.error('Delete invoice error:', error);
+    logger.error('Delete invoice error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete invoice',
@@ -299,7 +309,7 @@ export const getInvoiceSummary = async (req: AuthRequest, res: Response) => {
 
     res.json({ summary });
   } catch (error) {
-    console.error('Get invoice summary error:', error);
+    logger.error('Get invoice summary error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch invoice summary',
@@ -341,7 +351,7 @@ export const getOverdueInvoices = async (req: AuthRequest, res: Response) => {
       totalAmount: formatted.reduce((sum, i) => sum + i.totalAmount, 0),
     });
   } catch (error) {
-    console.error('Get overdue invoices error:', error);
+    logger.error('Get overdue invoices error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch overdue invoices',

@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { FileText, Plus, Download, Send, Edit2, Trash2, Eye, Copy } from 'lucide-react';
 
+// Invoice status types
+type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue';
+
+// Line item structure for invoice items
 interface InvoiceItem {
   id: string;
   description: string;
@@ -9,6 +13,14 @@ interface InvoiceItem {
   amount: number;
 }
 
+// Invoice calculation result type
+interface InvoiceCalculation {
+  subtotal: number;
+  tax: number;
+  total: number;
+}
+
+// Main invoice template type
 interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -23,9 +35,12 @@ interface Invoice {
   taxRate: number;
   total: number;
   notes: string;
-  status: 'draft' | 'sent' | 'paid' | 'overdue';
+  status: InvoiceStatus;
   createdAt: string;
 }
+
+// Type for invoice item field values
+type InvoiceItemFieldValue<K extends keyof InvoiceItem> = InvoiceItem[K];
 
 export default function InvoiceGenerator() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -60,7 +75,7 @@ export default function InvoiceGenerator() {
     setInvoices(newInvoices);
   };
 
-  const calculateTotals = (items: InvoiceItem[], taxRate: number) => {
+  const calculateTotals = (items: InvoiceItem[], taxRate: number): InvoiceCalculation => {
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
     const tax = subtotal * (taxRate / 100);
     const total = subtotal + tax;
@@ -82,7 +97,11 @@ export default function InvoiceGenerator() {
     });
   };
 
-  const updateItem = (id: string, field: keyof InvoiceItem, value: any) => {
+  const updateItem = <K extends keyof InvoiceItem>(
+    id: string,
+    field: K,
+    value: InvoiceItemFieldValue<K>
+  ): void => {
     const items = (formData.items || []).map(item => {
       if (item.id === id) {
         const updated = { ...item, [field]: value };
@@ -217,13 +236,12 @@ export default function InvoiceGenerator() {
     setIsCreating(true);
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: InvoiceStatus): string => {
     switch (status) {
       case 'draft': return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
       case 'sent': return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
       case 'paid': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
       case 'overdue': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
-      default: return 'bg-gray-100 text-gray-700';
     }
   };
 
@@ -364,7 +382,7 @@ export default function InvoiceGenerator() {
               </label>
               <select
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as InvoiceStatus })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="draft">Draft</option>

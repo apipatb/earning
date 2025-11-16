@@ -41,7 +41,6 @@ export default function TaxCalculator() {
 
       notify.success('Income Loaded', `Loaded ${currencySymbol}${totalEarnings.toFixed(2)} from your earnings`);
     } catch (error) {
-      console.error('Failed to load earnings:', error);
       notify.error('Error', 'Failed to load earnings data');
     } finally {
       setLoading(false);

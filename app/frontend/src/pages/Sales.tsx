@@ -1,23 +1,22 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, ShoppingCart, Search } from 'lucide-react';
-import { salesAPI, productsAPI } from '../lib/api';
+import { salesAPI, productsAPI, Sale, Product, SaleData, SalesSummary } from '../lib/api';
 import { notify } from '../store/notification.store';
 
 export default function Sales() {
-  const [sales, setSales] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [summary, setSummary] = useState<any>(null);
+  const [summary, setSummary] = useState<SalesSummary | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<SaleData>({
     productId: '',
     quantity: 1,
     unitPrice: 0,
-    totalAmount: 0,
     saleDate: new Date().toISOString().split('T')[0],
     customer: '',
     notes: '',
@@ -42,7 +41,6 @@ export default function Sales() {
       setProducts(productsRes.products || []);
       setSummary(summaryRes);
     } catch (error) {
-      console.error('Failed to load data:', error);
       notify.error('Error', 'Failed to load sales data. Please try again.');
     } finally {
       setLoading(false);
@@ -97,12 +95,11 @@ export default function Sales() {
     }
   };
 
-  const handleEdit = (sale: any) => {
+  const handleEdit = (sale: Sale) => {
     setFormData({
       productId: sale.productId,
       quantity: sale.quantity,
       unitPrice: sale.unitPrice,
-      totalAmount: sale.totalAmount,
       saleDate: new Date(sale.saleDate).toISOString().split('T')[0],
       customer: sale.customer || '',
       notes: sale.notes || '',

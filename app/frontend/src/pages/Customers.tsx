@@ -1,22 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Users, TrendingUp } from 'lucide-react';
-import { customersAPI } from '../lib/api';
+import { customersAPI, Customer, CustomerData } from '../lib/api';
 import { notify } from '../store/notification.store';
 
 export default function Customers() {
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<CustomerData>({
     name: '',
     email: '',
     phone: '',
     company: '',
     city: '',
     country: '',
-    notes: '',
   });
 
   useEffect(() => {
@@ -28,7 +27,6 @@ export default function Customers() {
       const response = await customersAPI.getAll();
       setCustomers(response.customers);
     } catch (error) {
-      console.error('Failed to load customers:', error);
       notify.error('Error', 'Failed to load customers');
     } finally {
       setLoading(false);
@@ -37,9 +35,25 @@ export default function Customers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name) {
+
+    if (!formData.name || formData.name.trim() === '') {
       notify.error('Validation Error', 'Name is required');
       return;
+    }
+
+    // Validate email format if provided
+    if (formData.email && formData.email.trim() !== '') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        notify.error('Validation Error', 'Please enter a valid email address');
+        return;
+      }
+    }
+
+    // Validate phone format if provided (basic check for non-empty)
+    if (formData.phone && formData.phone.trim() === '') {
+      // Allow empty phone, but trim it if it's provided
+      formData.phone = '';
     }
 
     try {
@@ -58,7 +72,7 @@ export default function Customers() {
     }
   };
 
-  const handleEdit = (customer: any) => {
+  const handleEdit = (customer: Customer) => {
     setFormData({
       name: customer.name,
       email: customer.email || '',
@@ -66,7 +80,6 @@ export default function Customers() {
       company: customer.company || '',
       city: customer.city || '',
       country: customer.country || '',
-      notes: customer.notes || '',
     });
     setEditingId(customer.id);
     setShowForm(true);

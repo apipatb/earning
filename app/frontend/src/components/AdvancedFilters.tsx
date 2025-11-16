@@ -1,20 +1,57 @@
 import { useState } from 'react';
 import { Filter, Plus, X, ChevronDown, Save, Trash2, Calendar, DollarSign, Tag } from 'lucide-react';
 
+// Field type definitions
+export type FieldType = 'text' | 'number' | 'date' | 'select';
+
+// Operator type definitions
+export type FilterOperator = 'equals' | 'notEquals' | 'contains' | 'greaterThan' | 'lessThan' | 'between' | 'in';
+
+// Filter value can be string, number, or array of strings for 'in' operator
+export type FilterValue = string | number | string[];
+
+// Field option structure
+export interface FieldOption {
+  value: string;
+  label: string;
+}
+
+// Field definition structure
+export interface FilterField {
+  value: string;
+  label: string;
+  type: FieldType;
+  options?: FieldOption[];
+}
+
+// Operator option structure
+export interface OperatorOption {
+  value: FilterOperator;
+  label: string;
+}
+
+// Operators map type
+export type OperatorsMap = {
+  [K in FieldType]: OperatorOption[];
+};
+
+// Filter rule structure
 export interface FilterRule {
   id: string;
   field: string;
-  operator: 'equals' | 'notEquals' | 'contains' | 'greaterThan' | 'lessThan' | 'between' | 'in';
-  value: any;
-  value2?: any; // For 'between' operator
+  operator: FilterOperator;
+  value: FilterValue;
+  value2?: FilterValue; // For 'between' operator
 }
 
+// Filter group structure
 export interface FilterGroup {
   id: string;
   logic: 'AND' | 'OR';
   rules: FilterRule[];
 }
 
+// Saved filter structure
 export interface SavedFilter {
   id: string;
   name: string;
@@ -23,13 +60,9 @@ export interface SavedFilter {
   createdAt: string;
 }
 
+// Component props interface
 interface AdvancedFiltersProps {
-  fields: {
-    value: string;
-    label: string;
-    type: 'text' | 'number' | 'date' | 'select';
-    options?: { value: string; label: string }[];
-  }[];
+  fields: FilterField[];
   onApplyFilters: (groups: FilterGroup[]) => void;
   storageKey?: string;
 }
@@ -51,7 +84,7 @@ export default function AdvancedFilters({ fields, onApplyFilters, storageKey = '
   const [filterName, setFilterName] = useState('');
   const [filterDescription, setFilterDescription] = useState('');
 
-  const operators = {
+  const operators: OperatorsMap = {
     text: [
       { value: 'equals', label: 'Equals' },
       { value: 'notEquals', label: 'Not Equals' },
@@ -344,7 +377,7 @@ export default function AdvancedFilters({ fields, onApplyFilters, storageKey = '
                         {/* Operator */}
                         <select
                           value={rule.operator}
-                          onChange={(e) => updateRule(group.id, rule.id, { operator: e.target.value as any })}
+                          onChange={(e) => updateRule(group.id, rule.id, { operator: e.target.value as FilterOperator })}
                           className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         >
                           {operators[fieldType].map(op => (

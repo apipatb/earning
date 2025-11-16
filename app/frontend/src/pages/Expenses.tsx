@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, TrendingDown, DollarSign } from 'lucide-react';
-import { expensesAPI } from '../lib/api';
+import { expensesAPI, Expense, ExpenseData, ExpenseSummary, ProfitMargin } from '../lib/api';
 import { notify } from '../store/notification.store';
 
 export default function Expenses() {
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [summary, setSummary] = useState<any>(null);
-  const [profitData, setProfitData] = useState<any>(null);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [summary, setSummary] = useState<ExpenseSummary | null>(null);
+  const [profitData, setProfitData] = useState<ProfitMargin | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ExpenseData>({
     category: '',
     description: '',
     amount: 0,
@@ -37,7 +37,6 @@ export default function Expenses() {
       setSummary(summRes);
       setProfitData(profRes);
     } catch (error) {
-      console.error('Failed to load expenses:', error);
       notify.error('Error', 'Failed to load expenses');
     } finally {
       setLoading(false);
@@ -68,7 +67,7 @@ export default function Expenses() {
     }
   };
 
-  const handleEdit = (expense: any) => {
+  const handleEdit = (expense: Expense) => {
     setFormData({
       category: expense.category,
       description: expense.description,

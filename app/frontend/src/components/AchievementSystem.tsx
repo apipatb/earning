@@ -1,53 +1,115 @@
 import { useEffect, useState } from 'react';
-import { Award, Trophy, Star, Zap, Target, TrendingUp, DollarSign, Clock, Users, Medal } from 'lucide-react';
+import { Award, Trophy, Star, Zap, Target, TrendingUp, DollarSign, Clock, Users, Medal, LucideIcon } from 'lucide-react';
+
+// Data structure interfaces
+interface Earning {
+  id: string;
+  amount: number;
+  date: string;
+  description?: string;
+  clientId?: string;
+}
+
+interface TimeEntry {
+  id: string;
+  startTime: string;
+  endTime?: string;
+  duration: number;
+  description?: string;
+  clientId?: string;
+}
+
+interface Client {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+}
+
+interface Goal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  deadline?: string;
+}
+
+// Achievement type definitions
+type AchievementCategory = 'earnings' | 'time' | 'clients' | 'goals' | 'consistency';
+
+type FilterOption = 'all' | AchievementCategory;
 
 interface Achievement {
   id: string;
   title: string;
   description: string;
-  icon: any;
+  icon: LucideIcon;
   color: string;
   bgColor: string;
   progress: number;
   target: number;
   unlocked: boolean;
   unlockedAt?: string;
-  category: 'earnings' | 'time' | 'clients' | 'goals' | 'consistency';
+  category: AchievementCategory;
+}
+
+// Progress tracking types
+interface AchievementProgress {
+  totalEarnings: number;
+  totalHours: number;
+  totalClients: number;
+  completedGoals: number;
+  maxStreak: number;
+}
+
+// Unlock condition structure
+interface UnlockCondition {
+  type: 'threshold' | 'streak' | 'count';
+  value: number;
+  currentValue: number;
+}
+
+// Event handler types
+interface FilterButtonProps {
+  filter: FilterOption;
+  currentFilter: FilterOption;
+  onClick: (filter: FilterOption) => void;
+  label: string;
 }
 
 export default function AchievementSystem() {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [showUnlocked, setShowUnlocked] = useState(true);
-  const [filter, setFilter] = useState<string>('all');
+  const [showUnlocked, setShowUnlocked] = useState<boolean>(true);
+  const [filter, setFilter] = useState<FilterOption>('all');
 
   useEffect(() => {
     calculateAchievements();
   }, []);
 
-  const calculateAchievements = () => {
-    const earnings = JSON.parse(localStorage.getItem('earnings') || '[]');
-    const timeEntries = JSON.parse(localStorage.getItem('time_entries') || '[]');
-    const clients = JSON.parse(localStorage.getItem('clients') || '[]');
-    const goals = JSON.parse(localStorage.getItem('savings_goals') || '[]');
+  const calculateAchievements = (): void => {
+    const earnings: Earning[] = JSON.parse(localStorage.getItem('earnings') || '[]');
+    const timeEntries: TimeEntry[] = JSON.parse(localStorage.getItem('time_entries') || '[]');
+    const clients: Client[] = JSON.parse(localStorage.getItem('clients') || '[]');
+    const goals: Goal[] = JSON.parse(localStorage.getItem('savings_goals') || '[]');
 
     // Calculate stats
-    const totalEarnings = earnings.reduce((sum: number, e: any) => sum + e.amount, 0);
-    const totalHours = timeEntries
-      .filter((e: any) => e.endTime)
-      .reduce((sum: number, e: any) => sum + e.duration / 3600, 0);
-    const totalClients = clients.length;
-    const completedGoals = goals.filter((g: any) => (g.currentAmount / g.targetAmount) >= 1).length;
+    const totalEarnings: number = earnings.reduce((sum: number, e: Earning) => sum + e.amount, 0);
+    const totalHours: number = timeEntries
+      .filter((e: TimeEntry) => e.endTime)
+      .reduce((sum: number, e: TimeEntry) => sum + e.duration / 3600, 0);
+    const totalClients: number = clients.length;
+    const completedGoals: number = goals.filter((g: Goal) => (g.currentAmount / g.targetAmount) >= 1).length;
 
     // Earnings streak (consecutive days with earnings)
-    const earningDates = earnings.map((e: any) => new Date(e.date).toDateString()).sort();
-    let currentStreak = 0;
-    let maxStreak = 0;
-    let tempStreak = 1;
+    const earningDates: string[] = earnings.map((e: Earning) => new Date(e.date).toDateString()).sort();
+    let currentStreak: number = 0;
+    let maxStreak: number = 0;
+    let tempStreak: number = 1;
 
-    for (let i = 1; i < earningDates.length; i++) {
-      const prevDate = new Date(earningDates[i - 1]);
-      const currDate = new Date(earningDates[i]);
-      const diffDays = Math.floor((currDate.getTime() - prevDate.getTime()) / 86400000);
+    for (let i: number = 1; i < earningDates.length; i++) {
+      const prevDate: Date = new Date(earningDates[i - 1]);
+      const currDate: Date = new Date(earningDates[i]);
+      const diffDays: number = Math.floor((currDate.getTime() - prevDate.getTime()) / 86400000);
 
       if (diffDays === 1) {
         tempStreak++;
@@ -217,22 +279,22 @@ export default function AchievementSystem() {
     setAchievements(allAchievements);
   };
 
-  const getFilteredAchievements = () => {
-    let filtered = achievements;
+  const getFilteredAchievements = (): Achievement[] => {
+    let filtered: Achievement[] = achievements;
 
     if (filter !== 'all') {
-      filtered = filtered.filter(a => a.category === filter);
+      filtered = filtered.filter((a: Achievement) => a.category === filter);
     }
 
     if (showUnlocked) {
-      filtered = filtered.filter(a => a.unlocked);
+      filtered = filtered.filter((a: Achievement) => a.unlocked);
     }
 
     return filtered;
   };
 
-  const unlockedCount = achievements.filter(a => a.unlocked).length;
-  const totalCount = achievements.length;
+  const unlockedCount: number = achievements.filter((a: Achievement) => a.unlocked).length;
+  const totalCount: number = achievements.length;
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow-soft rounded-lg p-6 animate-fade-in-up">
@@ -290,7 +352,7 @@ export default function AchievementSystem() {
         >
           All
         </button>
-        {['earnings', 'time', 'clients', 'goals', 'consistency'].map(cat => (
+        {(['earnings', 'time', 'clients', 'goals', 'consistency'] as const).map((cat: AchievementCategory) => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}
@@ -320,9 +382,9 @@ export default function AchievementSystem() {
 
       {/* Achievements Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-        {getFilteredAchievements().map(achievement => {
-          const Icon = achievement.icon;
-          const percentage = (achievement.progress / achievement.target) * 100;
+        {getFilteredAchievements().map((achievement: Achievement) => {
+          const Icon: LucideIcon = achievement.icon;
+          const percentage: number = (achievement.progress / achievement.target) * 100;
 
           return (
             <div

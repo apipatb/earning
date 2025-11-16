@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 
 export const errorHandler = (
   err: Error,
@@ -6,13 +7,16 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  console.error('Error:', err);
+  logger.error('Unhandled error', err, {
+    method: req.method,
+    path: req.path,
+    statusCode: res.statusCode,
+  });
 
   if (err.name === 'ZodError') {
     return res.status(400).json({
       error: 'Validation Error',
       message: 'Invalid request data',
-      details: err,
     });
   }
 

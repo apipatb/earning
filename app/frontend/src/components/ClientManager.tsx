@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 import { Users, Plus, Mail, Phone, Building, DollarSign, Calendar, Edit2, Trash2, Search, Filter, Star, Clock, TrendingUp, AlertCircle } from 'lucide-react';
 import { notify } from '../store/notification.store';
 
+// Client status type
+type ClientStatus = 'active' | 'inactive' | 'pending';
+
+// Filter status type (includes 'all' option)
+type FilterStatus = 'all' | ClientStatus;
+
+// Client data structure
 interface Client {
   id: string;
   name: string;
@@ -11,7 +18,7 @@ interface Client {
   hourlyRate: number;
   totalEarnings: number;
   projectsCount: number;
-  status: 'active' | 'inactive' | 'pending';
+  status: ClientStatus;
   rating: number;
   lastContact: string;
   tags: string[];
@@ -19,28 +26,86 @@ interface Client {
   createdAt: string;
 }
 
+// Client form data structure
+interface ClientFormData {
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  hourlyRate: number;
+  status: ClientStatus;
+  rating: number;
+  tags: string;
+  notes: string;
+}
+
+// Earning/Invoice data structure (associated with clients)
+interface Earning {
+  id: string;
+  clientId: string;
+  amount: number;
+  date: string;
+  description?: string;
+  category?: string;
+  invoiceNumber?: string;
+  status?: string;
+}
+
+// Project association structure
 interface Project {
+  id: string;
   clientId: string;
   name: string;
   amount: number;
   date: string;
+  status?: string;
+  description?: string;
+}
+
+// Client performance metrics
+interface ClientStats {
+  total: number;
+  active: number;
+  totalRevenue: number;
+  avgRating: number;
+}
+
+// Client interaction history entry
+interface ClientInteraction {
+  id: string;
+  clientId: string;
+  type: 'email' | 'call' | 'meeting' | 'message' | 'other';
+  date: string;
+  notes: string;
+  outcome?: string;
+}
+
+// Performance metrics for individual clients
+interface ClientPerformanceMetrics {
+  totalEarnings: number;
+  projectsCount: number;
+  averageProjectValue: number;
+  lastContactDate: string;
+  responseTime?: number;
+  satisfactionScore: number;
+  retentionRate?: number;
 }
 
 export default function ClientManager() {
   const [clients, setClients] = useState<Client[]>([]);
   const [filteredClients, setFilteredClients] = useState<Client[]>([]);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState<boolean>(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'pending'>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ClientFormData>({
     name: '',
     email: '',
     phone: '',
     company: '',
     hourlyRate: 0,
-    status: 'active' as 'active' | 'inactive' | 'pending',
+    status: 'active',
     rating: 5,
     tags: '',
     notes: '',
@@ -54,17 +119,18 @@ export default function ClientManager() {
     filterClients();
   }, [clients, searchTerm, filterStatus]);
 
-  const loadClients = () => {
+  const loadClients = (): void => {
     const stored = localStorage.getItem('clients');
     if (stored) {
-      const loadedClients = JSON.parse(stored);
+      const loadedClients: Client[] = JSON.parse(stored);
       // Calculate earnings from earnings data
-      const earnings = JSON.parse(localStorage.getItem('earnings') || '[]');
+      const earningsData = localStorage.getItem('earnings') || '[]';
+      const earnings: Earning[] = JSON.parse(earningsData);
 
-      const updatedClients = loadedClients.map((client: Client) => {
-        const clientEarnings = earnings.filter((e: any) => e.clientId === client.id);
-        const totalEarnings = clientEarnings.reduce((sum: number, e: any) => sum + e.amount, 0);
-        const projectsCount = clientEarnings.length;
+      const updatedClients: Client[] = loadedClients.map((client: Client) => {
+        const clientEarnings: Earning[] = earnings.filter((e: Earning) => e.clientId === client.id);
+        const totalEarnings: number = clientEarnings.reduce((sum: number, e: Earning) => sum + e.amount, 0);
+        const projectsCount: number = clientEarnings.length;
 
         return {
           ...client,
@@ -77,12 +143,12 @@ export default function ClientManager() {
     }
   };
 
-  const filterClients = () => {
-    let filtered = [...clients];
+  const filterClients = (): void => {
+    let filtered: Client[] = [...clients];
 
     // Apply search filter
     if (searchTerm) {
-      filtered = filtered.filter(client =>
+      filtered = filtered.filter((client: Client) =>
         client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         client.company.toLowerCase().includes(searchTerm.toLowerCase())
@@ -91,16 +157,16 @@ export default function ClientManager() {
 
     // Apply status filter
     if (filterStatus !== 'all') {
-      filtered = filtered.filter(client => client.status === filterStatus);
+      filtered = filtered.filter((client: Client) => client.status === filterStatus);
     }
 
     // Sort by total earnings (highest first)
-    filtered.sort((a, b) => b.totalEarnings - a.totalEarnings);
+    filtered.sort((a: Client, b: Client) => b.totalEarnings - a.totalEarnings);
 
     setFilteredClients(filtered);
   };
 
-  const saveClient = () => {
+  const saveClient = (): void => {
     if (!formData.name || !formData.email) {
       notify.error('Validation Error', 'Name and email are required');
       return;
@@ -109,16 +175,16 @@ export default function ClientManager() {
     const newClient: Client = {
       id: editingClient?.id || `client-${Date.now()}`,
       ...formData,
-      tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
+      tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()) : [],
       totalEarnings: editingClient?.totalEarnings || 0,
       projectsCount: editingClient?.projectsCount || 0,
       lastContact: new Date().toISOString(),
       createdAt: editingClient?.createdAt || new Date().toISOString(),
     };
 
-    let updatedClients;
+    let updatedClients: Client[];
     if (editingClient) {
-      updatedClients = clients.map(c => c.id === editingClient.id ? newClient : c);
+      updatedClients = clients.map((c: Client) => c.id === editingClient.id ? newClient : c);
       notify.success('Updated', `Client ${newClient.name} updated successfully`);
     } else {
       updatedClients = [...clients, newClient];
@@ -130,7 +196,7 @@ export default function ClientManager() {
     resetForm();
   };
 
-  const editClient = (client: Client) => {
+  const editClient = (client: Client): void => {
     setEditingClient(client);
     setFormData({
       name: client.name,
@@ -146,16 +212,16 @@ export default function ClientManager() {
     setShowForm(true);
   };
 
-  const deleteClient = (id: string) => {
+  const deleteClient = (id: string): void => {
     if (!confirm('Are you sure you want to delete this client?')) return;
 
-    const updatedClients = clients.filter(c => c.id !== id);
+    const updatedClients: Client[] = clients.filter((c: Client) => c.id !== id);
     localStorage.setItem('clients', JSON.stringify(updatedClients));
     setClients(updatedClients);
     notify.success('Deleted', 'Client deleted successfully');
   };
 
-  const resetForm = () => {
+  const resetForm = (): void => {
     setFormData({
       name: '',
       email: '',
@@ -171,7 +237,7 @@ export default function ClientManager() {
     setShowForm(false);
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: ClientStatus): string => {
     switch (status) {
       case 'active':
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
@@ -184,11 +250,11 @@ export default function ClientManager() {
     }
   };
 
-  const stats = {
+  const stats: ClientStats = {
     total: clients.length,
-    active: clients.filter(c => c.status === 'active').length,
-    totalRevenue: clients.reduce((sum, c) => sum + c.totalEarnings, 0),
-    avgRating: clients.length > 0 ? clients.reduce((sum, c) => sum + c.rating, 0) / clients.length : 0,
+    active: clients.filter((c: Client) => c.status === 'active').length,
+    totalRevenue: clients.reduce((sum: number, c: Client) => sum + c.totalEarnings, 0),
+    avgRating: clients.length > 0 ? clients.reduce((sum: number, c: Client) => sum + c.rating, 0) / clients.length : 0,
   };
 
   return (
@@ -350,7 +416,7 @@ export default function ClientManager() {
               </label>
               <select
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as ClientStatus })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
                 <option value="active">Active</option>

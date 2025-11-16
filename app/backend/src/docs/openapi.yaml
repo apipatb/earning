@@ -1,0 +1,2590 @@
+openapi: 3.0.0
+info:
+  title: EarnTrack API
+  description: |
+    Comprehensive financial tracking API for managing earnings, expenses, invoices, and more.
+
+    ## Authentication
+    All endpoints (except `/auth/register` and `/auth/login`) require JWT Bearer token authentication.
+
+    **Header:** `Authorization: Bearer <token>`
+
+    ## Base URL
+    `https://api.example.com/api/v1` (Production)
+    `http://localhost:3001/api/v1` (Development)
+
+    ## Rate Limiting
+    - Production: 50 requests per 15 minutes
+    - Development: 100 requests per 15 minutes
+
+    ## Error Handling
+    All errors follow a consistent format with HTTP status codes and descriptive messages.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3001/api/v1
+    description: Development server
+  - url: https://api.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User registration and login
+  - name: User Management
+    description: User profile and account management
+  - name: Platforms
+    description: Earning platforms management
+  - name: Earnings
+    description: Earning records management
+  - name: Expenses
+    description: Expense tracking and management
+  - name: Invoices
+    description: Invoice creation and management
+  - name: Customers
+    description: Customer management
+  - name: Products
+    description: Product management
+  - name: Sales
+    description: Sales records management
+  - name: Inventory
+    description: Inventory management
+  - name: Goals
+    description: Financial goals management
+  - name: Analytics
+    description: Analytics and reporting
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login endpoint
+
+  schemas:
+    # Response schemas
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Validation Error"
+        message:
+          type: string
+          example: "Email is required"
+
+    PaginationParams:
+      type: object
+      properties:
+        limit:
+          type: integer
+          default: 20
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          default: 0
+          minimum: 0
+
+    PaginatedResponse:
+      type: object
+      properties:
+        data:
+          type: array
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        has_more:
+          type: boolean
+
+    # User schemas
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        timezone:
+          type: string
+          example: "America/New_York"
+        currency:
+          type: string
+          example: "USD"
+          description: 3-character ISO 4217 currency code
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIs..."
+
+    # Platform schemas
+    Platform:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Upwork"
+        category:
+          type: string
+          enum: [freelance, delivery, services, other]
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          example: "#FF5733"
+        expected_rate:
+          type: number
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        stats:
+          type: object
+          properties:
+            total_earnings:
+              type: number
+            total_hours:
+              type: number
+            avg_hourly_rate:
+              type: number
+
+    # Earning schemas
+    Earning:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        platform_id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        hours:
+          type: number
+          nullable: true
+        amount:
+          type: number
+          format: decimal
+        notes:
+          type: string
+          nullable: true
+        hourly_rate:
+          type: number
+          nullable: true
+          description: Calculated as amount / hours
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Expense schemas
+    Expense:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        category:
+          type: string
+          example: "Software"
+        description:
+          type: string
+        amount:
+          type: number
+          format: decimal
+        expense_date:
+          type: string
+          format: date
+        vendor:
+          type: string
+          nullable: true
+        is_tax_deductible:
+          type: boolean
+          default: false
+        receipt_url:
+          type: string
+          format: uri
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Invoice schemas
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+          nullable: true
+        invoice_number:
+          type: string
+        subtotal:
+          type: number
+          format: decimal
+        tax_amount:
+          type: number
+          format: decimal
+        discount_amount:
+          type: number
+          format: decimal
+        total_amount:
+          type: number
+          format: decimal
+        invoice_date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, sent, viewed, paid, overdue, cancelled]
+        payment_method:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        terms:
+          type: string
+          nullable: true
+        line_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvoiceLineItem'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    InvoiceLineItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        invoice_id:
+          type: string
+          format: uuid
+        description:
+          type: string
+        quantity:
+          type: number
+        unit_price:
+          type: number
+          format: decimal
+        total_price:
+          type: number
+          format: decimal
+
+    InvoiceSummary:
+      type: object
+      properties:
+        total_invoices:
+          type: integer
+        paid:
+          type: integer
+        pending:
+          type: integer
+        overdue:
+          type: integer
+        total_amount:
+          type: number
+          format: decimal
+        paid_amount:
+          type: number
+          format: decimal
+        pending_amount:
+          type: number
+          format: decimal
+
+    # Customer schemas
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        company:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+          default: true
+        last_purchase:
+          type: string
+          format: date-time
+          nullable: true
+        total_purchases:
+          type: number
+          format: decimal
+        purchase_count:
+          type: integer
+        average_order_value:
+          type: number
+          format: decimal
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Product schemas
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        price:
+          type: number
+          format: decimal
+        category:
+          type: string
+          nullable: true
+        sku:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+          default: true
+        quantity:
+          type: integer
+          default: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        stats:
+          type: object
+          properties:
+            total_sales:
+              type: integer
+            total_revenue:
+              type: number
+            total_quantity:
+              type: integer
+
+    # Sales schemas
+    Sale:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+        unit_price:
+          type: number
+          format: decimal
+        total_amount:
+          type: number
+          format: decimal
+        sale_date:
+          type: string
+          format: date
+        customer:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [completed, pending, cancelled]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Goal schemas
+    Goal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        target_amount:
+          type: number
+          format: decimal
+        current_amount:
+          type: number
+          format: decimal
+        deadline:
+          type: string
+          format: date
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, completed, cancelled]
+        progress_percentage:
+          type: number
+          description: Calculated as (current_amount / target_amount) * 100
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Inventory schemas
+    InventoryLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        quantity_change:
+          type: integer
+        type:
+          type: string
+          enum: [purchase, sale, adjustment, damage, return]
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    InventoryAlert:
+      type: object
+      properties:
+        product_id:
+          type: string
+          format: uuid
+        product_name:
+          type: string
+        current_quantity:
+          type: integer
+        reorder_point:
+          type: integer
+        severity:
+          type: string
+          enum: [critical, high, medium]
+          description: critical = 0 quantity, high = below reorder point, medium = warning level
+
+    # Analytics schemas
+    AnalyticsSummary:
+      type: object
+      properties:
+        period:
+          type: string
+          enum: [today, week, month, year, all]
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        total_earnings:
+          type: number
+          format: decimal
+        total_expenses:
+          type: number
+          format: decimal
+        total_hours:
+          type: number
+        avg_hourly_rate:
+          type: number
+          format: decimal
+        by_platform:
+          type: array
+          items:
+            type: object
+            properties:
+              platform:
+                $ref: '#/components/schemas/Platform'
+              earnings:
+                type: number
+              hours:
+                type: number
+              hourly_rate:
+                type: number
+              percentage:
+                type: number
+        daily_breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              earnings:
+                type: number
+              hours:
+                type: number
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                  description: Must be at least 8 characters with uppercase, lowercase, numbers, and special characters
+                name:
+                  type: string
+      responses:
+        '201':
+          description: User successfully registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security: []
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login user
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Successfully logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid credentials or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security: []
+
+  /user/profile:
+    get:
+      tags:
+        - User Management
+      summary: Get user profile
+      operationId: getUserProfile
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - User Management
+      summary: Update user profile
+      operationId: updateUserProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                timezone:
+                  type: string
+                  example: "America/New_York"
+                currency:
+                  type: string
+                  pattern: '^[A-Z]{3}$'
+                  example: "USD"
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /user/change-password:
+    post:
+      tags:
+        - User Management
+      summary: Change user password
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 6
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: Invalid password or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /user/account:
+    delete:
+      tags:
+        - User Management
+      summary: Delete user account
+      operationId: deleteAccount
+      responses:
+        '204':
+          description: Account deleted successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /platforms:
+    get:
+      tags:
+        - Platforms
+      summary: Get all platforms
+      operationId: getPlatforms
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of platforms retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  platforms:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Platform'
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+                      total:
+                        type: integer
+
+    post:
+      tags:
+        - Platforms
+      summary: Create new platform
+      operationId: createPlatform
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                category:
+                  type: string
+                  enum: [freelance, delivery, services, other]
+                color:
+                  type: string
+                  pattern: '^#[0-9A-Fa-f]{6}$'
+                expected_rate:
+                  type: number
+      responses:
+        '201':
+          description: Platform created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  platform:
+                    $ref: '#/components/schemas/Platform'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /platforms/{id}:
+    put:
+      tags:
+        - Platforms
+      summary: Update platform
+      operationId: updatePlatform
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                category:
+                  type: string
+                color:
+                  type: string
+                expected_rate:
+                  type: number
+      responses:
+        '200':
+          description: Platform updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  platform:
+                    $ref: '#/components/schemas/Platform'
+        '404':
+          description: Platform not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Platforms
+      summary: Delete platform
+      operationId: deletePlatform
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Platform deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Platform not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /earnings:
+    get:
+      tags:
+        - Earnings
+      summary: Get earnings with filtering
+      operationId: getEarnings
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: platform_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Earnings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  earnings:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Earning'
+                  total:
+                    type: integer
+                  has_more:
+                    type: boolean
+
+    post:
+      tags:
+        - Earnings
+      summary: Create new earning
+      operationId: createEarning
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - platformId
+                - date
+                - amount
+              properties:
+                platformId:
+                  type: string
+                  format: uuid
+                date:
+                  type: string
+                  format: date
+                hours:
+                  type: number
+                amount:
+                  type: number
+                  format: decimal
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Earning created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  earning:
+                    $ref: '#/components/schemas/Earning'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /earnings/{id}:
+    put:
+      tags:
+        - Earnings
+      summary: Update earning
+      operationId: updateEarning
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                platformId:
+                  type: string
+                date:
+                  type: string
+                hours:
+                  type: number
+                amount:
+                  type: number
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Earning updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  earning:
+                    $ref: '#/components/schemas/Earning'
+        '404':
+          description: Earning not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Earnings
+      summary: Delete earning
+      operationId: deleteEarning
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Earning deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Earning not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /expenses:
+    get:
+      tags:
+        - Expenses
+      summary: Get expenses with filtering
+      operationId: getExpenses
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: isTaxDeductible
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Expenses retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expenses:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Expense'
+                  total:
+                    type: integer
+
+    post:
+      tags:
+        - Expenses
+      summary: Create new expense
+      operationId: createExpense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - category
+                - description
+                - amount
+              properties:
+                category:
+                  type: string
+                description:
+                  type: string
+                amount:
+                  type: number
+                  format: decimal
+                expenseDate:
+                  type: string
+                  format: date
+                vendor:
+                  type: string
+                isTaxDeductible:
+                  type: boolean
+                receiptUrl:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Expense created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expense:
+                    $ref: '#/components/schemas/Expense'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /expenses/{id}:
+    put:
+      tags:
+        - Expenses
+      summary: Update expense
+      operationId: updateExpense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                description:
+                  type: string
+                amount:
+                  type: number
+                expenseDate:
+                  type: string
+                vendor:
+                  type: string
+                isTaxDeductible:
+                  type: boolean
+                receiptUrl:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Expense updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expense:
+                    $ref: '#/components/schemas/Expense'
+
+    delete:
+      tags:
+        - Expenses
+      summary: Delete expense
+      operationId: deleteExpense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Expense deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /expenses/summary:
+    get:
+      tags:
+        - Expenses
+      summary: Get expense summary grouped by category
+      operationId: getExpenseSummary
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [week, month, year]
+      responses:
+        '200':
+          description: Expense summary retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                  by_category:
+                    type: array
+                  start_date:
+                    type: string
+                  end_date:
+                    type: string
+
+  /expenses/profit/margin:
+    get:
+      tags:
+        - Expenses
+      summary: Calculate profit margin
+      operationId: calculateProfitMargin
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [week, month, year]
+      responses:
+        '200':
+          description: Profit margin calculated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  financials:
+                    type: object
+                    properties:
+                      revenue:
+                        type: number
+                      expenses:
+                        type: number
+                      profit:
+                        type: number
+                      profit_margin_percent:
+                        type: number
+
+  /invoices:
+    get:
+      tags:
+        - Invoices
+      summary: Get invoices with filtering
+      operationId: getInvoices
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, sent, viewed, paid, overdue, cancelled]
+        - name: customerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Invoices retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Invoice'
+                  total:
+                    type: integer
+
+    post:
+      tags:
+        - Invoices
+      summary: Create new invoice
+      operationId: createInvoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - invoiceNumber
+                - totalAmount
+              properties:
+                customerId:
+                  type: string
+                  format: uuid
+                invoiceNumber:
+                  type: string
+                subtotal:
+                  type: number
+                taxAmount:
+                  type: number
+                discountAmount:
+                  type: number
+                totalAmount:
+                  type: number
+                invoiceDate:
+                  type: string
+                  format: date
+                dueDate:
+                  type: string
+                  format: date
+                status:
+                  type: string
+                  enum: [draft, sent, viewed, paid, overdue, cancelled]
+                paymentMethod:
+                  type: string
+                notes:
+                  type: string
+                terms:
+                  type: string
+                lineItems:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      quantity:
+                        type: number
+                      unitPrice:
+                        type: number
+                      totalPrice:
+                        type: number
+      responses:
+        '201':
+          description: Invoice created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoice:
+                    $ref: '#/components/schemas/Invoice'
+
+  /invoices/{id}:
+    put:
+      tags:
+        - Invoices
+      summary: Update invoice
+      operationId: updateInvoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customerId:
+                  type: string
+                invoiceNumber:
+                  type: string
+                subtotal:
+                  type: number
+                taxAmount:
+                  type: number
+                discountAmount:
+                  type: number
+                totalAmount:
+                  type: number
+                invoiceDate:
+                  type: string
+                dueDate:
+                  type: string
+                status:
+                  type: string
+                paymentMethod:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Invoice updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoice:
+                    $ref: '#/components/schemas/Invoice'
+
+    patch:
+      tags:
+        - Invoices
+      summary: Mark invoice as paid
+      operationId: markInvoiceAsPaid
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paymentMethod:
+                  type: string
+      responses:
+        '200':
+          description: Invoice marked as paid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoice:
+                    $ref: '#/components/schemas/Invoice'
+
+    delete:
+      tags:
+        - Invoices
+      summary: Delete invoice
+      operationId: deleteInvoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Invoice deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /invoices/summary:
+    get:
+      tags:
+        - Invoices
+      summary: Get invoice summary
+      operationId: getInvoiceSummary
+      responses:
+        '200':
+          description: Invoice summary retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    $ref: '#/components/schemas/InvoiceSummary'
+
+  /invoices/overdue:
+    get:
+      tags:
+        - Invoices
+      summary: Get overdue invoices
+      operationId: getOverdueInvoices
+      responses:
+        '200':
+          description: Overdue invoices retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  overdueInvoices:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Invoice'
+                        - type: object
+                          properties:
+                            days_overdue:
+                              type: integer
+                  total:
+                    type: integer
+                  totalAmount:
+                    type: number
+
+  /customers:
+    get:
+      tags:
+        - Customers
+      summary: Get customers with search and filtering
+      operationId: getCustomers
+      parameters:
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [name, ltv, recent, purchases]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Customers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  customers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Customer'
+                  pagination:
+                    type: object
+
+    post:
+      tags:
+        - Customers
+      summary: Create new customer
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                company:
+                  type: string
+                address:
+                  type: string
+                city:
+                  type: string
+                country:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Customer created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  customer:
+                    $ref: '#/components/schemas/Customer'
+
+  /customers/{id}:
+    get:
+      tags:
+        - Customers
+      summary: Get customer details
+      operationId: getCustomer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Customer retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  customer:
+                    $ref: '#/components/schemas/Customer'
+
+    put:
+      tags:
+        - Customers
+      summary: Update customer
+      operationId: updateCustomer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+                company:
+                  type: string
+                address:
+                  type: string
+                city:
+                  type: string
+                country:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Customer updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  customer:
+                    $ref: '#/components/schemas/Customer'
+
+    delete:
+      tags:
+        - Customers
+      summary: Delete customer
+      operationId: deleteCustomer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Customer deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /customers/top:
+    get:
+      tags:
+        - Customers
+      summary: Get top customers by purchases (LTV)
+      operationId: getTopCustomers
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Top customers retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  topCustomers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Customer'
+
+  /products:
+    get:
+      tags:
+        - Products
+      summary: Get products with filtering
+      operationId: getProducts
+      parameters:
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Products retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    type: object
+
+    post:
+      tags:
+        - Products
+      summary: Create new product
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - price
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                price:
+                  type: number
+                  format: decimal
+                category:
+                  type: string
+                sku:
+                  type: string
+      responses:
+        '201':
+          description: Product created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    $ref: '#/components/schemas/Product'
+
+  /products/{id}:
+    put:
+      tags:
+        - Products
+      summary: Update product
+      operationId: updateProduct
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                price:
+                  type: number
+                category:
+                  type: string
+                sku:
+                  type: string
+      responses:
+        '200':
+          description: Product updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    $ref: '#/components/schemas/Product'
+
+    delete:
+      tags:
+        - Products
+      summary: Delete product
+      operationId: deleteProduct
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Product deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /sales:
+    get:
+      tags:
+        - Sales
+      summary: Get sales with filtering
+      operationId: getSales
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: productId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [completed, pending, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Sales retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sales:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Sale'
+                  total:
+                    type: integer
+
+    post:
+      tags:
+        - Sales
+      summary: Create new sale
+      operationId: createSale
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - productId
+                - totalAmount
+              properties:
+                productId:
+                  type: string
+                  format: uuid
+                quantity:
+                  type: number
+                unitPrice:
+                  type: number
+                totalAmount:
+                  type: number
+                saleDate:
+                  type: string
+                  format: date
+                customer:
+                  type: string
+                notes:
+                  type: string
+                status:
+                  type: string
+                  enum: [completed, pending, cancelled]
+      responses:
+        '201':
+          description: Sale created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sale:
+                    $ref: '#/components/schemas/Sale'
+
+  /sales/{id}:
+    put:
+      tags:
+        - Sales
+      summary: Update sale
+      operationId: updateSale
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productId:
+                  type: string
+                quantity:
+                  type: number
+                unitPrice:
+                  type: number
+                totalAmount:
+                  type: number
+                saleDate:
+                  type: string
+                customer:
+                  type: string
+                notes:
+                  type: string
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Sale updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sale:
+                    $ref: '#/components/schemas/Sale'
+
+    delete:
+      tags:
+        - Sales
+      summary: Delete sale
+      operationId: deleteSale
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Sale deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /sales/summary:
+    get:
+      tags:
+        - Sales
+      summary: Get sales summary grouped by product
+      operationId: getSalesSummary
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [week, month, year]
+      responses:
+        '200':
+          description: Sales summary retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                  by_product:
+                    type: array
+
+  /inventory:
+    get:
+      tags:
+        - Inventory
+      summary: Get inventory with low stock filtering
+      operationId: getInventory
+      parameters:
+        - name: showLowStock
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Inventory retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inventory:
+                    type: array
+                    items:
+                      type: object
+                  summary:
+                    type: object
+                  pagination:
+                    type: object
+
+  /inventory/{id}/stock:
+    put:
+      tags:
+        - Inventory
+      summary: Update product stock levels
+      operationId: updateStock
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 0
+                reorderPoint:
+                  type: integer
+                supplierName:
+                  type: string
+                supplierCost:
+                  type: number
+      responses:
+        '200':
+          description: Stock updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    $ref: '#/components/schemas/Product'
+
+  /inventory/log:
+    post:
+      tags:
+        - Inventory
+      summary: Log inventory change
+      operationId: logInventoryChange
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - productId
+                - quantityChange
+                - type
+              properties:
+                productId:
+                  type: string
+                  format: uuid
+                quantityChange:
+                  type: integer
+                type:
+                  type: string
+                  enum: [purchase, sale, adjustment, damage, return]
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Inventory log created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  log:
+                    $ref: '#/components/schemas/InventoryLog'
+                  updatedQuantity:
+                    type: integer
+
+  /inventory/history:
+    get:
+      tags:
+        - Inventory
+      summary: Get inventory change history
+      operationId: getInventoryHistory
+      parameters:
+        - name: productId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Inventory history retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryLog'
+                  total:
+                    type: integer
+
+  /inventory/alerts/low-stock:
+    get:
+      tags:
+        - Inventory
+      summary: Get low stock alerts
+      operationId: getLowStockAlerts
+      responses:
+        '200':
+          description: Low stock alerts retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryAlert'
+                  totalAlerts:
+                    type: integer
+                  criticalCount:
+                    type: integer
+                  highCount:
+                    type: integer
+
+  /goals:
+    get:
+      tags:
+        - Goals
+      summary: Get all goals with optional filtering
+      operationId: getGoals
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, completed, cancelled]
+      responses:
+        '200':
+          description: Goals retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  goals:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Goal'
+
+    post:
+      tags:
+        - Goals
+      summary: Create new goal
+      operationId: createGoal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - targetAmount
+              properties:
+                title:
+                  type: string
+                targetAmount:
+                  type: number
+                  format: decimal
+                deadline:
+                  type: string
+                  format: date
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Goal created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  goal:
+                    $ref: '#/components/schemas/Goal'
+
+  /goals/{id}:
+    get:
+      tags:
+        - Goals
+      summary: Get specific goal
+      operationId: getGoal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Goal retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  goal:
+                    $ref: '#/components/schemas/Goal'
+
+    put:
+      tags:
+        - Goals
+      summary: Update goal
+      operationId: updateGoal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                targetAmount:
+                  type: number
+                currentAmount:
+                  type: number
+                deadline:
+                  type: string
+                description:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, completed, cancelled]
+      responses:
+        '200':
+          description: Goal updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  goal:
+                    $ref: '#/components/schemas/Goal'
+
+    delete:
+      tags:
+        - Goals
+      summary: Delete goal
+      operationId: deleteGoal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Goal deleted successfully
+
+  /goals/{id}/update-progress:
+    post:
+      tags:
+        - Goals
+      summary: Update goal progress from earnings
+      operationId: updateGoalProgress
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Goal progress updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  goal:
+                    $ref: '#/components/schemas/Goal'
+
+  /analytics/summary:
+    get:
+      tags:
+        - Analytics
+      summary: Get comprehensive analytics summary
+      operationId: getAnalyticsSummary
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [today, week, month, year, all]
+            default: month
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Analytics summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    $ref: '#/components/schemas/AnalyticsSummary'

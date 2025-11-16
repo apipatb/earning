@@ -1,12 +1,63 @@
 import { useState, useEffect } from 'react';
-import { Calendar, TrendingUp, TrendingDown, ArrowRight, DollarSign, Clock, BarChart3, Download } from 'lucide-react';
+import { Calendar, TrendingUp, TrendingDown, ArrowRight, DollarSign, Clock, BarChart3, Download, LucideIcon } from 'lucide-react';
 
+/**
+ * Represents an earning entry from localStorage
+ */
+interface StoredEarning {
+  id: string;
+  platformId: string;
+  amount: number;
+  hours?: number;
+  date: string;
+  notes?: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Represents a platform from localStorage
+ */
+interface StoredPlatform {
+  id: string;
+  name: string;
+  category?: string;
+  color?: string;
+  expectedRate?: number;
+  isActive?: boolean;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Represents a time entry from localStorage
+ */
+interface StoredTimeEntry {
+  id: string;
+  projectName: string;
+  description: string;
+  startTime: string;
+  endTime?: string;
+  duration: number; // in seconds
+  hourlyRate?: number;
+  totalEarned?: number;
+  date: string;
+}
+
+/**
+ * Represents a time period for comparison
+ */
 interface ComparisonPeriod {
   label: string;
   start: Date;
   end: Date;
 }
 
+/**
+ * Aggregated metrics for a comparison period
+ */
 interface ComparisonMetrics {
   totalEarnings: number;
   totalHours: number;
@@ -16,6 +67,30 @@ interface ComparisonMetrics {
   topPlatformAmount: number;
   avgPerDay: number;
   avgPerTransaction: number;
+}
+
+/**
+ * Type for predefined period selections
+ */
+type PeriodType = 'month' | 'week' | 'quarter' | 'year';
+
+/**
+ * Change comparison data
+ */
+interface ChangeData {
+  percent: number;
+  isPositive: boolean;
+}
+
+/**
+ * Props for MetricCard component
+ */
+interface MetricCardProps {
+  title: string;
+  icon: LucideIcon;
+  value1: number;
+  value2: number;
+  format?: (v: number) => string;
 }
 
 export default function ComparisonView() {
@@ -49,9 +124,9 @@ export default function ComparisonView() {
   };
 
   const calculatePeriodMetrics = (
-    earnings: any[],
-    timeEntries: any[],
-    platforms: any[],
+    earnings: StoredEarning[],
+    timeEntries: StoredTimeEntry[],
+    platforms: StoredPlatform[],
     period: ComparisonPeriod
   ): ComparisonMetrics => {
     const periodEarnings = earnings.filter(e => {
@@ -99,13 +174,13 @@ export default function ComparisonView() {
     };
   };
 
-  const getChange = (value1: number, value2: number): { percent: number; isPositive: boolean } => {
+  const getChange = (value1: number, value2: number): ChangeData => {
     if (value2 === 0) return { percent: value1 > 0 ? 100 : 0, isPositive: value1 > 0 };
     const percent = ((value1 - value2) / value2) * 100;
     return { percent: Math.abs(percent), isPositive: percent >= 0 };
   };
 
-  const setPredefinedPeriod = (type: 'month' | 'week' | 'quarter' | 'year') => {
+  const setPredefinedPeriod = (type: PeriodType): void => {
     const now = new Date();
     let p1: ComparisonPeriod, p2: ComparisonPeriod;
 
@@ -174,13 +249,7 @@ export default function ComparisonView() {
     value1,
     value2,
     format = (v: number) => `$${v.toFixed(2)}`,
-  }: {
-    title: string;
-    icon: any;
-    value1: number;
-    value2: number;
-    format?: (v: number) => string;
-  }) => {
+  }: MetricCardProps) => {
     const change = getChange(value1, value2);
 
     return (

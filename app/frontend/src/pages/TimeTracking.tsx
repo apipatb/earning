@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Play, Pause, Square, Clock, Calendar, TrendingUp } from 'lucide-react';
 import { notify } from '../store/notification.store';
 
+/**
+ * Represents a time tracking entry
+ */
 interface TimeEntry {
   id: string;
   projectName: string;
@@ -14,13 +17,96 @@ interface TimeEntry {
   date: string;
 }
 
+/**
+ * Form data for creating a new time entry
+ */
+interface TimeEntryFormData {
+  projectName: string;
+  description: string;
+  hourlyRate: string;
+}
+
+/**
+ * Statistics and aggregated data for time tracking
+ */
+interface TimeStats {
+  todayTotal: number; // in seconds
+  weekTotal: number; // in seconds
+  totalEarned: number; // in dollars
+}
+
+/**
+ * Timer state for the current tracking session
+ */
+interface TimerState {
+  isTracking: boolean;
+  currentEntry: TimeEntry | null;
+  elapsedTime: number; // in seconds
+}
+
+/**
+ * Safely parses stored time entries from localStorage
+ */
+function parseTimeEntries(jsonString: string): TimeEntry[] {
+  try {
+    const parsed: unknown = JSON.parse(jsonString);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((entry): entry is TimeEntry => {
+        return (
+          typeof entry === 'object' &&
+          entry !== null &&
+          typeof entry.id === 'string' &&
+          typeof entry.projectName === 'string' &&
+          typeof entry.description === 'string' &&
+          typeof entry.startTime === 'string' &&
+          typeof entry.duration === 'number' &&
+          typeof entry.date === 'string'
+        );
+      });
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Safely parses a stored time entry from localStorage
+ */
+function parseTimeEntry(jsonString: string): TimeEntry | null {
+  try {
+    const parsed: unknown = JSON.parse(jsonString);
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'id' in parsed &&
+      'projectName' in parsed &&
+      'description' in parsed &&
+      'startTime' in parsed &&
+      'duration' in parsed &&
+      'date' in parsed &&
+      typeof (parsed as Record<string, unknown>).id === 'string' &&
+      typeof (parsed as Record<string, unknown>).projectName === 'string' &&
+      typeof (parsed as Record<string, unknown>).description === 'string' &&
+      typeof (parsed as Record<string, unknown>).startTime === 'string' &&
+      typeof (parsed as Record<string, unknown>).duration === 'number' &&
+      typeof (parsed as Record<string, unknown>).date === 'string'
+    ) {
+      return parsed as TimeEntry;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default function TimeTracking() {
   const [entries, setEntries] = useState<TimeEntry[]>([]);
-  const [isTracking, setIsTracking] = useState(false);
+  const [isTracking, setIsTracking] = useState<boolean>(false);
   const [currentEntry, setCurrentEntry] = useState<TimeEntry | null>(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<TimeEntryFormData>({
     projectName: '',
     description: '',
     hourlyRate: '',
@@ -30,19 +116,22 @@ export default function TimeTracking() {
     // Load from localStorage
     const saved = localStorage.getItem('time_entries');
     if (saved) {
-      setEntries(JSON.parse(saved));
+      const parsedEntries = parseTimeEntries(saved);
+      setEntries(parsedEntries);
     }
 
     const savedCurrent = localStorage.getItem('current_time_entry');
     if (savedCurrent) {
-      const entry = JSON.parse(savedCurrent);
-      setCurrentEntry(entry);
-      setIsTracking(true);
-      setFormData({
-        projectName: entry.projectName,
-        description: entry.description,
-        hourlyRate: entry.hourlyRate?.toString() || '',
-      });
+      const entry = parseTimeEntry(savedCurrent);
+      if (entry) {
+        setCurrentEntry(entry);
+        setIsTracking(true);
+        setFormData({
+          projectName: entry.projectName,
+          description: entry.description,
+          hourlyRate: entry.hourlyRate?.toString() || '',
+        });
+      }
     }
   }, []);
 
@@ -61,7 +150,7 @@ export default function TimeTracking() {
     return () => clearInterval(interval);
   }, [isTracking, currentEntry]);
 
-  const startTracking = () => {
+  const startTracking = (): void => {
     if (!formData.projectName) {
       notify.warning('Missing Project Name', 'Please enter a project name');
       return;
@@ -84,7 +173,7 @@ export default function TimeTracking() {
     notify.success('Timer Started', `Tracking time for ${entry.projectName}`);
   };
 
-  const stopTracking = () => {
+  const stopTracking = (): void => {
     if (!currentEntry) return;
 
     const endTime = new Date().toISOString();
@@ -131,23 +220,23 @@ export default function TimeTracking() {
     }
   };
 
-  const getTodayTotal = () => {
+  const getTodayTotal = (): number => {
     const today = new Date().toISOString().split('T')[0];
     return entries
-      .filter((e) => e.date === today)
-      .reduce((sum, e) => sum + e.duration, 0);
+      .filter((e: TimeEntry): boolean => e.date === today)
+      .reduce((sum: number, e: TimeEntry): number => sum + e.duration, 0);
   };
 
-  const getWeekTotal = () => {
+  const getWeekTotal = (): number => {
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     return entries
-      .filter((e) => new Date(e.date) >= weekAgo)
-      .reduce((sum, e) => sum + e.duration, 0);
+      .filter((e: TimeEntry): boolean => new Date(e.date) >= weekAgo)
+      .reduce((sum: number, e: TimeEntry): number => sum + e.duration, 0);
   };
 
-  const getTotalEarned = () => {
-    return entries.reduce((sum, e) => sum + (e.totalEarned || 0), 0);
+  const getTotalEarned = (): number => {
+    return entries.reduce((sum: number, e: TimeEntry): number => sum + (e.totalEarned || 0), 0);
   };
 
   return (
@@ -227,7 +316,7 @@ export default function TimeTracking() {
               <input
                 type="text"
                 value={formData.projectName}
-                onChange={(e) => setFormData({ ...formData, projectName: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setFormData({ ...formData, projectName: e.target.value })}
                 placeholder="e.g., Website Redesign"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
@@ -240,7 +329,7 @@ export default function TimeTracking() {
               <input
                 type="text"
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setFormData({ ...formData, description: e.target.value })}
                 placeholder="What are you working on?"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
@@ -253,7 +342,7 @@ export default function TimeTracking() {
               <input
                 type="number"
                 value={formData.hourlyRate}
-                onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setFormData({ ...formData, hourlyRate: e.target.value })}
                 placeholder="0.00"
                 step="0.01"
                 min="0"
@@ -282,7 +371,7 @@ export default function TimeTracking() {
           </p>
         ) : (
           <div className="space-y-3">
-            {entries.slice(0, 10).map((entry) => (
+            {entries.slice(0, 10).map((entry: TimeEntry) => (
               <div
                 key={entry.id}
                 className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"

@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { Download, FileText, Database, Calendar, CheckCircle, AlertCircle, Package } from 'lucide-react';
 import { notify } from '../store/notification.store';
 
+// Export option types
+type DateRangeType = 'all' | 'year' | 'month' | 'custom';
+
 interface ExportOptions {
   includeEarnings: boolean;
   includeExpenses: boolean;
@@ -11,9 +14,131 @@ interface ExportOptions {
   includeGoals: boolean;
   includeBudgets: boolean;
   includeTemplates: boolean;
-  dateRange: 'all' | 'year' | 'month' | 'custom';
+  dateRange: DateRangeType;
   customStartDate?: string;
   customEndDate?: string;
+}
+
+// Data structure interfaces
+interface Earning {
+  id: string;
+  amount: number;
+  platformId: string;
+  date: string;
+  description?: string;
+  hours?: number;
+  hourlyRate?: number;
+}
+
+interface Expense {
+  id: string;
+  amount: number;
+  category: string;
+  description: string;
+  date: string;
+  paymentMethod: string;
+  isRecurring: boolean;
+}
+
+interface Client {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  hourlyRate: number;
+  status: string;
+  totalEarnings: number;
+  projectsCount: number;
+}
+
+interface TimeEntry {
+  id: string;
+  description: string;
+  projectName: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  hourlyRate: number;
+  totalAmount: number;
+  isBillable: boolean;
+}
+
+interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  clientName: string;
+  date: string;
+  dueDate: string;
+  subtotal: number;
+  tax: number;
+  total: number;
+  status: string;
+}
+
+interface Goal {
+  id: string;
+  [key: string]: unknown;
+}
+
+interface Budget {
+  id: string;
+  [key: string]: unknown;
+}
+
+interface RecurringTemplate {
+  id: string;
+  [key: string]: unknown;
+}
+
+interface ReportTemplate {
+  id: string;
+  [key: string]: unknown;
+}
+
+// Date-filterable item types
+type DateFilterableItem =
+  | (Earning & { date: string })
+  | (Expense & { date: string })
+  | (Invoice & { date: string });
+
+type TimeFilterableItem = TimeEntry & { startTime: string };
+
+// Export data structure
+interface ExportData {
+  exportedAt: string;
+  version: string;
+  application: string;
+  earnings?: Earning[];
+  expenses?: Expense[];
+  clients?: Client[];
+  timeEntries?: TimeEntry[];
+  invoices?: Invoice[];
+  goals?: Goal[];
+  budgets?: Budget[];
+  recurringTemplates?: RecurringTemplate[];
+  reportTemplates?: ReportTemplate[];
+}
+
+// Import data structure (partial version of ExportData)
+interface ImportData {
+  exportedAt?: string;
+  version?: string;
+  application?: string;
+  earnings?: Earning[];
+  expenses?: Expense[];
+  clients?: Client[];
+  timeEntries?: TimeEntry[];
+  invoices?: Invoice[];
+  goals?: Goal[];
+  budgets?: Budget[];
+  recurringTemplates?: RecurringTemplate[];
+  reportTemplates?: ReportTemplate[];
+}
+
+// Helper type for items with date fields
+interface HasDateField {
+  [key: string]: unknown;
 }
 
 export default function DataExport() {
@@ -31,7 +156,7 @@ export default function DataExport() {
 
   const [exporting, setExporting] = useState(false);
 
-  const filterByDateRange = (items: any[], dateField: string = 'date') => {
+  const filterByDateRange = <T extends HasDateField>(items: T[], dateField: string = 'date'): T[] => {
     if (options.dateRange === 'all') return items;
 
     const now = new Date();
@@ -53,54 +178,56 @@ export default function DataExport() {
 
     const endDate = options.customEndDate ? new Date(options.customEndDate) : now;
 
-    return items.filter((item: any) => {
-      const itemDate = new Date(item[dateField]);
+    return items.filter((item: T) => {
+      const dateValue = item[dateField];
+      if (typeof dateValue !== 'string') return false;
+      const itemDate = new Date(dateValue);
       return itemDate >= startDate && itemDate <= endDate;
     });
   };
 
-  const getAllData = () => {
-    const data: any = {
+  const getAllData = (): ExportData => {
+    const data: ExportData = {
       exportedAt: new Date().toISOString(),
       version: '1.0',
       application: 'EarnTrack',
     };
 
     if (options.includeEarnings) {
-      const earnings = JSON.parse(localStorage.getItem('earnings') || '[]');
-      data.earnings = filterByDateRange(earnings, 'date');
+      const earnings: Earning[] = JSON.parse(localStorage.getItem('earnings') || '[]');
+      data.earnings = filterByDateRange<Earning>(earnings, 'date');
     }
 
     if (options.includeExpenses) {
-      const expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
-      data.expenses = filterByDateRange(expenses, 'date');
+      const expenses: Expense[] = JSON.parse(localStorage.getItem('expenses') || '[]');
+      data.expenses = filterByDateRange<Expense>(expenses, 'date');
     }
 
     if (options.includeClients) {
-      data.clients = JSON.parse(localStorage.getItem('clients') || '[]');
+      data.clients = JSON.parse(localStorage.getItem('clients') || '[]') as Client[];
     }
 
     if (options.includeTimeEntries) {
-      const timeEntries = JSON.parse(localStorage.getItem('time_entries') || '[]');
-      data.timeEntries = filterByDateRange(timeEntries, 'startTime');
+      const timeEntries: TimeEntry[] = JSON.parse(localStorage.getItem('time_entries') || '[]');
+      data.timeEntries = filterByDateRange<TimeEntry>(timeEntries, 'startTime');
     }
 
     if (options.includeInvoices) {
-      const invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
-      data.invoices = filterByDateRange(invoices, 'date');
+      const invoices: Invoice[] = JSON.parse(localStorage.getItem('invoices') || '[]');
+      data.invoices = filterByDateRange<Invoice>(invoices, 'date');
     }
 
     if (options.includeGoals) {
-      data.goals = JSON.parse(localStorage.getItem('goals') || '[]');
+      data.goals = JSON.parse(localStorage.getItem('goals') || '[]') as Goal[];
     }
 
     if (options.includeBudgets) {
-      data.budgets = JSON.parse(localStorage.getItem('budgets') || '[]');
+      data.budgets = JSON.parse(localStorage.getItem('budgets') || '[]') as Budget[];
     }
 
     if (options.includeTemplates) {
-      data.recurringTemplates = JSON.parse(localStorage.getItem('recurring_templates') || '[]');
-      data.reportTemplates = JSON.parse(localStorage.getItem('report_templates') || '[]');
+      data.recurringTemplates = JSON.parse(localStorage.getItem('recurring_templates') || '[]') as RecurringTemplate[];
+      data.reportTemplates = JSON.parse(localStorage.getItem('report_templates') || '[]') as ReportTemplate[];
     }
 
     return data;
@@ -136,7 +263,7 @@ export default function DataExport() {
       if (data.earnings && data.earnings.length > 0) {
         csvContent += 'EARNINGS\n';
         csvContent += 'ID,Amount,Platform ID,Date,Description,Hours,Hourly Rate\n';
-        data.earnings.forEach((e: any) => {
+        data.earnings.forEach((e: Earning) => {
           csvContent += `"${e.id}",${e.amount},"${e.platformId}","${e.date}","${e.description || ''}",${e.hours || ''},${e.hourlyRate || ''}\n`;
         });
         csvContent += '\n';
@@ -146,7 +273,7 @@ export default function DataExport() {
       if (data.expenses && data.expenses.length > 0) {
         csvContent += 'EXPENSES\n';
         csvContent += 'ID,Amount,Category,Description,Date,Payment Method,Is Recurring\n';
-        data.expenses.forEach((e: any) => {
+        data.expenses.forEach((e: Expense) => {
           csvContent += `"${e.id}",${e.amount},"${e.category}","${e.description}","${e.date}","${e.paymentMethod}",${e.isRecurring}\n`;
         });
         csvContent += '\n';
@@ -156,7 +283,7 @@ export default function DataExport() {
       if (data.clients && data.clients.length > 0) {
         csvContent += 'CLIENTS\n';
         csvContent += 'ID,Name,Email,Phone,Company,Hourly Rate,Status,Total Earnings,Projects Count\n';
-        data.clients.forEach((c: any) => {
+        data.clients.forEach((c: Client) => {
           csvContent += `"${c.id}","${c.name}","${c.email}","${c.phone}","${c.company}",${c.hourlyRate},"${c.status}",${c.totalEarnings},${c.projectsCount}\n`;
         });
         csvContent += '\n';
@@ -166,7 +293,7 @@ export default function DataExport() {
       if (data.timeEntries && data.timeEntries.length > 0) {
         csvContent += 'TIME ENTRIES\n';
         csvContent += 'ID,Description,Project,Start Time,End Time,Duration (seconds),Hourly Rate,Total Amount,Is Billable\n';
-        data.timeEntries.forEach((t: any) => {
+        data.timeEntries.forEach((t: TimeEntry) => {
           csvContent += `"${t.id}","${t.description}","${t.projectName}","${t.startTime}","${t.endTime}",${t.duration},${t.hourlyRate},${t.totalAmount},${t.isBillable}\n`;
         });
         csvContent += '\n';
@@ -176,7 +303,7 @@ export default function DataExport() {
       if (data.invoices && data.invoices.length > 0) {
         csvContent += 'INVOICES\n';
         csvContent += 'ID,Invoice Number,Client Name,Date,Due Date,Subtotal,Tax,Total,Status\n';
-        data.invoices.forEach((i: any) => {
+        data.invoices.forEach((i: Invoice) => {
           csvContent += `"${i.id}","${i.invoiceNumber}","${i.clientName}","${i.date}","${i.dueDate}",${i.subtotal},${i.tax},${i.total},"${i.status}"\n`;
         });
         csvContent += '\n';
@@ -208,14 +335,21 @@ export default function DataExport() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
-    input.onchange = (e: any) => {
-      const file = e.target.files[0];
+    input.onchange = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = (event: any) => {
+      reader.onload = (event: ProgressEvent<FileReader>) => {
         try {
-          const imported = JSON.parse(event.target.result);
+          const result = event.target?.result;
+          if (typeof result !== 'string') {
+            notify.error('Import Failed', 'Failed to read file content');
+            return;
+          }
+
+          const imported: ImportData = JSON.parse(result);
 
           // Confirm before importing
           if (!confirm('This will merge imported data with existing data. Continue?')) {
@@ -223,32 +357,32 @@ export default function DataExport() {
           }
 
           // Import each data type
-          if (imported.earnings) {
-            const existing = JSON.parse(localStorage.getItem('earnings') || '[]');
+          if (imported.earnings && Array.isArray(imported.earnings)) {
+            const existing: Earning[] = JSON.parse(localStorage.getItem('earnings') || '[]');
             const merged = [...existing, ...imported.earnings];
             localStorage.setItem('earnings', JSON.stringify(merged));
           }
 
-          if (imported.expenses) {
-            const existing = JSON.parse(localStorage.getItem('expenses') || '[]');
+          if (imported.expenses && Array.isArray(imported.expenses)) {
+            const existing: Expense[] = JSON.parse(localStorage.getItem('expenses') || '[]');
             const merged = [...existing, ...imported.expenses];
             localStorage.setItem('expenses', JSON.stringify(merged));
           }
 
-          if (imported.clients) {
-            const existing = JSON.parse(localStorage.getItem('clients') || '[]');
+          if (imported.clients && Array.isArray(imported.clients)) {
+            const existing: Client[] = JSON.parse(localStorage.getItem('clients') || '[]');
             const merged = [...existing, ...imported.clients];
             localStorage.setItem('clients', JSON.stringify(merged));
           }
 
-          if (imported.timeEntries) {
-            const existing = JSON.parse(localStorage.getItem('time_entries') || '[]');
+          if (imported.timeEntries && Array.isArray(imported.timeEntries)) {
+            const existing: TimeEntry[] = JSON.parse(localStorage.getItem('time_entries') || '[]');
             const merged = [...existing, ...imported.timeEntries];
             localStorage.setItem('time_entries', JSON.stringify(merged));
           }
 
-          if (imported.invoices) {
-            const existing = JSON.parse(localStorage.getItem('invoices') || '[]');
+          if (imported.invoices && Array.isArray(imported.invoices)) {
+            const existing: Invoice[] = JSON.parse(localStorage.getItem('invoices') || '[]');
             const merged = [...existing, ...imported.invoices];
             localStorage.setItem('invoices', JSON.stringify(merged));
           }
@@ -269,12 +403,30 @@ export default function DataExport() {
 
   const dataCount = (() => {
     let count = 0;
-    if (options.includeEarnings) count += JSON.parse(localStorage.getItem('earnings') || '[]').length;
-    if (options.includeExpenses) count += JSON.parse(localStorage.getItem('expenses') || '[]').length;
-    if (options.includeClients) count += JSON.parse(localStorage.getItem('clients') || '[]').length;
-    if (options.includeTimeEntries) count += JSON.parse(localStorage.getItem('time_entries') || '[]').length;
-    if (options.includeInvoices) count += JSON.parse(localStorage.getItem('invoices') || '[]').length;
-    if (options.includeGoals) count += JSON.parse(localStorage.getItem('goals') || '[]').length;
+    if (options.includeEarnings) {
+      const earnings: Earning[] = JSON.parse(localStorage.getItem('earnings') || '[]');
+      count += earnings.length;
+    }
+    if (options.includeExpenses) {
+      const expenses: Expense[] = JSON.parse(localStorage.getItem('expenses') || '[]');
+      count += expenses.length;
+    }
+    if (options.includeClients) {
+      const clients: Client[] = JSON.parse(localStorage.getItem('clients') || '[]');
+      count += clients.length;
+    }
+    if (options.includeTimeEntries) {
+      const timeEntries: TimeEntry[] = JSON.parse(localStorage.getItem('time_entries') || '[]');
+      count += timeEntries.length;
+    }
+    if (options.includeInvoices) {
+      const invoices: Invoice[] = JSON.parse(localStorage.getItem('invoices') || '[]');
+      count += invoices.length;
+    }
+    if (options.includeGoals) {
+      const goals: Goal[] = JSON.parse(localStorage.getItem('goals') || '[]');
+      count += goals.length;
+    }
     return count;
   })();
 
@@ -391,7 +543,7 @@ export default function DataExport() {
         <div className="flex flex-wrap gap-3">
           <select
             value={options.dateRange}
-            onChange={(e) => setOptions({ ...options, dateRange: e.target.value as any })}
+            onChange={(e) => setOptions({ ...options, dateRange: e.target.value as DateRangeType })}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           >
             <option value="all">All Time</option>

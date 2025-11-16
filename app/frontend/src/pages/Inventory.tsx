@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, TrendingDown, Package, AlertCircle, CheckCircle, Loader } from 'lucide-react';
-import { inventoryAPI, productsAPI } from '../lib/api';
+import { inventoryAPI, productsAPI, InventoryEditData } from '../lib/api';
 import { notify } from '../store/notification.store';
 
 interface InventoryItem {
@@ -27,7 +27,7 @@ export default function Inventory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editData, setEditData] = useState<any>({});
+  const [editData, setEditData] = useState<InventoryEditData>({});
 
   useEffect(() => {
     loadInventory();

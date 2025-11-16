@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Package } from 'lucide-react';
-import { productsAPI } from '../lib/api';
+import { productsAPI, Product, ProductData } from '../lib/api';
 import { notify } from '../store/notification.store';
 
 export default function Products() {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ProductData>({
     name: '',
     description: '',
     price: 0,
     category: '',
     sku: '',
+    quantity: 0,
   });
 
   useEffect(() => {
@@ -25,7 +26,6 @@ export default function Products() {
       const response = await productsAPI.getAll();
       setProducts(response.products);
     } catch (error) {
-      console.error('Failed to load products:', error);
       notify.error('Error', 'Failed to load products. Please try again.');
     } finally {
       setLoading(false);
@@ -35,8 +35,18 @@ export default function Products() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || formData.price <= 0) {
-      notify.error('Validation Error', 'Name and price are required');
+    if (!formData.name || formData.name.trim() === '') {
+      notify.error('Validation Error', 'Product name is required');
+      return;
+    }
+
+    if (formData.price < 0 || !isFinite(formData.price)) {
+      notify.error('Validation Error', 'Price must be a valid positive number');
+      return;
+    }
+
+    if (formData.quantity < 0 || !isFinite(formData.quantity)) {
+      notify.error('Validation Error', 'Quantity must be a valid non-negative number');
       return;
     }
 
@@ -58,13 +68,14 @@ export default function Products() {
     }
   };
 
-  const handleEdit = (product: any) => {
+  const handleEdit = (product: Product) => {
     setFormData({
       name: product.name,
       description: product.description || '',
       price: product.price,
       category: product.category || '',
       sku: product.sku || '',
+      quantity: product.quantity || 0,
     });
     setEditingId(product.id);
     setShowForm(true);

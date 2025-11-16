@@ -1,12 +1,31 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, DollarSign, Plus } from 'lucide-react';
 
+/**
+ * Represents a single earning entry
+ */
+interface Earning {
+  date: string;
+  amount: number;
+  description?: string;
+  category?: string;
+  id?: string;
+}
+
+/**
+ * Represents a day in the calendar with associated earnings
+ */
 interface CalendarDay {
   date: Date;
   isCurrentMonth: boolean;
-  earnings: any[];
+  earnings: Earning[];
   totalAmount: number;
 }
+
+/**
+ * Type for storing earnings data from localStorage
+ */
+type StoredEarnings = Earning[];
 
 export default function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -34,7 +53,7 @@ export default function CalendarView() {
     endDate.setDate(endDate.getDate() + (6 - endDate.getDay()));
 
     // Load earnings
-    const earnings = JSON.parse(localStorage.getItem('earnings') || '[]');
+    const earnings: StoredEarnings = JSON.parse(localStorage.getItem('earnings') || '[]');
 
     // Generate calendar days
     const days: CalendarDay[] = [];
@@ -42,8 +61,8 @@ export default function CalendarView() {
 
     while (current <= endDate) {
       const dateStr = current.toISOString().split('T')[0];
-      const dayEarnings = earnings.filter((e: any) => e.date.startsWith(dateStr));
-      const totalAmount = dayEarnings.reduce((sum: number, e: any) => sum + e.amount, 0);
+      const dayEarnings = earnings.filter((e: Earning) => e.date.startsWith(dateStr));
+      const totalAmount = dayEarnings.reduce((sum: number, e: Earning) => sum + e.amount, 0);
 
       days.push({
         date: new Date(current),
@@ -233,7 +252,7 @@ export default function CalendarView() {
           </div>
 
           <div className="space-y-2">
-            {selectedDay.earnings.map((earning: any, index: number) => (
+            {selectedDay.earnings.map((earning: Earning, index: number) => (
               <div
                 key={index}
                 className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded"

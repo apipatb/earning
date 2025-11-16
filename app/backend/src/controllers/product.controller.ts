@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { logger } from '../utils/logger';
+import { parseLimitParam, parseOffsetParam } from '../utils/validation';
 
 const productSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
@@ -14,12 +16,19 @@ const productSchema = z.object({
 export const getAllProducts = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { isActive } = req.query;
+    const { isActive, limit: limitParam, offset: offsetParam } = req.query;
+
+    // Parse pagination parameters with safe defaults
+    const limit = parseLimitParam(limitParam);
+    const offset = parseOffsetParam(offsetParam);
 
     const where: any = { userId };
     if (isActive !== undefined) {
       where.isActive = isActive === 'true';
     }
+
+    // Get total count for pagination
+    const total = await prisma.product.count({ where });
 
     const products = await prisma.product.findMany({
       where,
@@ -32,6 +41,8 @@ export const getAllProducts = async (req: AuthRequest, res: Response) => {
         },
       },
       orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
     });
 
     // Calculate stats for each product
@@ -58,9 +69,16 @@ export const getAllProducts = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    res.json({ products: productsWithStats });
+    res.json({
+      products: productsWithStats,
+      pagination: {
+        total,
+        limit,
+        offset,
+      }
+    });
   } catch (error) {
-    console.error('Get products error:', error);
+    logger.error('Get products error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch products',
@@ -92,7 +110,7 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Create product error:', error);
+    logger.error('Create product error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create product',
@@ -125,7 +143,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
 
     res.json({ product: updated });
   } catch (error) {
-    console.error('Update product error:', error);
+    logger.error('Update product error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update product',
@@ -156,7 +174,7 @@ export const deleteProduct = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
-    console.error('Delete product error:', error);
+    logger.error('Delete product error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete product',

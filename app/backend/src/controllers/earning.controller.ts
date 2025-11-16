@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { parseLimitParam, parseOffsetParam, parseDateParam } from '../utils/validation';
+import { logger } from '../utils/logger';
 
 const earningSchema = z.object({
   platformId: z.string().uuid(),
@@ -14,15 +16,23 @@ const earningSchema = z.object({
 export const getAllEarnings = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { start_date, end_date, platform_id, limit = '100', offset = '0' } = req.query;
+    const { start_date, end_date, platform_id, limit, offset } = req.query;
+
+    const parsedLimit = parseLimitParam(limit as string | undefined);
+    const parsedOffset = parseOffsetParam(offset as string | undefined);
 
     const where: any = { userId };
 
     if (start_date && end_date) {
-      where.date = {
-        gte: new Date(start_date as string),
-        lte: new Date(end_date as string),
-      };
+      const startDate = parseDateParam(start_date as string);
+      const endDate = parseDateParam(end_date as string);
+
+      if (startDate && endDate) {
+        where.date = {
+          gte: startDate,
+          lte: endDate,
+        };
+      }
     }
 
     if (platform_id) {
@@ -42,8 +52,8 @@ export const getAllEarnings = async (req: AuthRequest, res: Response) => {
           },
         },
         orderBy: { date: 'desc' },
-        take: parseInt(limit as string),
-        skip: parseInt(offset as string),
+        take: parsedLimit,
+        skip: parsedOffset,
       }),
       prisma.earning.count({ where }),
     ]);
@@ -61,10 +71,10 @@ export const getAllEarnings = async (req: AuthRequest, res: Response) => {
     res.json({
       earnings: earningsWithRate,
       total,
-      has_more: total > parseInt(offset as string) + parseInt(limit as string),
+      has_more: total > parsedOffset + parsedLimit,
     });
   } catch (error) {
-    console.error('Get earnings error:', error);
+    logger.error('Get earnings error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch earnings',
@@ -117,7 +127,7 @@ export const createEarning = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Create earning error:', error);
+    logger.error('Create earning error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create earning',
@@ -165,7 +175,7 @@ export const updateEarning = async (req: AuthRequest, res: Response) => {
 
     res.json({ earning: updated });
   } catch (error) {
-    console.error('Update earning error:', error);
+    logger.error('Update earning error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update earning',
@@ -196,7 +206,7 @@ export const deleteEarning = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Earning deleted successfully' });
   } catch (error) {
-    console.error('Delete earning error:', error);
+    logger.error('Delete earning error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete earning',

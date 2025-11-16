@@ -1,35 +1,89 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Target, TrendingUp, AlertCircle, CheckCircle, PiggyBank, Wallet } from 'lucide-react';
+import { Plus, Edit2, Trash2, Target, TrendingUp, AlertCircle, CheckCircle, PiggyBank, Wallet, LucideIcon } from 'lucide-react';
 import { notify } from '../store/notification.store';
 import { useCurrencyStore } from '../store/currency.store';
 import { formatCurrency } from '../lib/currency';
+import { FormValidation } from '../lib/validation';
 
+// Type aliases for better type safety
+type BudgetPeriod = 'monthly' | 'quarterly' | 'yearly';
+type SavingsPriority = 'low' | 'medium' | 'high';
+type BudgetStatusType = 'over' | 'warning' | 'normal';
+
+// Budget-related interfaces
 interface BudgetCategory {
   id: string;
   name: string;
   plannedAmount: number;
   spentAmount: number;
-  period: 'monthly' | 'quarterly' | 'yearly';
+  period: BudgetPeriod;
   color: string;
   description?: string;
   startDate: string;
   endDate: string;
 }
 
+interface BudgetFormData {
+  name: string;
+  plannedAmount: string;
+  period: BudgetPeriod;
+  description: string;
+  startDate: string;
+  endDate: string;
+}
+
+interface BudgetStatus {
+  text: string;
+  color: string;
+  icon: LucideIcon;
+}
+
+// Savings-related interfaces
 interface SavingsGoal {
   id: string;
   name: string;
   targetAmount: number;
   currentAmount: number;
   deadline: string;
-  priority: 'low' | 'medium' | 'high';
+  priority: SavingsPriority;
   description?: string;
 }
 
-const CATEGORY_COLORS = [
+interface SavingsFormData {
+  name: string;
+  targetAmount: string;
+  currentAmount: string;
+  deadline: string;
+  priority: SavingsPriority;
+  description: string;
+}
+
+// Spending tracking types
+interface SpendingMetrics {
+  totalPlanned: number;
+  totalSpent: number;
+  totalSavings: number;
+  totalSavingsTarget: number;
+}
+
+// Alert threshold types
+interface BudgetThreshold {
+  warningPercentage: number;
+  criticalPercentage: number;
+}
+
+// Budget vs. actual comparison types
+interface BudgetComparison {
+  budgetAmount: number;
+  actualAmount: number;
+  variance: number;
+  percentage: number;
+}
+
+const CATEGORY_COLORS: readonly string[] = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
   '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16'
-];
+] as const;
 
 export default function BudgetPlanning() {
   const [budgetCategories, setBudgetCategories] = useState<BudgetCategory[]>([]);
@@ -40,21 +94,21 @@ export default function BudgetPlanning() {
   const [editingGoal, setEditingGoal] = useState<SavingsGoal | null>(null);
   const { currency } = useCurrencyStore();
 
-  const [budgetFormData, setBudgetFormData] = useState({
+  const [budgetFormData, setBudgetFormData] = useState<BudgetFormData>({
     name: '',
     plannedAmount: '',
-    period: 'monthly' as const,
+    period: 'monthly',
     description: '',
     startDate: new Date().toISOString().split('T')[0],
     endDate: '',
   });
 
-  const [savingsFormData, setSavingsFormData] = useState({
+  const [savingsFormData, setSavingsFormData] = useState<SavingsFormData>({
     name: '',
     targetAmount: '',
     currentAmount: '',
     deadline: '',
-    priority: 'medium' as const,
+    priority: 'medium',
     description: '',
   });
 
@@ -71,17 +125,17 @@ export default function BudgetPlanning() {
     }
   }, []);
 
-  const saveBudgets = (data: BudgetCategory[]) => {
+  const saveBudgets = (data: BudgetCategory[]): void => {
     localStorage.setItem('budget_categories', JSON.stringify(data));
     setBudgetCategories(data);
   };
 
-  const saveGoals = (data: SavingsGoal[]) => {
+  const saveGoals = (data: SavingsGoal[]): void => {
     localStorage.setItem('savings_goals', JSON.stringify(data));
     setSavingsGoals(data);
   };
 
-  const handleBudgetSubmit = (e: React.FormEvent) => {
+  const handleBudgetSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
 
     if (!budgetFormData.name || !budgetFormData.plannedAmount) {
@@ -125,7 +179,7 @@ export default function BudgetPlanning() {
     resetBudgetForm();
   };
 
-  const handleSavingsSubmit = (e: React.FormEvent) => {
+  const handleSavingsSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
 
     if (!savingsFormData.name || !savingsFormData.targetAmount || !savingsFormData.deadline) {
@@ -167,7 +221,7 @@ export default function BudgetPlanning() {
     resetSavingsForm();
   };
 
-  const calculateEndDate = (startDate: string, period: string): string => {
+  const calculateEndDate = (startDate: string, period: BudgetPeriod): string => {
     const date = new Date(startDate);
     switch (period) {
       case 'monthly':
@@ -183,7 +237,7 @@ export default function BudgetPlanning() {
     return date.toISOString().split('T')[0];
   };
 
-  const resetBudgetForm = () => {
+  const resetBudgetForm = (): void => {
     setBudgetFormData({
       name: '',
       plannedAmount: '',
@@ -195,7 +249,7 @@ export default function BudgetPlanning() {
     setShowBudgetForm(false);
   };
 
-  const resetSavingsForm = () => {
+  const resetSavingsForm = (): void => {
     setSavingsFormData({
       name: '',
       targetAmount: '',
@@ -207,7 +261,7 @@ export default function BudgetPlanning() {
     setShowSavingsForm(false);
   };
 
-  const handleEditBudget = (budget: BudgetCategory) => {
+  const handleEditBudget = (budget: BudgetCategory): void => {
     setEditingBudget(budget);
     setBudgetFormData({
       name: budget.name,
@@ -220,7 +274,7 @@ export default function BudgetPlanning() {
     setShowBudgetForm(true);
   };
 
-  const handleEditGoal = (goal: SavingsGoal) => {
+  const handleEditGoal = (goal: SavingsGoal): void => {
     setEditingGoal(goal);
     setSavingsFormData({
       name: goal.name,
@@ -233,42 +287,42 @@ export default function BudgetPlanning() {
     setShowSavingsForm(true);
   };
 
-  const handleDeleteBudget = (id: string) => {
+  const handleDeleteBudget = (id: string): void => {
     if (!confirm('Delete this budget category?')) return;
     saveBudgets(budgetCategories.filter((cat) => cat.id !== id));
     notify.success('Deleted', 'Budget category removed');
   };
 
-  const handleDeleteGoal = (id: string) => {
+  const handleDeleteGoal = (id: string): void => {
     if (!confirm('Delete this savings goal?')) return;
     saveGoals(savingsGoals.filter((goal) => goal.id !== id));
     notify.success('Deleted', 'Savings goal removed');
   };
 
-  const getTotalPlanned = () => budgetCategories.reduce((sum, cat) => sum + cat.plannedAmount, 0);
-  const getTotalSpent = () => budgetCategories.reduce((sum, cat) => sum + cat.spentAmount, 0);
-  const getTotalSavings = () => savingsGoals.reduce((sum, goal) => sum + goal.currentAmount, 0);
-  const getTotalSavingsTarget = () => savingsGoals.reduce((sum, goal) => sum + goal.targetAmount, 0);
+  const getTotalPlanned = (): number => budgetCategories.reduce((sum, cat) => sum + cat.plannedAmount, 0);
+  const getTotalSpent = (): number => budgetCategories.reduce((sum, cat) => sum + cat.spentAmount, 0);
+  const getTotalSavings = (): number => savingsGoals.reduce((sum, goal) => sum + goal.currentAmount, 0);
+  const getTotalSavingsTarget = (): number => savingsGoals.reduce((sum, goal) => sum + goal.targetAmount, 0);
 
-  const getPercentage = (current: number, target: number) => {
+  const getPercentage = (current: number, target: number): number => {
     if (target === 0) return 0;
     return (current / target) * 100;
   };
 
-  const getBudgetStatus = (category: BudgetCategory) => {
+  const getBudgetStatus = (category: BudgetCategory): BudgetStatus => {
     const percentage = getPercentage(category.spentAmount, category.plannedAmount);
     if (percentage >= 100) return { text: 'Over Budget', color: 'text-red-600 dark:text-red-400', icon: AlertCircle };
     if (percentage >= 80) return { text: 'Near Limit', color: 'text-orange-600 dark:text-orange-400', icon: AlertCircle };
     return { text: 'On Track', color: 'text-green-600 dark:text-green-400', icon: CheckCircle };
   };
 
-  const getPriorityColor = (priority: string) => {
-    const map: Record<string, string> = {
+  const getPriorityColor = (priority: SavingsPriority): string => {
+    const map: Record<SavingsPriority, string> = {
       low: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
       medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
       high: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     };
-    return map[priority] || map.medium;
+    return map[priority];
   };
 
   return (
@@ -382,7 +436,7 @@ export default function BudgetPlanning() {
                 </label>
                 <select
                   value={budgetFormData.period}
-                  onChange={(e) => setBudgetFormData({ ...budgetFormData, period: e.target.value as any })}
+                  onChange={(e) => setBudgetFormData({ ...budgetFormData, period: FormValidation.parseBudgetPeriod(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 >
                   <option value="monthly">Monthly</option>
@@ -633,7 +687,7 @@ export default function BudgetPlanning() {
                 </label>
                 <select
                   value={savingsFormData.priority}
-                  onChange={(e) => setSavingsFormData({ ...savingsFormData, priority: e.target.value as any })}
+                  onChange={(e) => setSavingsFormData({ ...savingsFormData, priority: FormValidation.parsePriority(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 >
                   <option value="low">Low</option>

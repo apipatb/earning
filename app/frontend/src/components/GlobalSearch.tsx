@@ -1,14 +1,53 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, X, TrendingUp, DollarSign, Target, Users, Clock, FileText } from 'lucide-react';
+import { Search, X, TrendingUp, DollarSign, Target, Users, Clock, FileText, LucideIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+// Data structure interfaces for localStorage items
+interface Earning {
+  id: string;
+  platformName: string;
+  amount: number;
+  description?: string;
+  date: string;
+}
+
+interface Client {
+  id: string;
+  name: string;
+  company?: string;
+  email?: string;
+}
+
+interface Budget {
+  id: string;
+  name: string;
+  spentAmount: number;
+  plannedAmount: number;
+}
+
+interface SavingsGoal {
+  id: string;
+  name: string;
+  currentAmount: number;
+  targetAmount: number;
+}
+
+interface TimeEntry {
+  id: string;
+  projectName: string;
+  description?: string;
+}
+
+// Search result types
+type SearchResultType = 'earning' | 'platform' | 'goal' | 'client' | 'budget' | 'invoice';
 
 interface SearchResult {
   id: string;
-  type: 'earning' | 'platform' | 'goal' | 'client' | 'budget' | 'invoice';
+  type: SearchResultType;
   title: string;
   subtitle?: string;
   path: string;
-  icon: any;
+  icon: LucideIcon;
   color: string;
 }
 
@@ -55,8 +94,8 @@ export default function GlobalSearch() {
     const lowerQuery = query.toLowerCase();
 
     // Search in earnings
-    const earnings = JSON.parse(localStorage.getItem('earnings') || '[]');
-    earnings.forEach((earning: any) => {
+    const earnings: Earning[] = JSON.parse(localStorage.getItem('earnings') || '[]');
+    earnings.forEach((earning: Earning) => {
       if (
         earning.platformName?.toLowerCase().includes(lowerQuery) ||
         earning.description?.toLowerCase().includes(lowerQuery)
@@ -74,8 +113,8 @@ export default function GlobalSearch() {
     });
 
     // Search in clients
-    const clients = JSON.parse(localStorage.getItem('clients') || '[]');
-    clients.forEach((client: any) => {
+    const clients: Client[] = JSON.parse(localStorage.getItem('clients') || '[]');
+    clients.forEach((client: Client) => {
       if (
         client.name?.toLowerCase().includes(lowerQuery) ||
         client.company?.toLowerCase().includes(lowerQuery) ||
@@ -94,8 +133,8 @@ export default function GlobalSearch() {
     });
 
     // Search in budgets
-    const budgets = JSON.parse(localStorage.getItem('budget_categories') || '[]');
-    budgets.forEach((budget: any) => {
+    const budgets: Budget[] = JSON.parse(localStorage.getItem('budget_categories') || '[]');
+    budgets.forEach((budget: Budget) => {
       if (budget.name?.toLowerCase().includes(lowerQuery)) {
         searchResults.push({
           id: budget.id,
@@ -110,8 +149,8 @@ export default function GlobalSearch() {
     });
 
     // Search in goals
-    const goals = JSON.parse(localStorage.getItem('savings_goals') || '[]');
-    goals.forEach((goal: any) => {
+    const goals: SavingsGoal[] = JSON.parse(localStorage.getItem('savings_goals') || '[]');
+    goals.forEach((goal: SavingsGoal) => {
       if (goal.name?.toLowerCase().includes(lowerQuery)) {
         searchResults.push({
           id: goal.id,
@@ -126,8 +165,8 @@ export default function GlobalSearch() {
     });
 
     // Search in time entries
-    const timeEntries = JSON.parse(localStorage.getItem('time_entries') || '[]');
-    timeEntries.forEach((entry: any) => {
+    const timeEntries: TimeEntry[] = JSON.parse(localStorage.getItem('time_entries') || '[]');
+    timeEntries.forEach((entry: TimeEntry) => {
       if (entry.projectName?.toLowerCase().includes(lowerQuery)) {
         searchResults.push({
           id: entry.id,

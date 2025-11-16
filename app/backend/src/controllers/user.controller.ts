@@ -1,8 +1,9 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma';
+import prisma from '../lib/prisma';
 import { AuthRequest } from '../types';
 import { hashPassword, comparePassword } from '../utils/password';
+import { logger } from '../utils/logger';
 
 const updateProfileSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -17,7 +18,7 @@ const changePasswordSchema = z.object({
 
 export const getProfile = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -38,14 +39,14 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
 
     res.json(user);
   } catch (error) {
-    console.error('Get profile error:', error);
+    logger.error('Get profile error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to fetch profile' });
   }
 };
 
 export const updateProfile = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const data = updateProfileSchema.parse(req.body);
 
     const user = await prisma.user.update({
@@ -71,14 +72,14 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid profile data', details: error.errors });
     }
-    console.error('Update profile error:', error);
+    logger.error('Update profile error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to update profile' });
   }
 };
 
 export const changePassword = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const data = changePasswordSchema.parse(req.body);
 
     // Get current user
@@ -110,14 +111,14 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid password data', details: error.errors });
     }
-    console.error('Change password error:', error);
+    logger.error('Change password error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to change password' });
   }
 };
 
 export const deleteAccount = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
 
     // Delete user (cascade will delete all related data)
     await prisma.user.delete({
@@ -126,7 +127,7 @@ export const deleteAccount = async (req: AuthRequest, res: Response) => {
 
     res.status(204).send();
   } catch (error) {
-    console.error('Delete account error:', error);
+    logger.error('Delete account error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to delete account' });
   }
 };

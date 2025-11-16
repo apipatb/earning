@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
+import { logger } from '../utils/logger';
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
@@ -17,7 +19,11 @@ const customerSchema = z.object({
 export const getAllCustomers = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { isActive, search, sortBy = 'name' } = req.query;
+    const { isActive, search, sortBy = 'name', limit: limitParam, offset: offsetParam } = req.query;
+
+    // Parse pagination parameters with safe defaults
+    const limit = parseLimitParam(limitParam);
+    const offset = parseOffsetParam(offsetParam);
 
     const where: any = { userId };
     if (isActive !== undefined) {
@@ -46,9 +52,14 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
         orderBy.name = 'asc';
     }
 
+    // Get total count for pagination
+    const total = await prisma.customer.count({ where });
+
     const customers = await prisma.customer.findMany({
       where,
       orderBy,
+      skip: offset,
+      take: limit,
     });
 
     const customersWithLTV = customers.map((customer) => ({
@@ -70,9 +81,16 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
       createdAt: customer.createdAt,
     }));
 
-    res.json({ customers: customersWithLTV });
+    res.json({
+      customers: customersWithLTV,
+      pagination: {
+        total,
+        limit,
+        offset,
+      }
+    });
   } catch (error) {
-    console.error('Get customers error:', error);
+    logger.error('Get customers error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch customers',
@@ -100,7 +118,7 @@ export const createCustomer = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Create customer error:', error);
+    logger.error('Create customer error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create customer',
@@ -133,7 +151,7 @@ export const updateCustomer = async (req: AuthRequest, res: Response) => {
 
     res.json({ customer: updated });
   } catch (error) {
-    console.error('Update customer error:', error);
+    logger.error('Update customer error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update customer',
@@ -163,7 +181,7 @@ export const deleteCustomer = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Customer deleted successfully' });
   } catch (error) {
-    console.error('Delete customer error:', error);
+    logger.error('Delete customer error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete customer',
@@ -208,7 +226,7 @@ export const getCustomerDetails = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Get customer details error:', error);
+    logger.error('Get customer details error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch customer details',
@@ -219,12 +237,14 @@ export const getCustomerDetails = async (req: AuthRequest, res: Response) => {
 export const getTopCustomers = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { limit = '10' } = req.query;
+    const { limit } = req.query;
+
+    const parsedLimit = parseLimitParam(limit as string | undefined, 10);
 
     const topCustomers = await prisma.customer.findMany({
       where: { userId },
       orderBy: { totalPurchases: 'desc' },
-      take: parseInt(limit as string),
+      take: parsedLimit,
       select: {
         id: true,
         name: true,
@@ -243,7 +263,7 @@ export const getTopCustomers = async (req: AuthRequest, res: Response) => {
 
     res.json({ topCustomers: formatted });
   } catch (error) {
-    console.error('Get top customers error:', error);
+    logger.error('Get top customers error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch top customers',

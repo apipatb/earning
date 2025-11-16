@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { generateRandomId } from '../lib/random';
 
 export interface Notification {
   id: string;
@@ -23,7 +24,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
   notifications: [],
 
   addNotification: (notification) => {
-    const id = Math.random().toString(36).substring(7);
+    const id = generateRandomId(12);
     const newNotification = { id, ...notification };
 
     set((state) => ({

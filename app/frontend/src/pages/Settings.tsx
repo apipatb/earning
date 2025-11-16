@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
-import { User, Lock, Trash2, Save, Bell, Settings2, Eye, Database, Palette, Download, Upload, Calendar, DollarSign, Globe, Monitor, Zap, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, Lock, Trash2, Save, Bell, Settings2, Eye, Database, Palette, Download, Upload, Calendar, DollarSign, Globe, Monitor, Zap, RefreshCw, ChevronDown, ChevronUp, LucideIcon } from 'lucide-react';
 import api from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 import { SUPPORTED_CURRENCIES } from '../lib/currency';
 import { notify, requestNotificationPermission } from '../store/notification.store';
+import { getErrorMessage, isApiError } from '../lib/error';
+import { getStorageJSON } from '../lib/storage';
+import { FormValidation } from '../lib/validation';
 import ThemeCustomizer from '../components/ThemeCustomizer';
 import NotificationPreferences from '../components/NotificationPreferences';
 
+// User Profile Types
 interface ProfileData {
   id: string;
   email: string;
@@ -17,27 +21,145 @@ interface ProfileData {
   updatedAt: string;
 }
 
+interface ProfileFormData {
+  name: string;
+  timezone: string;
+  currency: string;
+}
+
+interface PasswordFormData {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+// App Preferences Types
+type DateFormat = 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD';
+type TimeFormat = '12h' | '24h';
+type WeekStartDay = 'sunday' | 'monday';
+type ChartType = 'bar' | 'line' | 'area';
+type NumberSeparator = ',' | '.' | ' ';
+type DecimalSeparator = ',' | '.';
+
 interface AppPreferences {
-  dateFormat: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD';
-  timeFormat: '12h' | '24h';
-  weekStartDay: 'sunday' | 'monday';
+  dateFormat: DateFormat;
+  timeFormat: TimeFormat;
+  weekStartDay: WeekStartDay;
   fiscalYearStart: number; // 1-12
   compactView: boolean;
   animationsEnabled: boolean;
   autoSave: boolean;
   autoSaveInterval: number; // minutes
-  chartType: 'bar' | 'line' | 'area';
+  chartType: ChartType;
   showDecimals: boolean;
-  thousandSeparator: ',' | '.' | ' ';
-  decimalSeparator: ',' | '.';
+  thousandSeparator: NumberSeparator;
+  decimalSeparator: DecimalSeparator;
+}
+
+// Settings Category Types
+interface SettingsSectionProps {
+  id: string;
+  title: string;
+  icon: LucideIcon;
+  iconColor: string;
+  children: React.ReactNode;
+  borderColor?: string;
+}
+
+interface ExpandedSections {
+  profile: boolean;
+  preferences: boolean;
+  display: boolean;
+  themes: boolean;
+  dataPrivacy: boolean;
+  backup: boolean;
+  notifications: boolean;
+  advanced: boolean;
+  danger: boolean;
+}
+
+// Month Selection Type
+interface MonthOption {
+  value: number;
+  label: string;
+}
+
+// Backup/Export Data Types
+interface BackupEarning {
+  id: string;
+  amount: number;
+  date: string;
+  platformId?: string;
+  description?: string;
+  [key: string]: unknown;
+}
+
+interface BackupPlatform {
+  id: string;
+  name: string;
+  color?: string;
+  [key: string]: unknown;
+}
+
+interface BackupGoal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  [key: string]: unknown;
+}
+
+interface BackupClient {
+  id: string;
+  name: string;
+  email?: string;
+  [key: string]: unknown;
+}
+
+interface BackupTimeEntry {
+  id: string;
+  duration: number;
+  date: string;
+  [key: string]: unknown;
+}
+
+interface BackupBudget {
+  id: string;
+  name: string;
+  amount: number;
+  [key: string]: unknown;
+}
+
+interface ExportData {
+  earnings: BackupEarning[];
+  platforms: BackupPlatform[];
+  goals: BackupGoal[];
+  clients: BackupClient[];
+  timeEntries: BackupTimeEntry[];
+  budgets: BackupBudget[];
+  preferences: AppPreferences;
+  exportedAt: string;
+  version: string;
+}
+
+interface ImportData {
+  earnings?: BackupEarning[];
+  platforms?: BackupPlatform[];
+  goals?: BackupGoal[];
+  clients?: BackupClient[];
+  timeEntries?: BackupTimeEntry[];
+  budgets?: BackupBudget[];
+  preferences?: AppPreferences;
+  exportedAt?: string;
+  version?: string;
 }
 
 export default function Settings() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
   const { user, logout } = useAuthStore();
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+  const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
     profile: true,
     preferences: false,
     display: false,
@@ -49,13 +171,13 @@ export default function Settings() {
     danger: false,
   });
 
-  const [profileData, setProfileData] = useState({
+  const [profileData, setProfileData] = useState<ProfileFormData>({
     name: '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     currency: 'USD',
   });
 
-  const [passwordData, setPasswordData] = useState({
+  const [passwordData, setPasswordData] = useState<PasswordFormData>({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
@@ -95,7 +217,6 @@ export default function Settings() {
         currency: data.currency,
       });
     } catch (error) {
-      console.error('Failed to load profile:', error);
       notify.error('Error', 'Failed to load profile. Please try again.');
     } finally {
       setLoading(false);
@@ -121,7 +242,6 @@ export default function Settings() {
       await api.put('/user/profile', profileData);
       notify.success('Profile Updated', 'Your profile has been updated successfully!');
     } catch (error) {
-      console.error('Failed to update profile:', error);
       notify.error('Error', 'Failed to update profile. Please try again.');
     } finally {
       setSaving(false);
@@ -153,12 +273,12 @@ export default function Settings() {
         newPassword: '',
         confirmPassword: '',
       });
-    } catch (error: any) {
-      console.error('Failed to change password:', error);
-      if (error.response?.data?.error === 'Current password is incorrect') {
+    } catch (error) {
+      const apiError = getErrorMessage(error);
+      if (isApiError(error, 'Current password is incorrect')) {
         notify.error('Incorrect Password', 'Current password is incorrect');
       } else {
-        notify.error('Error', 'Failed to change password. Please try again.');
+        notify.error('Error', apiError.message);
       }
     } finally {
       setSaving(false);
@@ -183,7 +303,6 @@ export default function Settings() {
       logout();
       window.location.href = '/login';
     } catch (error) {
-      console.error('Failed to delete account:', error);
       notify.error('Error', 'Failed to delete account. Please try again.');
     } finally {
       setSaving(false);
@@ -201,13 +320,13 @@ export default function Settings() {
   };
 
   const handleExportData = () => {
-    const data = {
-      earnings: JSON.parse(localStorage.getItem('earnings') || '[]'),
-      platforms: JSON.parse(localStorage.getItem('platforms') || '[]'),
-      goals: JSON.parse(localStorage.getItem('savings_goals') || '[]'),
-      clients: JSON.parse(localStorage.getItem('clients') || '[]'),
-      timeEntries: JSON.parse(localStorage.getItem('time_entries') || '[]'),
-      budgets: JSON.parse(localStorage.getItem('budgets') || '[]'),
+    const data: ExportData = {
+      earnings: getStorageJSON<BackupEarning[]>('earnings', []),
+      platforms: getStorageJSON<BackupPlatform[]>('platforms', []),
+      goals: getStorageJSON<BackupGoal[]>('savings_goals', []),
+      clients: getStorageJSON<BackupClient[]>('clients', []),
+      timeEntries: getStorageJSON<BackupTimeEntry[]>('time_entries', []),
+      budgets: getStorageJSON<BackupBudget[]>('budgets', []),
       preferences: preferences,
       exportedAt: new Date().toISOString(),
       version: '1.0',
@@ -231,9 +350,15 @@ export default function Settings() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = (event: ProgressEvent<FileReader>) => {
       try {
-        const data = JSON.parse(event.target?.result as string);
+        const result = event.target?.result;
+        if (typeof result !== 'string') {
+          notify.error('Import Failed', 'Could not read file contents.');
+          return;
+        }
+
+        const data: ImportData = JSON.parse(result);
 
         if (!confirm('This will replace all your current data. Are you sure you want to continue?')) {
           return;
@@ -254,7 +379,6 @@ export default function Settings() {
         notify.success('Import Complete', 'Your data has been restored successfully! Refreshing page...');
         setTimeout(() => window.location.reload(), 1500);
       } catch (error) {
-        console.error('Failed to import data:', error);
         notify.error('Import Failed', 'The file format is invalid. Please check your backup file.');
       }
     };
@@ -279,11 +403,11 @@ export default function Settings() {
     setTimeout(() => window.location.reload(), 1000);
   };
 
-  const toggleSection = (section: string) => {
+  const toggleSection = (section: keyof ExpandedSections) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const timezones = [
+  const timezones: string[] = [
     'UTC',
     'America/New_York',
     'America/Chicago',
@@ -296,7 +420,7 @@ export default function Settings() {
     'Australia/Sydney',
   ];
 
-  const months = [
+  const months: MonthOption[] = [
     { value: 1, label: 'January' },
     { value: 2, label: 'February' },
     { value: 3, label: 'March' },
@@ -326,14 +450,7 @@ export default function Settings() {
     iconColor,
     children,
     borderColor
-  }: {
-    id: string;
-    title: string;
-    icon: any;
-    iconColor: string;
-    children: React.ReactNode;
-    borderColor?: string;
-  }) => (
+  }: SettingsSectionProps) => (
     <div className={`bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden ${borderColor || ''}`}>
       <button
         onClick={() => toggleSection(id)}
@@ -450,7 +567,7 @@ export default function Settings() {
               </label>
               <select
                 value={preferences.dateFormat}
-                onChange={(e) => setPreferences({ ...preferences, dateFormat: e.target.value as any })}
+                onChange={(e) => setPreferences({ ...preferences, dateFormat: FormValidation.parseDateFormat(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="MM/DD/YYYY">MM/DD/YYYY (12/31/2023)</option>
@@ -465,7 +582,7 @@ export default function Settings() {
               </label>
               <select
                 value={preferences.timeFormat}
-                onChange={(e) => setPreferences({ ...preferences, timeFormat: e.target.value as any })}
+                onChange={(e) => setPreferences({ ...preferences, timeFormat: FormValidation.parseTimeFormat(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="12h">12-hour (3:00 PM)</option>
@@ -479,7 +596,7 @@ export default function Settings() {
               </label>
               <select
                 value={preferences.weekStartDay}
-                onChange={(e) => setPreferences({ ...preferences, weekStartDay: e.target.value as any })}
+                onChange={(e) => setPreferences({ ...preferences, weekStartDay: FormValidation.parseWeekStartDay(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="monday">Monday</option>
@@ -509,7 +626,7 @@ export default function Settings() {
               </label>
               <select
                 value={preferences.thousandSeparator}
-                onChange={(e) => setPreferences({ ...preferences, thousandSeparator: e.target.value as any })}
+                onChange={(e) => setPreferences({ ...preferences, thousandSeparator: FormValidation.parseNumberSeparator(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value=",">Comma (1,000,000)</option>
@@ -524,7 +641,7 @@ export default function Settings() {
               </label>
               <select
                 value={preferences.decimalSeparator}
-                onChange={(e) => setPreferences({ ...preferences, decimalSeparator: e.target.value as any })}
+                onChange={(e) => setPreferences({ ...preferences, decimalSeparator: FormValidation.parseDecimalSeparator(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value=".">Period (1.50)</option>
@@ -591,7 +708,7 @@ export default function Settings() {
             </label>
             <select
               value={preferences.chartType}
-              onChange={(e) => setPreferences({ ...preferences, chartType: e.target.value as any })}
+              onChange={(e) => setPreferences({ ...preferences, chartType: FormValidation.parseChartType(e.target.value) })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
             >
               <option value="bar">Bar Chart</option>

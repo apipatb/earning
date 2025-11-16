@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { logger } from '../utils/logger';
+import { parseLimitParam, parseOffsetParam } from '../utils/validation';
 
 const platformSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -13,9 +15,19 @@ const platformSchema = z.object({
 export const getAllPlatforms = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const { limit: limitParam, offset: offsetParam } = req.query;
+
+    // Parse pagination parameters with safe defaults
+    const limit = parseLimitParam(limitParam);
+    const offset = parseOffsetParam(offsetParam);
+
+    const where = { userId };
+
+    // Get total count for pagination
+    const total = await prisma.platform.count({ where });
 
     const platforms = await prisma.platform.findMany({
-      where: { userId },
+      where,
       include: {
         earnings: {
           select: {
@@ -24,6 +36,9 @@ export const getAllPlatforms = async (req: AuthRequest, res: Response) => {
           },
         },
       },
+      skip: offset,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
     });
 
     // Calculate stats for each platform
@@ -47,9 +62,16 @@ export const getAllPlatforms = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    res.json({ platforms: platformsWithStats });
+    res.json({
+      platforms: platformsWithStats,
+      pagination: {
+        total,
+        limit,
+        offset,
+      }
+    });
   } catch (error) {
-    console.error('Get platforms error:', error);
+    logger.error('Get platforms error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch platforms',
@@ -80,7 +102,7 @@ export const createPlatform = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Create platform error:', error);
+    logger.error('Create platform error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create platform',
@@ -113,7 +135,7 @@ export const updatePlatform = async (req: AuthRequest, res: Response) => {
 
     res.json({ platform: updated });
   } catch (error) {
-    console.error('Update platform error:', error);
+    logger.error('Update platform error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update platform',
@@ -144,7 +166,7 @@ export const deletePlatform = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Platform deleted successfully' });
   } catch (error) {
-    console.error('Delete platform error:', error);
+    logger.error('Delete platform error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete platform',

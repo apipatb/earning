@@ -3,17 +3,82 @@ import { FileText, Download, Calendar, Filter, TrendingUp, DollarSign, Clock, Us
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { notify } from '../store/notification.store';
 
+// Data item interfaces for different report types
+interface EarningItem {
+  id: string;
+  date: string;
+  amount: number;
+  platformId?: string;
+  clientId?: string;
+  projectName?: string;
+  category?: string;
+  description?: string;
+}
+
+interface ExpenseItem {
+  id: string;
+  date: string;
+  amount: number;
+  category?: string;
+  description?: string;
+}
+
+interface TimeEntry {
+  id: string;
+  startTime: string;
+  endTime?: string;
+  duration?: number;
+  projectName?: string;
+  clientId?: string;
+  description?: string;
+}
+
+interface Client {
+  id: string;
+  name: string;
+  totalAmount?: number;
+  totalEarnings?: number;
+  projectCount?: number;
+}
+
+// Union type for all report data items
+type ReportDataItem = EarningItem | ExpenseItem | TimeEntry | Client;
+
+// Chart data structure
+interface ChartDataPoint {
+  name: string;
+  value: number;
+  count: number;
+  average: number;
+}
+
+// Grouped data structure
+interface GroupedDataValue {
+  total: number;
+  count: number;
+  average: number;
+}
+
+type GroupedData = Record<string, GroupedDataValue>;
+
+// Date range types
+type DateRangeType = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
+type ReportType = 'earnings' | 'expenses' | 'time' | 'clients' | 'custom';
+type GroupByType = 'day' | 'week' | 'month' | 'project' | 'client' | 'category';
+type ChartType = 'bar' | 'line' | 'pie' | 'table';
+type ExportFormat = 'csv' | 'json';
+
 interface ReportTemplate {
   id: string;
   name: string;
   description: string;
-  type: 'earnings' | 'expenses' | 'time' | 'clients' | 'custom';
-  dateRange: 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
+  type: ReportType;
+  dateRange: DateRangeType;
   customStartDate?: string;
   customEndDate?: string;
   metrics: string[];
-  groupBy: 'day' | 'week' | 'month' | 'project' | 'client' | 'category';
-  chartType: 'bar' | 'line' | 'pie' | 'table';
+  groupBy: GroupByType;
+  chartType: ChartType;
   filters: {
     platforms?: string[];
     clients?: string[];
@@ -33,8 +98,25 @@ interface ReportData {
     highest: number;
     lowest: number;
   };
-  chartData: any[];
-  tableData: any[];
+  chartData: ChartDataPoint[];
+  tableData: ReportDataItem[];
+}
+
+interface ReportFormData {
+  name: string;
+  description: string;
+  type: ReportType;
+  dateRange: DateRangeType;
+  customStartDate: string;
+  customEndDate: string;
+  metrics: string[];
+  groupBy: GroupByType;
+  chartType: ChartType;
+}
+
+interface DateRange {
+  startDate: Date;
+  endDate: Date;
 }
 
 export default function ReportBuilder() {
@@ -44,16 +126,16 @@ export default function ReportBuilder() {
   const [showForm, setShowForm] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ReportTemplate | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ReportFormData>({
     name: '',
     description: '',
-    type: 'earnings' as 'earnings' | 'expenses' | 'time' | 'clients' | 'custom',
-    dateRange: 'month' as any,
+    type: 'earnings',
+    dateRange: 'month',
     customStartDate: '',
     customEndDate: '',
-    metrics: [] as string[],
-    groupBy: 'day' as any,
-    chartType: 'bar' as any,
+    metrics: [],
+    groupBy: 'day',
+    chartType: 'bar',
   });
 
   useEffect(() => {
@@ -67,14 +149,14 @@ export default function ReportBuilder() {
     }
   }, [selectedTemplate]);
 
-  const loadTemplates = () => {
+  const loadTemplates = (): void => {
     const stored = localStorage.getItem('report_templates');
     if (stored) {
-      setTemplates(JSON.parse(stored));
+      setTemplates(JSON.parse(stored) as ReportTemplate[]);
     }
   };
 
-  const loadDefaultTemplates = () => {
+  const loadDefaultTemplates = (): void => {
     const stored = localStorage.getItem('report_templates');
     if (!stored) {
       const defaultTemplates: ReportTemplate[] = [
@@ -121,32 +203,53 @@ export default function ReportBuilder() {
     }
   };
 
-  const generateReport = (template: ReportTemplate) => {
-    const earnings = JSON.parse(localStorage.getItem('earnings') || '[]');
-    const expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
-    const timeEntries = JSON.parse(localStorage.getItem('time_entries') || '[]');
-    const clients = JSON.parse(localStorage.getItem('clients') || '[]');
+  const hasDateProperty = (item: ReportDataItem): item is EarningItem | ExpenseItem => {
+    return 'date' in item;
+  };
+
+  const hasStartTimeProperty = (item: ReportDataItem): item is TimeEntry => {
+    return 'startTime' in item;
+  };
+
+  const getItemAmount = (item: ReportDataItem): number => {
+    if ('amount' in item) {
+      return item.amount;
+    }
+    if ('totalAmount' in item && typeof item.totalAmount === 'number') {
+      return item.totalAmount;
+    }
+    if ('totalEarnings' in item && typeof item.totalEarnings === 'number') {
+      return item.totalEarnings;
+    }
+    return 0;
+  };
+
+  const generateReport = (template: ReportTemplate): void => {
+    const earnings = JSON.parse(localStorage.getItem('earnings') || '[]') as EarningItem[];
+    const expenses = JSON.parse(localStorage.getItem('expenses') || '[]') as ExpenseItem[];
+    const timeEntries = JSON.parse(localStorage.getItem('time_entries') || '[]') as TimeEntry[];
+    const clients = JSON.parse(localStorage.getItem('clients') || '[]') as Client[];
 
     // Filter by date range
     const { startDate, endDate } = getDateRange(template.dateRange, template.customStartDate, template.customEndDate);
 
-    let data: any[] = [];
+    let data: ReportDataItem[] = [];
 
     switch (template.type) {
       case 'earnings':
-        data = earnings.filter((e: any) => {
+        data = earnings.filter((e: EarningItem) => {
           const date = new Date(e.date);
           return date >= startDate && date <= endDate;
         });
         break;
       case 'expenses':
-        data = expenses.filter((e: any) => {
+        data = expenses.filter((e: ExpenseItem) => {
           const date = new Date(e.date);
           return date >= startDate && date <= endDate;
         });
         break;
       case 'time':
-        data = timeEntries.filter((e: any) => {
+        data = timeEntries.filter((e: TimeEntry) => {
           const date = new Date(e.startTime);
           return date >= startDate && date <= endDate;
         });
@@ -158,14 +261,14 @@ export default function ReportBuilder() {
 
     // Apply filters
     if (template.filters.minAmount) {
-      data = data.filter((item: any) => (item.amount || item.totalAmount || 0) >= template.filters.minAmount!);
+      data = data.filter((item: ReportDataItem) => getItemAmount(item) >= template.filters.minAmount!);
     }
     if (template.filters.maxAmount) {
-      data = data.filter((item: any) => (item.amount || item.totalAmount || 0) <= template.filters.maxAmount!);
+      data = data.filter((item: ReportDataItem) => getItemAmount(item) <= template.filters.maxAmount!);
     }
 
     // Calculate summary
-    const amounts = data.map((item: any) => item.amount || item.totalAmount || item.totalEarnings || 0);
+    const amounts = data.map((item: ReportDataItem) => getItemAmount(item));
     const summary = {
       totalAmount: amounts.reduce((sum: number, val: number) => sum + val, 0),
       count: data.length,
@@ -176,7 +279,7 @@ export default function ReportBuilder() {
 
     // Group data
     const grouped = groupData(data, template.groupBy, template.type);
-    const chartData = Object.entries(grouped).map(([key, value]: [string, any]) => ({
+    const chartData: ChartDataPoint[] = Object.entries(grouped).map(([key, value]: [string, GroupedDataValue]) => ({
       name: key,
       value: value.total,
       count: value.count,
@@ -190,7 +293,7 @@ export default function ReportBuilder() {
     });
   };
 
-  const getDateRange = (range: string, customStart?: string, customEnd?: string) => {
+  const getDateRange = (range: DateRangeType, customStart?: string, customEnd?: string): DateRange => {
     const now = new Date();
     let startDate = new Date();
     let endDate = new Date();
@@ -224,34 +327,72 @@ export default function ReportBuilder() {
     return { startDate, endDate };
   };
 
-  const groupData = (data: any[], groupBy: string, type: string) => {
-    const grouped: Record<string, { total: number; count: number; average: number }> = {};
+  const groupData = (data: ReportDataItem[], groupBy: GroupByType, type: ReportType): GroupedData => {
+    const grouped: GroupedData = {};
 
-    data.forEach((item: any) => {
+    data.forEach((item: ReportDataItem) => {
       let key: string;
 
       switch (groupBy) {
         case 'day':
-          key = new Date(item.date || item.startTime).toLocaleDateString();
+          if (hasDateProperty(item)) {
+            key = new Date(item.date).toLocaleDateString();
+          } else if (hasStartTimeProperty(item)) {
+            key = new Date(item.startTime).toLocaleDateString();
+          } else {
+            key = 'Unknown';
+          }
           break;
         case 'week':
-          const date = new Date(item.date || item.startTime);
-          const weekStart = new Date(date);
-          weekStart.setDate(date.getDate() - date.getDay());
+          let weekDate: Date;
+          if (hasDateProperty(item)) {
+            weekDate = new Date(item.date);
+          } else if (hasStartTimeProperty(item)) {
+            weekDate = new Date(item.startTime);
+          } else {
+            key = 'Unknown';
+            break;
+          }
+          const weekStart = new Date(weekDate);
+          weekStart.setDate(weekDate.getDate() - weekDate.getDay());
           key = weekStart.toLocaleDateString();
           break;
         case 'month':
-          const monthDate = new Date(item.date || item.startTime);
+          let monthDate: Date;
+          if (hasDateProperty(item)) {
+            monthDate = new Date(item.date);
+          } else if (hasStartTimeProperty(item)) {
+            monthDate = new Date(item.startTime);
+          } else {
+            key = 'Unknown';
+            break;
+          }
           key = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
           break;
         case 'project':
-          key = item.platformId || item.projectName || 'Unknown';
+          if ('platformId' in item && item.platformId) {
+            key = item.platformId;
+          } else if ('projectName' in item && item.projectName) {
+            key = item.projectName;
+          } else {
+            key = 'Unknown';
+          }
           break;
         case 'client':
-          key = item.clientId || item.name || 'Unknown';
+          if ('clientId' in item && item.clientId) {
+            key = item.clientId;
+          } else if ('name' in item && item.name) {
+            key = item.name;
+          } else {
+            key = 'Unknown';
+          }
           break;
         case 'category':
-          key = item.category || 'Uncategorized';
+          if ('category' in item && item.category) {
+            key = item.category;
+          } else {
+            key = 'Uncategorized';
+          }
           break;
         default:
           key = 'All';
@@ -261,7 +402,7 @@ export default function ReportBuilder() {
         grouped[key] = { total: 0, count: 0, average: 0 };
       }
 
-      const amount = item.amount || item.totalAmount || item.totalEarnings || 0;
+      const amount = getItemAmount(item);
       grouped[key].total += amount;
       grouped[key].count += 1;
     });
@@ -274,7 +415,7 @@ export default function ReportBuilder() {
     return grouped;
   };
 
-  const saveTemplate = () => {
+  const saveTemplate = (): void => {
     if (!formData.name) {
       notify.error('Validation Error', 'Template name is required');
       return;
@@ -287,7 +428,7 @@ export default function ReportBuilder() {
       createdAt: editingTemplate?.createdAt || new Date().toISOString(),
     };
 
-    let updatedTemplates;
+    let updatedTemplates: ReportTemplate[];
     if (editingTemplate) {
       updatedTemplates = templates.map(t => t.id === editingTemplate.id ? newTemplate : t);
       notify.success('Updated', 'Report template updated');
@@ -301,7 +442,7 @@ export default function ReportBuilder() {
     resetForm();
   };
 
-  const deleteTemplate = (id: string) => {
+  const deleteTemplate = (id: string): void => {
     if (!confirm('Delete this report template?')) return;
 
     const updatedTemplates = templates.filter(t => t.id !== id);
@@ -314,7 +455,7 @@ export default function ReportBuilder() {
     notify.success('Deleted', 'Report template deleted');
   };
 
-  const resetForm = () => {
+  const resetForm = (): void => {
     setFormData({
       name: '',
       description: '',
@@ -330,7 +471,7 @@ export default function ReportBuilder() {
     setShowForm(false);
   };
 
-  const exportReport = (format: 'csv' | 'json') => {
+  const exportReport = (format: ExportFormat): void => {
     if (!reportData || !selectedTemplate) return;
 
     let content = '';
@@ -339,7 +480,7 @@ export default function ReportBuilder() {
     if (format === 'csv') {
       // CSV Header
       content = 'Name,Value,Count,Average\n';
-      reportData.chartData.forEach(row => {
+      reportData.chartData.forEach((row: ChartDataPoint) => {
         content += `"${row.name}",${row.value},${row.count},${row.average.toFixed(2)}\n`;
       });
       filename += '.csv';
@@ -418,7 +559,7 @@ export default function ReportBuilder() {
               </label>
               <select
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value as ReportType })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
                 <option value="earnings">Earnings</option>
@@ -434,7 +575,7 @@ export default function ReportBuilder() {
               </label>
               <select
                 value={formData.dateRange}
-                onChange={(e) => setFormData({ ...formData, dateRange: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, dateRange: e.target.value as DateRangeType })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
                 <option value="today">Today</option>
@@ -452,7 +593,7 @@ export default function ReportBuilder() {
               </label>
               <select
                 value={formData.groupBy}
-                onChange={(e) => setFormData({ ...formData, groupBy: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, groupBy: e.target.value as GroupByType })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
                 <option value="day">Day</option>
@@ -470,7 +611,7 @@ export default function ReportBuilder() {
               </label>
               <select
                 value={formData.chartType}
-                onChange={(e) => setFormData({ ...formData, chartType: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, chartType: e.target.value as ChartType })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
                 <option value="bar">Bar Chart</option>
@@ -704,7 +845,7 @@ export default function ReportBuilder() {
                   </tr>
                 </thead>
                 <tbody>
-                  {reportData.chartData.map((row, index) => (
+                  {reportData.chartData.map((row: ChartDataPoint, index: number) => (
                     <tr key={index} className="border-t border-gray-200 dark:border-gray-700">
                       <td className="px-4 py-2 text-gray-900 dark:text-white">{row.name}</td>
                       <td className="px-4 py-2 text-right text-gray-900 dark:text-white">${row.value.toFixed(2)}</td>

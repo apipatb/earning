@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { TrendingUp, Calendar, DollarSign, Target, AlertCircle, BarChart3, LineChart as LineChartIcon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from 'recharts';
 
+// Forecast data structure for chart
 interface ForecastData {
   date: string;
   actual?: number;
@@ -10,14 +11,61 @@ interface ForecastData {
   upper: number;
 }
 
+// Earning entry structure from localStorage
+interface EarningEntry {
+  date: string;
+  amount: number;
+  source?: string;
+  description?: string;
+  category?: string;
+}
+
+// Grouped earnings by period
+interface GroupedEarnings {
+  [key: string]: number;
+}
+
+// Forecast metrics
+interface ForecastMetrics {
+  avgGrowthRate: number;
+  predictedTotal: number;
+  confidence: number;
+  trend: TrendDirection;
+}
+
+// Trend direction type
+type TrendDirection = 'up' | 'down' | 'stable';
+
+// Forecast period options
+type ForecastPeriod = 'week' | 'month' | 'quarter' | 'year';
+
+// Period grouping options
+type GroupingPeriod = 'day' | 'week' | 'month';
+
+// Recharts tooltip payload entry
+interface TooltipPayloadEntry {
+  dataKey: string;
+  name: string;
+  value: number;
+  color: string;
+  payload: ForecastData;
+}
+
+// Recharts custom tooltip props
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string;
+}
+
 export default function FinancialForecasting() {
-  const [forecastPeriod, setForecastPeriod] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
+  const [forecastPeriod, setForecastPeriod] = useState<ForecastPeriod>('month');
   const [forecastData, setForecastData] = useState<ForecastData[]>([]);
-  const [metrics, setMetrics] = useState({
+  const [metrics, setMetrics] = useState<ForecastMetrics>({
     avgGrowthRate: 0,
     predictedTotal: 0,
     confidence: 0,
-    trend: 'stable' as 'up' | 'down' | 'stable',
+    trend: 'stable',
   });
 
   useEffect(() => {
@@ -25,7 +73,8 @@ export default function FinancialForecasting() {
   }, [forecastPeriod]);
 
   const generateForecast = () => {
-    const earnings = JSON.parse(localStorage.getItem('earnings') || '[]');
+    const earningsData = localStorage.getItem('earnings') || '[]';
+    const earnings: EarningEntry[] = JSON.parse(earningsData);
 
     if (earnings.length === 0) {
       setForecastData([]);
@@ -33,7 +82,7 @@ export default function FinancialForecasting() {
     }
 
     // Sort by date
-    const sorted = [...earnings].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const sorted = [...earnings].sort((a: EarningEntry, b: EarningEntry) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // Group by period
     const grouped = groupByPeriod(sorted, 'day');
@@ -53,13 +102,13 @@ export default function FinancialForecasting() {
 
     // Add historical data
     const last30Days = Object.entries(grouped).slice(-30);
-    last30Days.forEach(([date, amount]) => {
+    last30Days.forEach(([date, amount]: [string, number]) => {
       forecast.push({
         date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        actual: amount as number,
-        predicted: amount as number,
-        lower: amount as number,
-        upper: amount as number,
+        actual: amount,
+        predicted: amount,
+        lower: amount,
+        upper: amount,
       });
     });
 
@@ -91,10 +140,10 @@ export default function FinancialForecasting() {
     });
   };
 
-  const groupByPeriod = (earnings: any[], period: 'day' | 'week' | 'month') => {
-    const grouped: Record<string, number> = {};
+  const groupByPeriod = (earnings: EarningEntry[], period: GroupingPeriod): GroupedEarnings => {
+    const grouped: GroupedEarnings = {};
 
-    earnings.forEach(e => {
+    earnings.forEach((e: EarningEntry) => {
       const date = new Date(e.date);
       let key: string;
 
@@ -127,7 +176,7 @@ export default function FinancialForecasting() {
     return totalGrowth / (values.length - 1);
   };
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
     if (!active || !payload || !payload.length) return null;
 
     return (
@@ -135,7 +184,7 @@ export default function FinancialForecasting() {
         <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">
           {payload[0].payload.date}
         </p>
-        {payload.map((entry: any) => (
+        {payload.map((entry: TooltipPayloadEntry) => (
           <p key={entry.dataKey} className="text-xs" style={{ color: entry.color }}>
             {entry.name}: ${entry.value.toFixed(2)}
           </p>

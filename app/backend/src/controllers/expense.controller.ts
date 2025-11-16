@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
+import { logger } from '../utils/logger';
 
 const expenseSchema = z.object({
   category: z.string().min(1).max(100),
@@ -17,17 +19,19 @@ const expenseSchema = z.object({
 export const getAllExpenses = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { startDate, endDate, category, isTaxDeductible, limit = '50', offset = '0' } = req.query;
+    const { startDate, endDate, category, isTaxDeductible, limit, offset } = req.query;
 
     const where: any = { userId };
 
     if (startDate && endDate) {
-      const start = new Date(startDate as string);
-      const end = new Date(endDate as string);
-      where.expenseDate = {
-        gte: start,
-        lte: end,
-      };
+      const start = parseDateParam(startDate as string);
+      const end = parseDateParam(endDate as string);
+      if (start && end) {
+        where.expenseDate = {
+          gte: start,
+          lte: end,
+        };
+      }
     }
 
     if (category) {
@@ -38,11 +42,14 @@ export const getAllExpenses = async (req: AuthRequest, res: Response) => {
       where.isTaxDeductible = isTaxDeductible === 'true';
     }
 
+    const parsedLimit = parseLimitParam(limit as string | undefined, 50);
+    const parsedOffset = parseOffsetParam(offset as string | undefined);
+
     const expenses = await prisma.expense.findMany({
       where,
       orderBy: { expenseDate: 'desc' },
-      take: parseInt(limit as string),
-      skip: parseInt(offset as string),
+      take: parsedLimit,
+      skip: parsedOffset,
     });
 
     const total = await prisma.expense.count({ where });
@@ -60,9 +67,9 @@ export const getAllExpenses = async (req: AuthRequest, res: Response) => {
       createdAt: e.createdAt,
     }));
 
-    res.json({ expenses: formatted, total, limit: parseInt(limit as string), offset: parseInt(offset as string) });
+    res.json({ expenses: formatted, total, limit: parsedLimit, offset: parsedOffset });
   } catch (error) {
-    console.error('Get expenses error:', error);
+    logger.error('Get expenses error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch expenses',
@@ -95,7 +102,7 @@ export const createExpense = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Create expense error:', error);
+    logger.error('Create expense error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create expense',
@@ -132,7 +139,7 @@ export const updateExpense = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Update expense error:', error);
+    logger.error('Update expense error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update expense',
@@ -162,7 +169,7 @@ export const deleteExpense = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Expense deleted successfully' });
   } catch (error) {
-    console.error('Delete expense error:', error);
+    logger.error('Delete expense error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete expense',
@@ -178,15 +185,20 @@ export const getExpenseSummary = async (req: AuthRequest, res: Response) => {
     let startDate: Date;
     const endDate = new Date();
 
+    // Use proper date calculations instead of fixed days
     switch (period) {
       case 'week':
         startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
       case 'year':
-        startDate = new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000);
+        startDate = new Date(endDate);
+        startDate.setFullYear(startDate.getFullYear() - 1);
         break;
       default:
-        startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+        // Month: First day of current month
+        startDate = new Date(endDate);
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
     }
 
     const expenses = await prisma.expense.findMany({
@@ -221,7 +233,7 @@ export const getExpenseSummary = async (req: AuthRequest, res: Response) => {
       end_date: endDate,
     });
   } catch (error) {
-    console.error('Get expense summary error:', error);
+    logger.error('Get expense summary error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch expense summary',
@@ -283,7 +295,7 @@ export const getProfitMargin = async (req: AuthRequest, res: Response) => {
       end_date: endDate,
     });
   } catch (error) {
-    console.error('Get profit margin error:', error);
+    logger.error('Get profit margin error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch profit margin',

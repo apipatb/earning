@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
+import { logger } from '../utils/logger';
 
 const inventoryLogSchema = z.object({
   productId: z.string().uuid('Invalid product ID'),
@@ -20,10 +22,19 @@ const updateStockSchema = z.object({
 export const getInventory = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { showLowStock = false } = req.query;
+    const { showLowStock = false, limit: limitParam, offset: offsetParam } = req.query;
+
+    // Parse pagination parameters with safe defaults
+    const limit = parseLimitParam(limitParam);
+    const offset = parseOffsetParam(offsetParam);
+
+    const where = { userId };
+
+    // Get total count for pagination
+    const total = await prisma.product.count({ where });
 
     const products = await prisma.product.findMany({
-      where: { userId },
+      where,
       include: {
         inventoryLogs: {
           select: { quantityChange: true, type: true, createdAt: true },
@@ -32,6 +43,8 @@ export const getInventory = async (req: AuthRequest, res: Response) => {
         },
       },
       orderBy: { quantity: 'asc' },
+      skip: offset,
+      take: limit,
     });
 
     const inventory = products
@@ -59,9 +72,14 @@ export const getInventory = async (req: AuthRequest, res: Response) => {
         low_stock_count: lowStockCount,
         total_inventory_value: totalValue,
       },
+      pagination: {
+        total,
+        limit,
+        offset,
+      }
     });
   } catch (error) {
-    console.error('Get inventory error:', error);
+    logger.error('Get inventory error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch inventory',
@@ -108,7 +126,7 @@ export const updateProductStock = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Update stock error:', error);
+    logger.error('Update stock error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update stock',
@@ -172,7 +190,7 @@ export const logInventoryChange = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Log inventory change error:', error);
+    logger.error('Log inventory change error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to log inventory change',
@@ -183,7 +201,7 @@ export const logInventoryChange = async (req: AuthRequest, res: Response) => {
 export const getInventoryHistory = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { productId, type, limit = '50', offset = '0' } = req.query;
+    const { productId, type, limit, offset } = req.query;
 
     const where: any = { userId };
     if (productId) {
@@ -193,6 +211,9 @@ export const getInventoryHistory = async (req: AuthRequest, res: Response) => {
       where.type = type;
     }
 
+    const parsedLimit = parseLimitParam(limit as string | undefined, 50);
+    const parsedOffset = parseOffsetParam(offset as string | undefined);
+
     const logs = await prisma.inventoryLog.findMany({
       where,
       include: {
@@ -201,8 +222,8 @@ export const getInventoryHistory = async (req: AuthRequest, res: Response) => {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: parseInt(limit as string),
-      skip: parseInt(offset as string),
+      take: parsedLimit,
+      skip: parsedOffset,
     });
 
     const total = await prisma.inventoryLog.count({ where });
@@ -217,11 +238,11 @@ export const getInventoryHistory = async (req: AuthRequest, res: Response) => {
         createdAt: log.createdAt,
       })),
       total,
-      limit: parseInt(limit as string),
-      offset: parseInt(offset as string),
+      limit: parsedLimit,
+      offset: parsedOffset,
     });
   } catch (error) {
-    console.error('Get inventory history error:', error);
+    logger.error('Get inventory history error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch inventory history',
@@ -274,7 +295,7 @@ export const getLowStockAlerts = async (req: AuthRequest, res: Response) => {
       highCount: alerts.filter((a) => a.severity === 'high').length,
     });
   } catch (error) {
-    console.error('Get low stock alerts error:', error);
+    logger.error('Get low stock alerts error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch low stock alerts',

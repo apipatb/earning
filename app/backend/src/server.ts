@@ -2,8 +2,19 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
+import helmet from 'helmet';
+import { logger } from './utils/logger';
+import {
+  initSentry,
+  sentryRequestHandler,
+  sentryTracingHandler,
+  sentryErrorHandler,
+  sentryUserContextMiddleware,
+} from './lib/sentry';
+import { initSwagger } from './lib/swagger';
 
-// Load environment variables
+// Load environment variables first
 dotenv.config();
 
 // Import routes
@@ -29,7 +40,32 @@ const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const IS_PRODUCTION = NODE_ENV === 'production';
 
-// Security: Set security HTTP headers
+// Initialize Sentry early (before any other middleware)
+initSentry(app);
+
+// Sentry request handler must be the first middleware
+app.use(sentryRequestHandler());
+
+// Sentry tracing handler
+app.use(sentryTracingHandler());
+
+// Security: Use Helmet.js for security headers
+if (process.env.HELMET_ENABLED !== 'false') {
+  app.use(helmet({
+    contentSecurityPolicy: IS_PRODUCTION,
+    hsts: { maxAge: 31536000, includeSubDomains: true },
+  }));
+}
+
+// Compression: Compress responses
+if (process.env.COMPRESSION_ENABLED !== 'false') {
+  app.use(compression({
+    level: IS_PRODUCTION ? 9 : 6,
+    threshold: 1024,
+  }));
+}
+
+// Legacy security headers (fallback)
 app.use((req, res, next) => {
   // Prevent XSS attacks
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -80,10 +116,16 @@ app.use(express.json({ limit: '10kb' })); // Limit payload size
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use('/api/', limiter);
 
+// Set Sentry user context after authentication (applies to all routes)
+app.use(sentryUserContextMiddleware);
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Initialize Swagger UI
+initSwagger(app);
 
 // API Routes
 app.use('/api/v1/auth', authRoutes);
@@ -99,13 +141,18 @@ app.use('/api/v1/customers', customerRoutes);
 app.use('/api/v1/expenses', expenseRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
 
+// Sentry error handler must be before other error handlers
+app.use(sentryErrorHandler());
+
 // Error handling
 app.use(notFound);
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+  logger.info('Server started', {
+    port: PORT,
+    environment: NODE_ENV,
+  });
 });
 
 export default app;

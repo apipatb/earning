@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
+import { getErrorMessage } from '../lib/error';
 
 export default function Register() {
   const [email, setEmail] = useState('');
@@ -21,8 +22,9 @@ export default function Register() {
       const response = await authAPI.register({ email, password, name });
       setAuth(response.data.user, response.data.token);
       navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed');
+    } catch (err) {
+      const error = getErrorMessage(err);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
