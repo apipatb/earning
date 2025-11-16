@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus, Settings, X, Eye, EyeOff, RotateCcw } from 'lucide-react';
-import { analyticsAPI, earningsAPI } from '../lib/api';
+import { analyticsAPI, earningsAPI, AnalyticsSummary, Earning } from '../lib/api';
 import { format } from 'date-fns';
 import { useWidgetStore } from '../store/widget.store';
 import { notify } from '../store/notification.store';
@@ -26,8 +26,8 @@ import GoalTemplates from '../components/GoalTemplates';
 import CurrencyConverter from '../components/CurrencyConverter';
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState<any>(null);
-  const [recentEarnings, setRecentEarnings] = useState<any[]>([]);
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [recentEarnings, setRecentEarnings] = useState<Earning[]>([]);
   const [loading, setLoading] = useState(true);
   const [showWidgetSettings, setShowWidgetSettings] = useState(false);
   const { widgets, toggleWidget, resetToDefault } = useWidgetStore();
@@ -190,26 +190,26 @@ export default function Dashboard() {
             Earnings by Platform
           </h2>
         <div className="space-y-3">
-          {summary?.by_platform?.map((platform: any) => (
-            <div key={platform.platform.id} className="flex items-center">
+          {summary?.by_platform?.map((platformData) => (
+            <div key={platformData.platform.id} className="flex items-center">
               <div
                 className="w-3 h-3 rounded-full mr-3"
-                style={{ backgroundColor: platform.platform.color || '#3b82f6' }}
+                style={{ backgroundColor: platformData.platform.color || '#3b82f6' }}
               />
               <div className="flex-1">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-900">
-                    {platform.platform.name}
+                    {platformData.platform.name}
                   </span>
                   <span className="text-sm text-gray-500">
-                    ${platform.earnings.toFixed(2)} ({platform.percentage.toFixed(1)}%)
+                    ${platformData.earnings.toFixed(2)} ({platformData.percentage.toFixed(1)}%)
                   </span>
                 </div>
                 <div className="mt-1 flex-1">
                   <div className="bg-gray-200 rounded-full h-2">
                     <div
                       className="bg-primary h-2 rounded-full"
-                      style={{ width: `${platform.percentage}%` }}
+                      style={{ width: `${platformData.percentage}%` }}
                     />
                   </div>
                 </div>

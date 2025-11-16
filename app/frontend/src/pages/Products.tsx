@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Package } from 'lucide-react';
-import { productsAPI } from '../lib/api';
+import { productsAPI, Product, ProductData } from '../lib/api';
 import { notify } from '../store/notification.store';
 
 export default function Products() {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ProductData>({
     name: '',
     description: '',
     price: 0,
     category: '',
     sku: '',
+    quantity: 0,
   });
 
   useEffect(() => {

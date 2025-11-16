@@ -1,22 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Users, TrendingUp } from 'lucide-react';
-import { customersAPI } from '../lib/api';
+import { customersAPI, Customer, CustomerData } from '../lib/api';
 import { notify } from '../store/notification.store';
 
 export default function Customers() {
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<CustomerData>({
     name: '',
     email: '',
     phone: '',
     company: '',
     city: '',
     country: '',
-    notes: '',
   });
 
   useEffect(() => {

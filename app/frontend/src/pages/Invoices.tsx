@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, FileText, CheckCircle, Clock, AlertCircle } from 'lucide-react';
-import { invoicesAPI, customersAPI } from '../lib/api';
+import { invoicesAPI, customersAPI, Invoice, Customer, InvoiceFormData, InvoiceSummary } from '../lib/api';
 import { notify } from '../store/notification.store';
 
 export default function Invoices() {
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [summary, setSummary] = useState<any>(null);
-  const [overdueInvoices, setOverdueInvoices] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [summary, setSummary] = useState<InvoiceSummary | null>(null);
+  const [overdueInvoices, setOverdueInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<InvoiceFormData>({
     customerId: '',
     invoiceNumber: '',
     subtotal: 0,
@@ -50,14 +50,14 @@ export default function Invoices() {
     }
   };
 
-  const calculateTotal = (items: any[], tax: number, discount: number) => {
+  const calculateTotal = (items: typeof formData.lineItems, tax: number, discount: number) => {
     const subtotal = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
     const taxAmount = subtotal * (tax / 100);
     const total = subtotal + taxAmount - discount;
     return { subtotal, taxAmount, total };
   };
 
-  const handleLineItemChange = (index: number, field: string, value: any) => {
+  const handleLineItemChange = (index: number, field: keyof (typeof formData.lineItems[0]), value: string | number) => {
     const newItems = [...formData.lineItems];
     newItems[index] = { ...newItems[index], [field]: value };
 
@@ -104,7 +104,7 @@ export default function Invoices() {
     }
   };
 
-  const handleEdit = (invoice: any) => {
+  const handleEdit = (invoice: Invoice) => {
     setFormData({
       customerId: invoice.customerId || '',
       invoiceNumber: invoice.invoiceNumber,

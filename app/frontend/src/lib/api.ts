@@ -94,8 +94,157 @@ export interface InventoryUpdateData {
   quantity: number;
 }
 
+export interface InventoryEditData {
+  quantity?: number;
+  reorderPoint?: number;
+}
+
 export interface QueryParams {
   [key: string]: string | number | boolean | undefined;
+}
+
+// Response entity types
+export interface Platform extends PlatformData {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  stats: {
+    total_earnings: number;
+    total_hours: number;
+    avg_hourly_rate: number;
+  };
+}
+
+export interface Earning extends EarningData {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Goal extends GoalData {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Product extends ProductData {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  isActive: boolean;
+}
+
+export interface Sale extends SaleData {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Customer extends CustomerData {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Expense extends ExpenseData {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Invoice extends InvoiceData {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InventoryLog extends InventoryLogData {
+  id: string;
+  productId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// API Response types
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+export interface ListResponse<T> {
+  success: boolean;
+  data: T[];
+  pagination?: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+}
+
+export interface ExpenseSummary {
+  summary: {
+    total_expenses: number;
+    expense_count: number;
+    tax_deductible: number;
+    non_deductible: number;
+  };
+}
+
+export interface ProfitMargin {
+  financials: {
+    revenue: number;
+    expenses: number;
+    profit: number;
+    profit_margin_percent: string;
+  };
+}
+
+export interface AnalyticsSummary {
+  total_earnings: number;
+  total_hours: number;
+  avg_hourly_rate: number;
+  by_platform?: Array<{
+    platform: Platform;
+    earnings: number;
+    percentage: number;
+  }>;
+}
+
+export interface InvoiceSummary {
+  total_invoices: number;
+  total_amount: number;
+  paid_amount: number;
+  outstanding_amount: number;
+  overdue_amount: number;
+}
+
+export interface SalesSummary {
+  summary: {
+    total_sales: number;
+    total_quantity: number;
+    total_revenue: number;
+    avg_sale: number;
+  };
+}
+
+export interface InvoiceLineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface InvoiceFormData extends InvoiceData {
+  lineItems: InvoiceLineItem[];
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1';

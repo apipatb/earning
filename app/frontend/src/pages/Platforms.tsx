@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
-import { platformsAPI } from '../lib/api';
+import { platformsAPI, Platform } from '../lib/api';
 import { notify } from '../store/notification.store';
 
 export default function Platforms() {
-  const [platforms, setPlatforms] = useState<any[]>([]);
+  const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
