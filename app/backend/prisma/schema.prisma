@@ -41,6 +41,18 @@ enum InventoryLogType {
   RETURN
 }
 
+enum ForecastMethod {
+  MOVING_AVG
+  EXPONENTIAL
+  LINEAR
+}
+
+enum AlertType {
+  LOW_STOCK
+  OVERSTOCK
+  EXPIRING
+}
+
 enum InvoiceStatus {
   DRAFT
   SENT
@@ -100,6 +112,19 @@ enum WhatsAppMessageStatus {
   FAILED
 }
 
+enum IntegrationPlatform {
+  ZAPIER
+  MAKE
+  SLACK
+  TEAMS
+}
+
+enum SyncStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -141,6 +166,8 @@ model User {
   webauthnCredentials WebAuthnCredential[]
   webauthnChallenges WebAuthnChallenge[]
   helpFeedback      HelpFeedback[]
+  integrations      Integration[]
+  dashboards        Dashboard[]
 
   @@map("users")
 }
@@ -225,6 +252,9 @@ model Product {
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   sales        Sale[]
   inventoryLogs InventoryLog[]
+  forecasts    InventoryForecast[]
+  reorderRules ReorderRule[]
+  alerts       InventoryAlert[]
 
   @@unique([userId, name])
   @@index([userId, isActive])
@@ -983,4 +1013,300 @@ model SearchLog {
   @@index([query])
   @@index([createdAt(sort: Desc)])
   @@map("search_logs")
+}
+
+// ============================================
+// INTEGRATION MODELS (Zapier/Make/Slack/Teams)
+// ============================================
+
+model Integration {
+  id        String               @id @default(uuid())
+  userId    String               @map("user_id")
+  platform  IntegrationPlatform
+  apiKey    String               @map("api_key") @db.VarChar(500) // Encrypted API key or OAuth token
+  webhookUrl String?             @map("webhook_url") @db.Text // Webhook URL for the integration
+  isActive  Boolean              @default(true) @map("is_active")
+  lastSync  DateTime?            @map("last_sync")
+
+  // OAuth specific fields
+  accessToken  String?           @map("access_token") @db.Text
+  refreshToken String?           @map("refresh_token") @db.Text
+  tokenExpiry  DateTime?         @map("token_expiry")
+
+  // Configuration
+  config    String?              @db.Text // JSON configuration for platform-specific settings
+
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncLogs  SyncLog[]
+
+  @@unique([userId, platform])
+  @@index([userId, isActive])
+  @@index([userId, platform])
+  @@map("integrations")
+}
+
+model SyncLog {
+  id            String     @id @default(uuid())
+  integrationId String     @map("integration_id")
+  action        String     @db.VarChar(255) // e.g., "CREATE_EARNING", "CREATE_INVOICE", "SYNC_CUSTOMERS"
+  status        SyncStatus @default(PENDING)
+  recordCount   Int        @default(0) @map("record_count")
+  error         String?    @db.Text
+  requestData   String?    @map("request_data") @db.Text // JSON request data
+  responseData  String?    @map("response_data") @db.Text // JSON response data
+  executedAt    DateTime   @default(now()) @map("executed_at")
+
+  integration   Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId, executedAt(sort: Desc)])
+  @@index([status, executedAt(sort: Desc)])
+  @@index([integrationId, status])
+  @@map("sync_logs")
+}
+
+// ============================================
+// CUSTOM DASHBOARD MODELS
+// ============================================
+
+enum WidgetType {
+  CHART
+  KPI
+  TABLE
+  TEXT
+  GAUGE
+  HEATMAP
+  TIME_SERIES
+}
+
+model Dashboard {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String   @db.VarChar(255)
+  layout    String   @db.Text // JSON layout configuration
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  widgets   DashboardWidget[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isDefault])
+  @@map("dashboards")
+}
+
+model DashboardWidget {
+  id              String     @id @default(uuid())
+  dashboardId     String     @map("dashboard_id")
+  type            WidgetType
+  title           String     @db.VarChar(255)
+  config          String     @db.Text // JSON widget configuration
+  positionX       Int        @map("position_x")
+  positionY       Int        @map("position_y")
+  sizeW           Int        @map("size_w")
+  sizeH           Int        @map("size_h")
+  dataSource      String     @map("data_source") @db.VarChar(255) // e.g., "earnings", "sales", "expenses"
+  refreshInterval Int?       @map("refresh_interval") // Refresh interval in seconds
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  dashboard       Dashboard  @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@index([dashboardId])
+  @@map("dashboard_widgets")
+}
+
+model WidgetTemplate {
+  id          String     @id @default(uuid())
+  name        String     @db.VarChar(255)
+  type        WidgetType
+  icon        String     @db.VarChar(100)
+  description String?    @db.Text
+  config      String     @db.Text // JSON default configuration
+  category    String     @db.VarChar(100) // e.g., "Analytics", "Sales", "Finance"
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@index([type])
+  @@index([category])
+  @@map("widget_templates")
+}
+
+// ============================================
+// SMART INVENTORY MODELS
+// ============================================
+
+model InventoryForecast {
+  id             String         @id @default(uuid())
+  productId      String         @map("product_id")
+  forecastedDate DateTime       @map("forecasted_date") @db.Date
+  quantity       Decimal        @db.Decimal(10, 2)
+  confidence     Decimal        @db.Decimal(5, 2) // Percentage (0-100)
+  method         ForecastMethod
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  product        Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, forecastedDate(sort: Asc)])
+  @@index([productId, createdAt(sort: Desc)])
+  @@map("inventory_forecasts")
+}
+
+model ReorderRule {
+  id         String   @id @default(uuid())
+  productId  String   @map("product_id")
+  minStock   Decimal  @map("min_stock") @db.Decimal(10, 2)
+  maxStock   Decimal  @map("max_stock") @db.Decimal(10, 2)
+  reorderQty Decimal  @map("reorder_qty") @db.Decimal(10, 2)
+  leadTime   Int      @map("lead_time") // Lead time in days
+  supplier   String?  @db.VarChar(255)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId])
+  @@index([productId, isActive])
+  @@index([isActive, createdAt(sort: Desc)])
+  @@map("reorder_rules")
+}
+
+model InventoryAlert {
+  id         String    @id @default(uuid())
+  productId  String    @map("product_id")
+  type       AlertType
+  message    String    @db.Text
+  triggered  DateTime  @default(now())
+  resolvedAt DateTime? @map("resolved_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, triggered(sort: Desc)])
+  @@index([type, triggered(sort: Desc)])
+  @@index([resolvedAt])
+  @@map("inventory_alerts")
+}
+
+// ============================================
+// BILLING AND SUBSCRIPTION MODELS
+// ============================================
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  SUSPENDED
+  TRIALING
+  PAST_DUE
+}
+
+enum PaymentMethodType {
+  CARD
+  BANK
+  PAYPAL
+}
+
+enum BillingStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+model PricingPlan {
+  id            String        @id @default(uuid())
+  name          String        @db.VarChar(255)
+  description   String?       @db.Text
+  price         Decimal       @db.Decimal(10, 2)
+  billingCycle  BillingCycle  @map("billing_cycle")
+  features      String        @db.Text
+  isActive      Boolean       @default(true) @map("is_active")
+  trialDays     Int           @default(0) @map("trial_days")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+
+  @@index([isActive, billingCycle])
+  @@map("pricing_plans")
+}
+
+model Subscription {
+  id               String             @id @default(uuid())
+  userId           String             @map("user_id")
+  planId           String             @map("plan_id")
+  status           SubscriptionStatus @default(TRIALING)
+  startDate        DateTime           @map("start_date") @db.Date
+  currentPeriodEnd DateTime           @map("current_period_end") @db.Date
+  trialEndsAt      DateTime?          @map("trial_ends_at") @db.Date
+  cancelledAt      DateTime?          @map("cancelled_at")
+  cancelAtPeriodEnd Boolean           @default(false) @map("cancel_at_period_end")
+  metadata         String?            @db.Text
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan             PricingPlan        @relation(fields: [planId], references: [id], onDelete: Restrict)
+  billingHistory   BillingHistory[]
+  invoices         Invoice[]          @relation("SubscriptionInvoices")
+
+  @@index([userId, status])
+  @@index([status, currentPeriodEnd])
+  @@index([planId, status])
+  @@map("subscriptions")
+}
+
+model BillingHistory {
+  id             String        @id @default(uuid())
+  subscriptionId String        @map("subscription_id")
+  invoiceId      String?       @map("invoice_id")
+  amount         Decimal       @db.Decimal(10, 2)
+  billedDate     DateTime      @map("billed_date") @db.Date
+  dueDate        DateTime      @map("due_date") @db.Date
+  paidDate       DateTime?     @map("paid_date") @db.Date
+  status         BillingStatus @default(PENDING)
+  retryCount     Int           @default(0) @map("retry_count")
+  nextRetryAt    DateTime?     @map("next_retry_at")
+  failureReason  String?       @map("failure_reason") @db.Text
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  invoice        Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([subscriptionId, billedDate(sort: Desc)])
+  @@index([status, dueDate])
+  @@index([status, nextRetryAt])
+  @@map("billing_history")
+}
+
+model PaymentMethodModel {
+  id        String            @id @default(uuid())
+  userId    String            @map("user_id")
+  type      PaymentMethodType
+  token     String            @db.VarChar(500)
+  last4     String?           @db.VarChar(4)
+  brand     String?           @db.VarChar(50)
+  expiresAt DateTime?         @map("expires_at")
+  isDefault Boolean           @default(false) @map("is_default")
+  isActive  Boolean           @default(true) @map("is_active")
+  metadata  String?           @db.Text
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isDefault])
+  @@index([userId, isActive])
+  @@map("payment_methods")
 }

@@ -7,11 +7,11 @@ if (!JWT_SECRET) {
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
-export const generateToken = (userId: string, email: string): string => {
+export const generateToken = (userId: string, email: string, expiresIn?: string): string => {
   return jwt.sign(
     { id: userId, email },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    { expiresIn: expiresIn || JWT_EXPIRES_IN }
   );
 };
 

@@ -519,3 +519,102 @@ export const emailsAPI = {
   getLogs: (params?: QueryParams) => api.get('/emails/logs', { params }).then(res => res.data),
   getStats: () => api.get('/emails/stats').then(res => res.data),
 };
+
+// ============================================
+// SMS Types
+// ============================================
+
+export interface SMSTemplateData {
+  name: string;
+  content: string;
+  variables?: string[];
+}
+
+export interface SMSTemplate extends SMSTemplateData {
+  id: string;
+  userId: string;
+  campaignCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SMSCampaignData {
+  name: string;
+  templateId: string;
+  recipients: string[];
+  scheduledFor?: string;
+}
+
+export interface SMSCampaign {
+  id: string;
+  userId: string;
+  name: string;
+  template: {
+    id: string;
+    name: string;
+    content?: string;
+  } | null;
+  recipients?: string[];
+  recipientCount: number;
+  messageCount: number;
+  status: "DRAFT" | "SCHEDULED" | "SENDING" | "SENT" | "CANCELLED";
+  scheduledFor: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SMSLog {
+  id: string;
+  phoneNumber: string;
+  message: string;
+  status: "PENDING" | "SENT" | "FAILED" | "DELIVERED";
+  messageId: string | null;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  error: string | null;
+  createdAt: string;
+}
+
+export interface PhoneContact {
+  id: string;
+  phoneNumber: string;
+  name: string | null;
+  isVerified: boolean;
+  verifiedAt: string | null;
+  isOptedIn: boolean;
+  optedOutAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================
+// SMS API
+// ============================================
+
+export const smsAPI = {
+  // Templates
+  getTemplates: () => api.get("/sms/templates").then(res => res.data),
+  getTemplate: (id: string) => api.get(`/sms/templates/${id}`).then(res => res.data),
+  createTemplate: (data: SMSTemplateData) => api.post("/sms/templates", data).then(res => res.data),
+  updateTemplate: (id: string, data: Partial<SMSTemplateData>) => api.put(`/sms/templates/${id}`, data).then(res => res.data),
+  deleteTemplate: (id: string) => api.delete(`/sms/templates/${id}`).then(res => res.data),
+
+  // Campaigns
+  getCampaigns: (params?: QueryParams) => api.get("/sms/campaigns", { params }).then(res => res.data),
+  getCampaign: (id: string) => api.get(`/sms/campaigns/${id}`).then(res => res.data),
+  createCampaign: (data: SMSCampaignData) => api.post("/sms/campaigns", data).then(res => res.data),
+  sendCampaign: (id: string) => api.post(`/sms/campaigns/${id}/send`).then(res => res.data),
+  getCampaignLogs: (id: string, params?: QueryParams) => api.get(`/sms/campaigns/${id}/logs`, { params }).then(res => res.data),
+
+  // Contacts
+  getContacts: (params?: QueryParams) => api.get("/sms/contacts", { params }).then(res => res.data),
+  addContact: (data: { phoneNumber: string; name?: string; notes?: string }) => api.post("/sms/contacts", data).then(res => res.data),
+  updateContact: (id: string, data: Partial<{ phoneNumber: string; name?: string; notes?: string }>) => api.put(`/sms/contacts/${id}`, data).then(res => res.data),
+  deleteContact: (id: string) => api.delete(`/sms/contacts/${id}`).then(res => res.data),
+
+  // Unsubscribe
+  unsubscribe: (phoneNumber: string) => api.post("/sms/unsubscribe", { phoneNumber }).then(res => res.data),
+};
