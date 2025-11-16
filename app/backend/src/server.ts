@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
+import helmet from 'helmet';
 import { logger } from './utils/logger';
 
 // Load environment variables
@@ -30,7 +32,23 @@ const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const IS_PRODUCTION = NODE_ENV === 'production';
 
-// Security: Set security HTTP headers
+// Security: Use Helmet.js for security headers
+if (process.env.HELMET_ENABLED !== 'false') {
+  app.use(helmet({
+    contentSecurityPolicy: IS_PRODUCTION,
+    hsts: { maxAge: 31536000, includeSubDomains: true },
+  }));
+}
+
+// Compression: Compress responses
+if (process.env.COMPRESSION_ENABLED !== 'false') {
+  app.use(compression({
+    level: IS_PRODUCTION ? 9 : 6,
+    threshold: 1024,
+  }));
+}
+
+// Legacy security headers (fallback)
 app.use((req, res, next) => {
   // Prevent XSS attacks
   res.setHeader('X-Content-Type-Options', 'nosniff');
