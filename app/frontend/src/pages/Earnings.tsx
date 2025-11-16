@@ -5,6 +5,9 @@ import { useAuthStore } from '../store/auth.store';
 import { exportEarningsToCSV } from '../lib/export';
 import { notify } from '../store/notification.store';
 import { parseCSV, downloadCSVTemplate, CSVEarning } from '../lib/csvImport';
+import { useFormValidation } from '../hooks/useFormValidation';
+import { validateRequired, validateAmount, validateDateRange, validatePositiveNumber } from '../lib/form-validation';
+import { FormInput, FormSelect, FormTextarea, FormErrorBlock } from '../components/FormError';
 
 interface Earning {
   id: string;
@@ -38,15 +41,37 @@ export default function Earnings() {
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<CSVEarning[] | null>(null);
 
-  const [formData, setFormData] = useState({
+  const { user } = useAuthStore();
+
+  const initialFormData = {
     platformId: '',
     date: new Date().toISOString().split('T')[0],
     hours: '',
     amount: '',
     notes: '',
-  });
+  };
 
-  const { user } = useAuthStore();
+  const { values: formData, errors, touched, handleChange, handleBlur, handleSubmit, resetForm: resetFormValidation, setFieldValue } = useFormValidation(
+    initialFormData,
+    {
+      validators: {
+        platformId: validateRequired,
+        date: (fieldName, value) => {
+          const required = validateRequired(value);
+          if (!required.isValid) return required;
+          return validateDateRange(value, '1900-01-01', new Date().toISOString().split('T')[0]);
+        },
+        amount: validateAmount,
+        hours: (fieldName, value) => {
+          if (!value) return { isValid: true }; // Optional field
+          return validatePositiveNumber(value);
+        },
+      },
+      validateOnBlur: true,
+      validateOnChange: false,
+      validateOnSubmit: true,
+    }
+  );
 
   useEffect(() => {
     loadData();
@@ -69,15 +94,14 @@ export default function Earnings() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onFormSubmit = async (values: Record<string, any>) => {
     try {
       const payload = {
-        platformId: formData.platformId,
-        date: formData.date,
-        hours: formData.hours ? parseFloat(formData.hours) : null,
-        amount: parseFloat(formData.amount),
-        notes: formData.notes || null,
+        platformId: values.platformId,
+        date: values.date,
+        hours: values.hours ? parseFloat(values.hours) : null,
+        amount: parseFloat(values.amount),
+        notes: values.notes || null,
       };
 
       if (editingId) {
@@ -85,10 +109,10 @@ export default function Earnings() {
         notify.success('Earning Updated', 'Your earning has been updated successfully.');
       } else {
         await earningsAPI.createEarning(payload);
-        notify.success('Earning Added', `Successfully added $${formData.amount} to your earnings!`);
+        notify.success('Earning Added', `Successfully added $${values.amount} to your earnings!`);
       }
 
-      resetForm();
+      resetFormComplete();
       loadData();
     } catch (error) {
       console.error('Failed to save earning:', error);
@@ -98,13 +122,11 @@ export default function Earnings() {
 
   const handleEdit = (earning: Earning) => {
     setEditingId(earning.id);
-    setFormData({
-      platformId: earning.platform.id,
-      date: earning.date,
-      hours: earning.hours?.toString() || '',
-      amount: earning.amount.toString(),
-      notes: earning.notes || '',
-    });
+    setFieldValue('platformId', earning.platform.id);
+    setFieldValue('date', earning.date);
+    setFieldValue('hours', earning.hours?.toString() || '');
+    setFieldValue('amount', earning.amount.toString());
+    setFieldValue('notes', earning.notes || '');
     setShowForm(true);
   };
 
@@ -121,14 +143,8 @@ export default function Earnings() {
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      platformId: '',
-      date: new Date().toISOString().split('T')[0],
-      hours: '',
-      amount: '',
-      notes: '',
-    });
+  const resetFormComplete = () => {
+    resetFormValidation();
     setEditingId(null);
     setShowForm(false);
   };
@@ -309,95 +325,88 @@ export default function Earnings() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             {editingId ? 'Edit Earning' : 'Add New Earning'}
           </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Platform *
-                </label>
-                <select
-                  required
-                  value={formData.platformId}
-                  onChange={(e) => setFormData({ ...formData, platformId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Select platform</option>
-                  {platforms.map((platform) => (
-                    <option key={platform.id} value={platform.id}>
-                      {platform.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <FormSelect
+                label="Platform"
+                name="platformId"
+                value={formData.platformId}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.platformId?.message}
+                touched={touched.platformId}
+                required
+                placeholder="Select platform"
+                options={platforms.map((p) => ({ value: p.id, label: p.name }))}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+              <FormInput
+                label="Date"
+                name="date"
+                type="date"
+                value={formData.date}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.date?.message}
+                touched={touched.date}
+                required
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount ($) *
-                </label>
-                <input
-                  type="number"
-                  required
-                  step="0.01"
-                  min="0"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  placeholder="0.00"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+              <FormInput
+                label="Amount"
+                name="amount"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={formData.amount}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.amount?.message}
+                touched={touched.amount}
+                required
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Hours (optional)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={formData.hours}
-                  onChange={(e) => setFormData({ ...formData, hours: e.target.value })}
-                  placeholder="0.0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notes (optional)
-              </label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-                placeholder="Add any notes about this earning..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              <FormInput
+                label="Hours"
+                name="hours"
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="0.0"
+                value={formData.hours}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.hours?.message}
+                touched={touched.hours}
+                helperText="(Optional)"
               />
             </div>
+
+            <FormTextarea
+              label="Notes"
+              name="notes"
+              placeholder="Add any notes about this earning..."
+              value={formData.notes}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.notes?.message}
+              touched={touched.notes}
+              rows={3}
+              helperText="(Optional)"
+            />
 
             <div className="flex gap-3">
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                disabled={Object.values(errors).some((e) => e !== undefined) && Object.keys(touched).length > 0}
               >
                 {editingId ? 'Update' : 'Add'} Earning
               </button>
               <button
                 type="button"
-                onClick={resetForm}
+                onClick={resetFormComplete}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Cancel

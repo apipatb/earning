@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/auth.store';
+import { initializePerformanceMonitoring } from './lib/performance';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -24,6 +26,11 @@ import Layout from './components/Layout';
 
 function App() {
   const { token } = useAuthStore();
+
+  // Initialize performance monitoring on app startup
+  useEffect(() => {
+    initializePerformanceMonitoring();
+  }, []);
 
   return (
     <BrowserRouter>

@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Users, TrendingUp } from 'lucide-react';
 import { customersAPI } from '../lib/api';
 import { notify } from '../store/notification.store';
+import { useFormValidation } from '../hooks/useFormValidation';
+import { validateRequired, validateEmail, validatePhoneNumber, validateName } from '../lib/form-validation';
+import { FormInput, FormTextarea } from '../components/FormError';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -9,7 +12,8 @@ export default function Customers() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [formData, setFormData] = useState({
+
+  const initialFormData = {
     name: '',
     email: '',
     phone: '',
@@ -17,7 +21,27 @@ export default function Customers() {
     city: '',
     country: '',
     notes: '',
-  });
+  };
+
+  const { values: formData, errors, touched, handleChange, handleBlur, handleSubmit, resetForm: resetFormValidation, setFieldValue } = useFormValidation(
+    initialFormData,
+    {
+      validators: {
+        name: validateName,
+        email: (fieldName, value) => {
+          if (!value) return { isValid: true }; // Optional field
+          return validateEmail(value);
+        },
+        phone: (fieldName, value) => {
+          if (!value) return { isValid: true }; // Optional field
+          return validatePhoneNumber(value);
+        },
+      },
+      validateOnBlur: true,
+      validateOnChange: false,
+      validateOnSubmit: true,
+    }
+  );
 
   useEffect(() => {
     loadCustomers();
@@ -35,39 +59,31 @@ export default function Customers() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name) {
-      notify.error('Validation Error', 'Name is required');
-      return;
-    }
-
+  const onFormSubmit = async (values: Record<string, any>) => {
     try {
       if (editingId) {
-        await customersAPI.update(editingId, formData);
-        setCustomers(customers.map((c) => (c.id === editingId ? { ...c, ...formData } : c)));
+        await customersAPI.update(editingId, values);
+        setCustomers(customers.map((c) => (c.id === editingId ? { ...c, ...values } : c)));
         notify.success('Success', 'Customer updated');
       } else {
-        const response = await customersAPI.create(formData);
+        const response = await customersAPI.create(values);
         setCustomers([response.customer, ...customers]);
         notify.success('Success', 'Customer created');
       }
-      resetForm();
+      resetFormComplete();
     } catch (error) {
       notify.error('Error', 'Failed to save customer');
     }
   };
 
   const handleEdit = (customer: any) => {
-    setFormData({
-      name: customer.name,
-      email: customer.email || '',
-      phone: customer.phone || '',
-      company: customer.company || '',
-      city: customer.city || '',
-      country: customer.country || '',
-      notes: customer.notes || '',
-    });
+    setFieldValue('name', customer.name);
+    setFieldValue('email', customer.email || '');
+    setFieldValue('phone', customer.phone || '');
+    setFieldValue('company', customer.company || '');
+    setFieldValue('city', customer.city || '');
+    setFieldValue('country', customer.country || '');
+    setFieldValue('notes', customer.notes || '');
     setEditingId(customer.id);
     setShowForm(true);
   };
@@ -83,8 +99,8 @@ export default function Customers() {
     }
   };
 
-  const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', company: '', city: '', country: '', notes: '' });
+  const resetFormComplete = () => {
+    resetFormValidation();
     setEditingId(null);
     setShowForm(false);
   };
@@ -108,7 +124,7 @@ export default function Customers() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Customer Management</h1>
         <button
-          onClick={() => (showForm ? resetForm() : setShowForm(true))}
+          onClick={() => (showForm ? resetFormComplete() : setShowForm(true))}
           className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -161,83 +177,107 @@ export default function Customers() {
           <h2 className="text-lg font-medium text-gray-900 mb-4">
             {editingId ? 'Edit Customer' : 'Add New Customer'}
           </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Name *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Phone</label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Company</label>
-                <input
-                  type="text"
-                  value={formData.company}
-                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">City</label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Country</label>
-                <input
-                  type="text"
-                  value={formData.country}
-                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Notes</label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
-                rows={3}
+              <FormInput
+                label="Name"
+                name="name"
+                type="text"
+                placeholder="John Doe"
+                value={formData.name}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.name?.message}
+                touched={touched.name}
+                required
+              />
+
+              <FormInput
+                label="Email"
+                name="email"
+                type="email"
+                placeholder="john@example.com"
+                value={formData.email}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.email?.message}
+                touched={touched.email}
+                helperText="(Optional)"
+              />
+
+              <FormInput
+                label="Phone"
+                name="phone"
+                type="tel"
+                placeholder="+1 (555) 123-4567"
+                value={formData.phone}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.phone?.message}
+                touched={touched.phone}
+                helperText="(Optional)"
+              />
+
+              <FormInput
+                label="Company"
+                name="company"
+                type="text"
+                placeholder="Acme Inc."
+                value={formData.company}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.company?.message}
+                touched={touched.company}
+              />
+
+              <FormInput
+                label="City"
+                name="city"
+                type="text"
+                placeholder="New York"
+                value={formData.city}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.city?.message}
+                touched={touched.city}
+              />
+
+              <FormInput
+                label="Country"
+                name="country"
+                type="text"
+                placeholder="United States"
+                value={formData.country}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.country?.message}
+                touched={touched.country}
               />
             </div>
+
+            <FormTextarea
+              label="Notes"
+              name="notes"
+              placeholder="Add any notes about this customer..."
+              value={formData.notes}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.notes?.message}
+              touched={touched.notes}
+              rows={3}
+            />
+
             <div className="flex space-x-2">
               <button
                 type="submit"
-                className="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600"
+                className="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-600 disabled:opacity-50"
+                disabled={Object.values(errors).some((e) => e !== undefined) && Object.keys(touched).length > 0}
               >
                 {editingId ? 'Update' : 'Create'} Customer
               </button>
               <button
                 type="button"
-                onClick={resetForm}
+                onClick={resetFormComplete}
                 className="inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
               >
                 Cancel

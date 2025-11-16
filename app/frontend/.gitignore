@@ -34,6 +34,12 @@ Thumbs.db
 
 # Testing
 coverage/
+test-results/
+.playwright/
+
+# Playwright artifacts
+artifacts/
+test-videos/
 
 # Temporary files
 tmp/

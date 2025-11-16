@@ -2,28 +2,46 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
+import { useFormValidation } from '../hooks/useFormValidation';
+import { validateEmail, validateRequired } from '../lib/form-validation';
+import { FormErrorBlock, FormInput } from '../components/FormError';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  const { values, errors, touched, handleChange, handleBlur, handleSubmit, isValid, isSubmitting } = useFormValidation(
+    { email: '', password: '' },
+    {
+      validators: {
+        email: (fieldName, value) => {
+          const required = validateRequired(value);
+          if (!required.isValid) {
+            return required;
+          }
+          return validateEmail(value);
+        },
+        password: validateRequired,
+      },
+      validateOnBlur: true,
+      validateOnChange: false,
+      validateOnSubmit: true,
+    }
+  );
+
+  const onSubmit = async (formValues: Record<string, any>) => {
+    setServerError('');
 
     try {
-      const response = await authAPI.login({ email, password });
+      const response = await authAPI.login({
+        email: formValues.email,
+        password: formValues.password,
+      });
       setAuth(response.data.user, response.data.token);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
-    } finally {
-      setLoading(false);
+      setServerError(err.response?.data?.message || 'Login failed. Please try again.');
     }
   };
 
@@ -44,52 +62,45 @@ export default function Login() {
             </Link>
           </p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          )}
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
-                placeholder="Email address"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
-                placeholder="Password"
-              />
-            </div>
+
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
+          {serverError && <FormErrorBlock message={serverError} />}
+
+          <div className="space-y-4">
+            <FormInput
+              label="Email address"
+              name="email"
+              type="email"
+              placeholder="name@example.com"
+              value={values.email}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.email?.message}
+              touched={touched.email}
+              required
+            />
+
+            <FormInput
+              label="Password"
+              name="password"
+              type="password"
+              placeholder="Enter your password"
+              value={values.password}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.password?.message}
+              touched={touched.password}
+              required
+            />
           </div>
 
           <div>
             <button
               type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
+              disabled={isSubmitting || (!isValid && Object.keys(touched).length > 0)}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {isSubmitting ? 'Signing in...' : 'Sign in'}
             </button>
           </div>
         </form>

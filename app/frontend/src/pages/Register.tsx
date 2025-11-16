@@ -1,30 +1,55 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Check } from 'lucide-react';
 import { authAPI } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
+import { useFormValidation } from '../hooks/useFormValidation';
+import { validateEmail, validatePassword, validateName, validateRequired } from '../lib/form-validation';
+import { FormErrorBlock, FormInput } from '../components/FormError';
 
 export default function Register() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  const { values, errors, touched, handleChange, handleBlur, handleSubmit, isValid, isSubmitting } = useFormValidation(
+    { name: '', email: '', password: '' },
+    {
+      validators: {
+        name: (fieldName, value) => {
+          if (!value) return { isValid: true }; // Optional field
+          return validateName(value);
+        },
+        email: (fieldName, value) => {
+          const required = validateRequired(value);
+          if (!required.isValid) {
+            return required;
+          }
+          return validateEmail(value);
+        },
+        password: validatePassword,
+      },
+      validateOnBlur: true,
+      validateOnChange: false,
+      validateOnSubmit: true,
+    }
+  );
+
+  const passwordValidation = validatePassword(values.password);
+
+  const onSubmit = async (formValues: Record<string, any>) => {
+    setServerError('');
 
     try {
-      const response = await authAPI.register({ email, password, name });
+      const response = await authAPI.register({
+        email: formValues.email,
+        password: formValues.password,
+        name: formValues.name || undefined,
+      });
       setAuth(response.data.user, response.data.token);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed');
-    } finally {
-      setLoading(false);
+      setServerError(err.response?.data?.message || 'Registration failed. Please try again.');
     }
   };
 
@@ -45,70 +70,104 @@ export default function Register() {
             </Link>
           </p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          )}
-          <div className="rounded-md shadow-sm space-y-3">
-            <div>
-              <label htmlFor="name" className="sr-only">
-                Name
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                placeholder="Name (optional)"
-              />
-            </div>
-            <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                placeholder="Email address"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
-              <input
-                id="password"
+
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
+          {serverError && <FormErrorBlock message={serverError} />}
+
+          <div className="space-y-4">
+            <FormInput
+              label="Full Name"
+              name="name"
+              type="text"
+              placeholder="John Doe"
+              value={values.name}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.name?.message}
+              touched={touched.name}
+              helperText="(Optional)"
+            />
+
+            <FormInput
+              label="Email address"
+              name="email"
+              type="email"
+              placeholder="name@example.com"
+              value={values.email}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.email?.message}
+              touched={touched.email}
+              required
+            />
+
+            <div className="space-y-2">
+              <FormInput
+                label="Password"
                 name="password"
                 type="password"
+                placeholder="Enter a strong password"
+                value={values.password}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.password?.message}
+                touched={touched.password}
                 required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                placeholder="Password (min 8 characters)"
               />
+
+              {values.password && (
+                <div className="mt-3 space-y-2">
+                  <div className="text-xs font-medium text-gray-700">Password requirements:</div>
+                  <div className="space-y-1 text-xs">
+                    <PasswordRequirement
+                      met={values.password.length >= 8}
+                      text="At least 8 characters"
+                    />
+                    <PasswordRequirement
+                      met={/[A-Z]/.test(values.password)}
+                      text="Contains uppercase letter"
+                    />
+                    <PasswordRequirement
+                      met={/[a-z]/.test(values.password)}
+                      text="Contains lowercase letter"
+                    />
+                    <PasswordRequirement
+                      met={/[0-9]/.test(values.password)}
+                      text="Contains a number"
+                    />
+                    <PasswordRequirement
+                      met={/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(values.password)}
+                      text="Contains special character"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           <div>
             <button
               type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
+              disabled={isSubmitting || (!isValid && Object.keys(touched).length > 0)}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
             >
-              {loading ? 'Creating account...' : 'Create account'}
+              {isSubmitting ? 'Creating account...' : 'Create account'}
             </button>
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Helper component to display password requirement status
+ */
+function PasswordRequirement({ met, text }: { met: boolean; text: string }) {
+  return (
+    <div className={`flex items-center gap-2 ${met ? 'text-green-600' : 'text-gray-400'}`}>
+      <Check size={14} />
+      <span>{text}</span>
     </div>
   );
 }

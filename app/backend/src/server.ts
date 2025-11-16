@@ -28,6 +28,7 @@ import invoiceRoutes from './routes/invoice.routes';
 import uploadRoutes from './routes/upload.routes';
 import notificationRoutes from './routes/notification.routes';
 import jobsRoutes from './routes/jobs.routes';
+import metricsRoutes from './routes/metrics.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -41,6 +42,8 @@ import {
   authLimiter,
   uploadLimiter,
 } from './middleware/rate-limit.middleware';
+import metricsFilterMiddleware from './middleware/metrics.middleware';
+import { registerMetrics, metricsRegistry } from './lib/metrics';
 
 // Import WebSocket
 import { initializeWebSocket } from './websocket/ws';
@@ -113,7 +116,11 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // 5. Logging middleware
 app.use(loggingMiddleware); // Request/Response logging
 
-// 5a. Cache middleware (HTTP response caching)
+// 5a. Metrics middleware (Performance monitoring)
+registerMetrics();
+app.use(metricsFilterMiddleware); // Only tracks /api/* routes
+
+// 5b. Cache middleware (HTTP response caching)
 app.use(cacheMiddleware);
 
 // 6. Input sanitization middleware (removes XSS, trims whitespace)
@@ -128,6 +135,17 @@ app.use('/api/', globalLimiter); // Apply global rate limiting to API routes
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Metrics endpoint (Prometheus format)
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', metricsRegistry.contentType);
+    const metrics = await metricsRegistry.metrics();
+    res.end(metrics);
+  } catch (error) {
+    res.status(500).end(error);
+  }
 });
 
 // Swagger/OpenAPI Documentation
@@ -153,6 +171,7 @@ app.use('/api/v1/customers', customerRoutes);
 app.use('/api/v1/expenses', expenseRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/metrics', metricsRoutes); // Performance metrics collection (no auth required)
 app.use('/api/v1/upload', uploadLimiter, uploadRoutes); // Stricter upload rate limit
 app.use('/api/v1/jobs', jobsRoutes); // Job scheduler routes (admin only)
 

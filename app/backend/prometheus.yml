@@ -1,0 +1,48 @@
+# Prometheus configuration
+# For local development with Docker Compose
+
+global:
+  scrape_interval: 15s          # How often to scrape targets by default
+  evaluation_interval: 15s      # How often to evaluate rules
+  external_labels:
+    monitor: 'earntrack-monitor'
+    environment: 'development'
+
+# Alerting configuration (optional - add alertmanager later)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Rule files (for alert rules)
+rule_files: []
+  # - 'prometheus_alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # EarnTrack Backend API
+  - job_name: 'earntrack-backend'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: '/metrics'
+    static_configs:
+      # For Docker: use host.docker.internal to reach host machine
+      - targets: ['host.docker.internal:3001']
+        labels:
+          app: 'earntrack'
+          service: 'backend-api'
+          environment: 'development'
+
+  # Grafana (optional - to monitor Grafana itself)
+  - job_name: 'grafana'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['grafana:3000']
+        labels:
+          app: 'grafana'
+          environment: 'development'
