@@ -185,15 +185,20 @@ export const getExpenseSummary = async (req: AuthRequest, res: Response) => {
     let startDate: Date;
     const endDate = new Date();
 
+    // Use proper date calculations instead of fixed days
     switch (period) {
       case 'week':
         startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
       case 'year':
-        startDate = new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000);
+        startDate = new Date(endDate);
+        startDate.setFullYear(startDate.getFullYear() - 1);
         break;
       default:
-        startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+        // Month: First day of current month
+        startDate = new Date(endDate);
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
     }
 
     const expenses = await prisma.expense.findMany({

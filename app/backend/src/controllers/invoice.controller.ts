@@ -43,8 +43,12 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Validate and parse status parameter if provided
     if (status) {
-      where.status = status;
+      const validStatus = parseEnumParam(status as string, ['draft', 'sent', 'viewed', 'paid', 'overdue', 'cancelled']);
+      if (validStatus) {
+        where.status = validStatus;
+      }
     }
 
     if (customerId) {
@@ -58,7 +62,6 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
       where,
       include: {
         customer: { select: { id: true, name: true, email: true } },
-        lineItems: true,
       },
       orderBy: { invoiceDate: 'desc' },
       take: parsedLimit,
