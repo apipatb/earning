@@ -1,4 +1,4 @@
-import { WorkflowTrigger, WorkflowExecutionStatus } from '@prisma/client';
+import { WorkflowTrigger, WorkflowExecutionStatus, TaskStatus, TaskPriority } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { EmailService } from './email.service';
@@ -20,6 +20,8 @@ interface WorkflowAction {
     taskTitle?: string;
     taskDescription?: string;
     taskDueDate?: string;
+    taskPriority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+    taskAssignedTo?: string; // User ID to assign the task to
 
     // For update_record
     recordType?: string;
@@ -45,6 +47,8 @@ interface ExecutionContext {
   trigger: WorkflowTrigger;
   data: any;
   userId: string;
+  executionId?: string;
+  workflowId?: string;
 }
 
 // In-memory queue for workflow executions with retry logic
@@ -102,10 +106,17 @@ class WorkflowQueue {
     const { executionId, workflowId, userId, actions, context, attempt } = item;
     const results: any[] = [];
 
+    // Add executionId and workflowId to context for task creation
+    const enrichedContext = {
+      ...context,
+      executionId,
+      workflowId,
+    };
+
     try {
       // Execute each action sequentially
       for (const action of actions) {
-        const result = await this.executeAction(action, context, userId);
+        const result = await this.executeAction(action, enrichedContext, userId);
         results.push(result);
       }
 
@@ -226,32 +237,128 @@ class WorkflowQueue {
     context: ExecutionContext,
     userId: string
   ): Promise<any> {
-    const { taskTitle, taskDescription, taskDueDate } = action.config;
+    const { taskTitle, taskDescription, taskDueDate, taskPriority, taskAssignedTo } = action.config;
 
     if (!taskTitle) {
       throw new Error('Create task action requires taskTitle');
     }
 
-    // Process variables
-    const processedTitle = this.replaceVariables(taskTitle, context.data);
-    const processedDescription = this.replaceVariables(taskDescription || '', context.data);
+    if (!context.executionId || !context.workflowId) {
+      throw new Error('Execution context must include executionId and workflowId');
+    }
 
-    // Note: This would integrate with a task management system
-    // For now, we'll just log it
-    logger.info('Task created via workflow', {
-      userId,
-      title: processedTitle,
-      description: processedDescription,
-      dueDate: taskDueDate,
-    });
+    try {
+      // Process variables in title and description
+      const processedTitle = this.replaceVariables(taskTitle, context.data);
+      const processedDescription = this.replaceVariables(taskDescription || '', context.data);
 
-    return {
-      action: 'create_task',
-      title: processedTitle,
-      description: processedDescription,
-      dueDate: taskDueDate,
-      success: true,
-    };
+      // Parse due date if provided
+      let dueDate: Date | undefined;
+      if (taskDueDate) {
+        try {
+          dueDate = new Date(taskDueDate);
+          if (isNaN(dueDate.getTime())) {
+            logger.warn('Invalid due date format, ignoring', { taskDueDate });
+            dueDate = undefined;
+          }
+        } catch (error) {
+          logger.warn('Failed to parse due date, ignoring', { taskDueDate, error });
+          dueDate = undefined;
+        }
+      }
+
+      // Validate priority
+      const priority = taskPriority ? TaskPriority[taskPriority as keyof typeof TaskPriority] : TaskPriority.MEDIUM;
+
+      // Validate assignee if provided
+      if (taskAssignedTo) {
+        const assigneeExists = await prisma.user.findUnique({
+          where: { id: taskAssignedTo },
+          select: { id: true },
+        });
+
+        if (!assigneeExists) {
+          logger.warn('Assigned user not found, creating task without assignment', {
+            assignedTo: taskAssignedTo,
+          });
+        }
+      }
+
+      // Create the workflow task in the database
+      const task = await prisma.workflowTask.create({
+        data: {
+          workflowId: context.workflowId,
+          executionId: context.executionId,
+          userId,
+          assignedTo: taskAssignedTo || null,
+          title: processedTitle,
+          description: processedDescription || null,
+          status: TaskStatus.PENDING,
+          priority,
+          dueDate: dueDate || null,
+          actionConfig: JSON.stringify(action.config),
+          context: JSON.stringify({
+            trigger: context.trigger,
+            data: context.data,
+            createdBy: 'workflow',
+          }),
+          metadata: JSON.stringify({
+            workflowName: context.data?.workflowName || 'Unknown',
+            triggerType: context.trigger,
+            createdAt: new Date().toISOString(),
+          }),
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      logger.info('Workflow task created successfully', {
+        taskId: task.id,
+        workflowId: context.workflowId,
+        executionId: context.executionId,
+        userId,
+        assignedTo: taskAssignedTo,
+        title: processedTitle,
+        status: task.status,
+        priority: task.priority,
+      });
+
+      return {
+        action: 'create_task',
+        taskId: task.id,
+        title: processedTitle,
+        description: processedDescription,
+        status: task.status,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        assignedTo: task.assignee,
+        createdAt: task.createdAt,
+        success: true,
+      };
+    } catch (error) {
+      logger.error('Failed to create workflow task', {
+        error: error instanceof Error ? error.message : String(error),
+        workflowId: context.workflowId,
+        executionId: context.executionId,
+        userId,
+        taskTitle,
+      });
+      throw error;
+    }
   }
 
   private async executeUpdateRecord(
@@ -622,5 +729,309 @@ export class WorkflowService {
       total,
       hasMore: total > offset + limit,
     };
+  }
+
+  /**
+   * Get workflow tasks for a user
+   */
+  static async getUserWorkflowTasks(
+    userId: string,
+    filters?: {
+      status?: TaskStatus;
+      priority?: TaskPriority;
+      assignedTo?: string;
+      workflowId?: string;
+    },
+    limit = 50,
+    offset = 0
+  ): Promise<any> {
+    const where: any = {
+      OR: [
+        { userId },
+        { assignedTo: userId },
+      ],
+    };
+
+    if (filters?.status) {
+      where.status = filters.status;
+    }
+
+    if (filters?.priority) {
+      where.priority = filters.priority;
+    }
+
+    if (filters?.assignedTo) {
+      where.assignedTo = filters.assignedTo;
+    }
+
+    if (filters?.workflowId) {
+      where.workflowId = filters.workflowId;
+    }
+
+    const [tasks, total] = await Promise.all([
+      prisma.workflowTask.findMany({
+        where,
+        orderBy: [
+          { status: 'asc' }, // Pending tasks first
+          { priority: 'desc' }, // High priority first
+          { dueDate: 'asc' }, // Earliest due date first
+        ],
+        take: limit,
+        skip: offset,
+        include: {
+          workflow: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      }),
+      prisma.workflowTask.count({ where }),
+    ]);
+
+    return {
+      tasks: tasks.map((task) => ({
+        id: task.id,
+        workflowId: task.workflowId,
+        workflowName: task.workflow.name,
+        executionId: task.executionId,
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        assignedTo: task.assignee,
+        owner: task.user,
+        actionConfig: task.actionConfig ? JSON.parse(task.actionConfig) : null,
+        context: task.context ? JSON.parse(task.context) : null,
+        metadata: task.metadata ? JSON.parse(task.metadata) : null,
+        completedAt: task.completedAt,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+      })),
+      total,
+      hasMore: total > offset + limit,
+    };
+  }
+
+  /**
+   * Get a specific workflow task
+   */
+  static async getWorkflowTask(userId: string, taskId: string): Promise<any> {
+    const task = await prisma.workflowTask.findFirst({
+      where: {
+        id: taskId,
+        OR: [
+          { userId },
+          { assignedTo: userId },
+        ],
+      },
+      include: {
+        workflow: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        execution: {
+          select: {
+            id: true,
+            status: true,
+            executedAt: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        assignee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!task) {
+      return null;
+    }
+
+    return {
+      id: task.id,
+      workflowId: task.workflowId,
+      workflowName: task.workflow.name,
+      execution: task.execution,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.dueDate,
+      assignedTo: task.assignee,
+      owner: task.user,
+      actionConfig: task.actionConfig ? JSON.parse(task.actionConfig) : null,
+      context: task.context ? JSON.parse(task.context) : null,
+      metadata: task.metadata ? JSON.parse(task.metadata) : null,
+      completedAt: task.completedAt,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+    };
+  }
+
+  /**
+   * Update a workflow task
+   */
+  static async updateWorkflowTask(
+    userId: string,
+    taskId: string,
+    updates: {
+      status?: TaskStatus;
+      priority?: TaskPriority;
+      assignedTo?: string | null;
+      description?: string;
+      dueDate?: Date | null;
+    }
+  ): Promise<boolean> {
+    // Verify user has access to the task
+    const task = await prisma.workflowTask.findFirst({
+      where: {
+        id: taskId,
+        OR: [
+          { userId },
+          { assignedTo: userId },
+        ],
+      },
+    });
+
+    if (!task) {
+      return false;
+    }
+
+    // Prepare update data
+    const updateData: any = {};
+
+    if (updates.status !== undefined) {
+      updateData.status = updates.status;
+
+      // Set completedAt if status is COMPLETED
+      if (updates.status === TaskStatus.COMPLETED) {
+        updateData.completedAt = new Date();
+      } else if (task.completedAt) {
+        // Clear completedAt if status changed from COMPLETED to something else
+        updateData.completedAt = null;
+      }
+    }
+
+    if (updates.priority !== undefined) {
+      updateData.priority = updates.priority;
+    }
+
+    if (updates.assignedTo !== undefined) {
+      updateData.assignedTo = updates.assignedTo;
+    }
+
+    if (updates.description !== undefined) {
+      updateData.description = updates.description;
+    }
+
+    if (updates.dueDate !== undefined) {
+      updateData.dueDate = updates.dueDate;
+    }
+
+    await prisma.workflowTask.update({
+      where: { id: taskId },
+      data: updateData,
+    });
+
+    logger.info('Workflow task updated', {
+      taskId,
+      userId,
+      updates: Object.keys(updateData),
+    });
+
+    return true;
+  }
+
+  /**
+   * Delete a workflow task
+   */
+  static async deleteWorkflowTask(userId: string, taskId: string): Promise<boolean> {
+    const task = await prisma.workflowTask.findFirst({
+      where: {
+        id: taskId,
+        userId, // Only owner can delete
+      },
+    });
+
+    if (!task) {
+      return false;
+    }
+
+    await prisma.workflowTask.delete({
+      where: { id: taskId },
+    });
+
+    logger.info('Workflow task deleted', {
+      taskId,
+      userId,
+    });
+
+    return true;
+  }
+
+  /**
+   * Get tasks for a specific workflow execution
+   */
+  static async getExecutionTasks(userId: string, executionId: string): Promise<any[]> {
+    const tasks = await prisma.workflowTask.findMany({
+      where: {
+        executionId,
+        OR: [
+          { userId },
+          { assignedTo: userId },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        assignee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.dueDate,
+      assignedTo: task.assignee,
+      completedAt: task.completedAt,
+      createdAt: task.createdAt,
+    }));
   }
 }

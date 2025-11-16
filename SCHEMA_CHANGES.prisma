@@ -1,0 +1,173 @@
+// ============================================
+// WORKFLOW TASK IMPLEMENTATION SCHEMA CHANGES
+// ============================================
+// Add these changes to: /home/user/earning/app/backend/prisma/schema.prisma
+
+// ============================================
+// STEP 1: Add TaskStatus and TaskPriority enums
+// Location: After WorkflowExecutionStatus enum (around line 762)
+// ============================================
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ============================================
+// STEP 2: Add WorkflowTask model
+// Location: After WorkflowExecution model (around line 804)
+// ============================================
+
+model WorkflowTask {
+  id                String         @id @default(uuid())
+  workflowId        String         @map("workflow_id")
+  executionId       String         @map("execution_id")
+  userId            String         @map("user_id")
+  assignedTo        String?        @map("assigned_to")
+  title             String         @db.VarChar(500)
+  description       String?        @db.Text
+  status            TaskStatus     @default(PENDING)
+  priority          TaskPriority   @default(MEDIUM)
+  dueDate           DateTime?      @map("due_date")
+  actionConfig      String         @db.Text // JSON of the original action config
+  context           String?        @db.Text // JSON of workflow context
+  metadata          String?        @db.Text // JSON for additional data
+  completedAt       DateTime?      @map("completed_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  workflow          Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  execution         WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  user              User           @relation("WorkflowTaskOwner", fields: [userId], references: [id], onDelete: Cascade)
+  assignee          User?          @relation("AssignedWorkflowTasks", fields: [assignedTo], references: [id], onDelete: SetNull)
+
+  @@index([workflowId, createdAt(sort: Desc)])
+  @@index([executionId, status])
+  @@index([userId, status])
+  @@index([assignedTo, status])
+  @@index([status, dueDate])
+  @@index([status, priority])
+  @@map("workflow_tasks")
+}
+
+// ============================================
+// STEP 3: Update Workflow model
+// Location: In model Workflow, add to relations section (around line 781)
+// ============================================
+
+// Add this line to the Workflow model:
+  tasks       WorkflowTask[]
+
+// Full Workflow model should look like:
+/*
+model Workflow {
+  id          String          @id @default(uuid())
+  userId      String          @map("user_id")
+  name        String          @db.VarChar(255)
+  trigger     WorkflowTrigger
+  actions     String          @db.Text // JSON array of actions
+  isActive    Boolean         @default(true) @map("is_active")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  executions  WorkflowExecution[]
+  tasks       WorkflowTask[]  // ← ADD THIS LINE
+
+  @@index([userId, isActive])
+  @@index([userId, trigger])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("workflows")
+}
+*/
+
+// ============================================
+// STEP 4: Update WorkflowExecution model
+// Location: In model WorkflowExecution, add to relations section (around line 799)
+// ============================================
+
+// Add this line to the WorkflowExecution model:
+  tasks       WorkflowTask[]
+
+// Full WorkflowExecution model should look like:
+/*
+model WorkflowExecution {
+  id          String                  @id @default(uuid())
+  workflowId  String                  @map("workflow_id")
+  status      WorkflowExecutionStatus @default(PENDING)
+  executedAt  DateTime                @default(now()) @map("executed_at")
+  result      String?                 @db.Text // JSON result
+  error       String?                 @db.Text
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+
+  workflow    Workflow                @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  tasks       WorkflowTask[]          // ← ADD THIS LINE
+
+  @@index([workflowId, executedAt(sort: Desc)])
+  @@index([status, executedAt(sort: Desc)])
+  @@map("workflow_executions")
+}
+*/
+
+// ============================================
+// STEP 5: Update User model
+// Location: In model User, add to relations section (around line 144-201)
+// ============================================
+
+// Add these two lines to the User model:
+  workflowTasks         WorkflowTask[]       @relation("WorkflowTaskOwner")
+  assignedWorkflowTasks WorkflowTask[]       @relation("AssignedWorkflowTasks")
+
+// These can be added anywhere in the relations section, suggested location after workflows:
+/*
+model User {
+  id               String     @id @default(uuid())
+  email            String     @unique @db.VarChar(255)
+  passwordHash     String     @map("password_hash")
+  name             String?
+  stripeCustomerId String?    @unique @map("stripe_customer_id") @db.VarChar(255)
+  timezone         String     @default("UTC")
+  currency         String     @default("USD") @db.VarChar(3)
+  language         String     @default("en") @db.VarChar(5)
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  platforms         Platform[]
+  earnings          Earning[]
+  goals             Goal[]
+  // ... other relations ...
+  workflows         Workflow[]
+  workflowTasks         WorkflowTask[]       @relation("WorkflowTaskOwner")         // ← ADD THIS LINE
+  assignedWorkflowTasks WorkflowTask[]       @relation("AssignedWorkflowTasks")     // ← ADD THIS LINE
+  emailTemplates    EmailTemplate[]
+  // ... other relations ...
+
+  @@map("users")
+}
+*/
+
+// ============================================
+// MIGRATION COMMANDS
+// ============================================
+// After making all the above changes, run:
+//
+// cd /home/user/earning/app/backend
+// npx prisma migrate dev --name add_workflow_tasks
+// npx prisma generate
+//
+// This will:
+// 1. Create a new migration file
+// 2. Apply the migration to your database
+// 3. Generate updated Prisma Client types
+// ============================================

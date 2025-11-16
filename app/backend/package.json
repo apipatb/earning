@@ -14,7 +14,12 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:studio": "prisma studio",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:unit": "jest --testPathIgnorePatterns=__integration__",
+    "test:integration": "TEST_MODE=integration jest __integration__",
+    "test:integration:watch": "TEST_MODE=integration jest __integration__ --watch",
+    "test:integration:coverage": "TEST_MODE=integration jest __integration__ --coverage",
+    "test:all": "npm run test:unit && npm run test:integration"
   },
   "keywords": [
     "earnings",

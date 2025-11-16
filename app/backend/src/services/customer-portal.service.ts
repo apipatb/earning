@@ -1,4 +1,4 @@
-import { PrismaClient, TicketStatus, TicketPriority } from '@prisma/client';
+import { PrismaClient, TicketStatus, TicketPriority, CustomerFileSharePermission } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -299,6 +299,7 @@ class CustomerPortalService {
 
   /**
    * List customer's documents (file uploads)
+   * Only returns documents that have been explicitly shared with the customer
    */
   async listCustomerDocuments(customerId: string, userId: string, options?: {
     limit?: number;
@@ -306,37 +307,71 @@ class CustomerPortalService {
   }) {
     const { limit = 50, offset = 0 } = options || {};
 
-    // Get customer-related documents
-    // This assumes there's a way to tag or link files to customers
-    // For now, we'll get files from the user that might be shared with the customer
-    const [files, total] = await Promise.all([
-      prisma.fileUpload.findMany({
+    // Verify customer belongs to user
+    const customer = await prisma.customer.findFirst({
+      where: {
+        id: customerId,
+        userId,
+      },
+    });
+
+    if (!customer) {
+      throw new Error('Customer not found or access denied');
+    }
+
+    const now = new Date();
+
+    // Get documents that are explicitly shared with this customer
+    const [shares, total] = await Promise.all([
+      prisma.customerFileShare.findMany({
         where: {
-          userId,
-          // Add additional filtering logic here based on your file sharing model
+          customerId,
+          // Only include non-expired shares
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: now } },
+          ],
         },
-        orderBy: { uploadedAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
-        select: {
-          id: true,
-          fileName: true,
-          fileSize: true,
-          mimeType: true,
-          url: true,
-          thumbnailUrl: true,
-          uploadedAt: true,
+        include: {
+          file: {
+            select: {
+              id: true,
+              fileName: true,
+              fileSize: true,
+              mimeType: true,
+              url: true,
+              thumbnailUrl: true,
+              uploadedAt: true,
+            },
+          },
         },
       }),
-      prisma.fileUpload.count({
+      prisma.customerFileShare.count({
         where: {
-          userId,
+          customerId,
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: now } },
+          ],
         },
       }),
     ]);
 
+    // Map to include share metadata along with file details
+    const documents = shares.map(share => ({
+      ...share.file,
+      shareId: share.id,
+      permission: share.permission,
+      canDownload: share.canDownload,
+      sharedAt: share.createdAt,
+      expiresAt: share.expiresAt,
+    }));
+
     return {
-      documents: files,
+      documents,
       total,
       limit,
       offset,
@@ -345,29 +380,63 @@ class CustomerPortalService {
 
   /**
    * Download a document
+   * Verifies the customer has permission to access the document
    */
   async getDocument(documentId: string, customerId: string, userId: string) {
-    const file = await prisma.fileUpload.findFirst({
+    // Verify customer belongs to user
+    const customer = await prisma.customer.findFirst({
       where: {
-        id: documentId,
+        id: customerId,
         userId,
-        // Add additional permission checks here
-      },
-      select: {
-        id: true,
-        fileName: true,
-        fileSize: true,
-        mimeType: true,
-        url: true,
-        uploadedAt: true,
       },
     });
 
-    if (!file) {
+    if (!customer) {
+      throw new Error('Customer not found or access denied');
+    }
+
+    const now = new Date();
+
+    // Check if document is shared with this customer
+    const share = await prisma.customerFileShare.findFirst({
+      where: {
+        customerId,
+        file: {
+          id: documentId,
+          userId, // Ensure file belongs to the user
+        },
+        // Only allow access to non-expired shares
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: now } },
+        ],
+      },
+      include: {
+        file: {
+          select: {
+            id: true,
+            fileName: true,
+            fileSize: true,
+            mimeType: true,
+            url: true,
+            uploadedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!share) {
       throw new Error('Document not found or access denied');
     }
 
-    return file;
+    return {
+      ...share.file,
+      shareId: share.id,
+      permission: share.permission,
+      canDownload: share.canDownload,
+      sharedAt: share.createdAt,
+      expiresAt: share.expiresAt,
+    };
   }
 
   /**
@@ -480,6 +549,209 @@ class CustomerPortalService {
       invoiceCount,
       unpaidInvoices,
     };
+  }
+
+  /**
+   * Share a document with a customer
+   */
+  async shareDocument(
+    userId: string,
+    fileId: string,
+    customerId: string,
+    options?: {
+      permission?: 'VIEW' | 'VIEW_DOWNLOAD';
+      canDownload?: boolean;
+      expiresAt?: Date;
+    }
+  ) {
+    const { permission = 'VIEW', canDownload = true, expiresAt } = options || {};
+
+    // Verify file belongs to user
+    const file = await prisma.fileUpload.findFirst({
+      where: {
+        id: fileId,
+        userId,
+      },
+    });
+
+    if (!file) {
+      throw new Error('File not found or access denied');
+    }
+
+    // Verify customer belongs to user
+    const customer = await prisma.customer.findFirst({
+      where: {
+        id: customerId,
+        userId,
+      },
+    });
+
+    if (!customer) {
+      throw new Error('Customer not found or access denied');
+    }
+
+    // Create or update share
+    const share = await prisma.customerFileShare.upsert({
+      where: {
+        fileId_customerId: {
+          fileId,
+          customerId,
+        },
+      },
+      update: {
+        permission: permission as any,
+        canDownload,
+        expiresAt,
+        updatedAt: new Date(),
+      },
+      create: {
+        fileId,
+        customerId,
+        sharedBy: userId,
+        permission: permission as any,
+        canDownload,
+        expiresAt,
+      },
+      include: {
+        file: {
+          select: {
+            fileName: true,
+            mimeType: true,
+          },
+        },
+        customer: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return share;
+  }
+
+  /**
+   * Revoke document access from a customer
+   */
+  async revokeDocumentAccess(
+    userId: string,
+    fileId: string,
+    customerId: string
+  ) {
+    // Verify file belongs to user
+    const file = await prisma.fileUpload.findFirst({
+      where: {
+        id: fileId,
+        userId,
+      },
+    });
+
+    if (!file) {
+      throw new Error('File not found or access denied');
+    }
+
+    // Delete share
+    const share = await prisma.customerFileShare.deleteMany({
+      where: {
+        fileId,
+        customerId,
+        file: {
+          userId, // Extra safety check
+        },
+      },
+    });
+
+    return {
+      success: share.count > 0,
+      message: share.count > 0
+        ? 'Document access revoked successfully'
+        : 'No active share found',
+    };
+  }
+
+  /**
+   * Update document sharing permissions
+   */
+  async updateDocumentPermissions(
+    userId: string,
+    shareId: string,
+    updates: {
+      permission?: 'VIEW' | 'VIEW_DOWNLOAD';
+      canDownload?: boolean;
+      expiresAt?: Date | null;
+    }
+  ) {
+    // Verify share exists and belongs to user's file
+    const existingShare = await prisma.customerFileShare.findFirst({
+      where: {
+        id: shareId,
+        file: {
+          userId,
+        },
+      },
+    });
+
+    if (!existingShare) {
+      throw new Error('Share not found or access denied');
+    }
+
+    // Update share
+    const share = await prisma.customerFileShare.update({
+      where: { id: shareId },
+      data: {
+        ...(updates.permission && { permission: updates.permission as any }),
+        ...(updates.canDownload !== undefined && { canDownload: updates.canDownload }),
+        ...(updates.expiresAt !== undefined && { expiresAt: updates.expiresAt }),
+      },
+      include: {
+        file: {
+          select: {
+            fileName: true,
+          },
+        },
+        customer: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    return share;
+  }
+
+  /**
+   * Get all shares for a specific file
+   */
+  async getFileShares(userId: string, fileId: string) {
+    // Verify file belongs to user
+    const file = await prisma.fileUpload.findFirst({
+      where: {
+        id: fileId,
+        userId,
+      },
+    });
+
+    if (!file) {
+      throw new Error('File not found or access denied');
+    }
+
+    const shares = await prisma.customerFileShare.findMany({
+      where: { fileId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return shares;
   }
 }
 

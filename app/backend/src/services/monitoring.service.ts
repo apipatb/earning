@@ -201,8 +201,8 @@ class MonitoringService {
         ? Math.round(totalResolutionTime / resolutionCount / 60000) // Convert to minutes
         : 0;
 
-      // Mock customer satisfaction (in a real app, this would come from feedback)
-      const customerSatisfaction = 92.5;
+      // Calculate real customer satisfaction from feedback ratings
+      const customerSatisfaction = await this.calculateCustomerSatisfaction(userId, todayStart, now);
 
       return {
         activeChats: activeChatsCount,
@@ -254,38 +254,44 @@ class MonitoringService {
         take: 20, // Limit to 20 team members
       });
 
-      const teamStatus: TeamMemberStatus[] = users.map(user => {
-        const activeChats = user.chatConversations.filter(
-          conv => conv.messages[0]?.createdAt >= last15Minutes
-        ).length;
+      // Calculate response times for all team members efficiently
+      const teamStatus: TeamMemberStatus[] = await Promise.all(
+        users.map(async (user) => {
+          const activeChats = user.chatConversations.filter(
+            conv => conv.messages[0]?.createdAt >= last15Minutes
+          ).length;
 
-        const lastActivity = user.chatConversations.reduce(
-          (latest, conv) => {
-            const msgDate = conv.messages[0]?.createdAt;
-            return msgDate && msgDate > latest ? msgDate : latest;
-          },
-          new Date(0)
-        );
+          const lastActivity = user.chatConversations.reduce(
+            (latest, conv) => {
+              const msgDate = conv.messages[0]?.createdAt;
+              return msgDate && msgDate > latest ? msgDate : latest;
+            },
+            new Date(0)
+          );
 
-        // Determine status based on last activity
-        let status: TeamMemberStatus['status'] = 'offline';
-        if (lastActivity >= last5Minutes) {
-          status = activeChats > 3 ? 'busy' : 'online';
-        } else if (lastActivity >= last15Minutes) {
-          status = 'away';
-        }
+          // Determine status based on last activity
+          let status: TeamMemberStatus['status'] = 'offline';
+          if (lastActivity >= last5Minutes) {
+            status = activeChats > 3 ? 'busy' : 'online';
+          } else if (lastActivity >= last15Minutes) {
+            status = 'away';
+          }
 
-        return {
-          id: user.id,
-          name: user.name || user.email.split('@')[0],
-          email: user.email,
-          status,
-          activeChats,
-          totalChatsToday: user.chatConversations.length,
-          avgResponseTime: Math.floor(Math.random() * 120) + 30, // Mock data (30-150 seconds)
-          lastActivity,
-        };
-      });
+          // Calculate real average response time for this team member
+          const avgResponseTime = await this.calculateTeamMemberResponseTime(user.id, todayStart, now);
+
+          return {
+            id: user.id,
+            name: user.name || user.email.split('@')[0],
+            email: user.email,
+            status,
+            activeChats,
+            totalChatsToday: user.chatConversations.length,
+            avgResponseTime,
+            lastActivity,
+          };
+        })
+      );
 
       return teamStatus;
     } catch (error) {
@@ -569,20 +575,14 @@ class MonitoringService {
         chatsByHour[hour].count++;
       });
 
-      // Mock data for other metrics
-      const responseTimeByAgent = [
-        { agentId: '1', agentName: 'Sarah Johnson', avgTime: 45 },
-        { agentId: '2', agentName: 'Mike Chen', avgTime: 52 },
-        { agentId: '3', agentName: 'Emma Davis', avgTime: 38 },
-      ];
+      // Calculate real response time by agent
+      const responseTimeByAgent = await this.calculateResponseTimeByAgent(startDate, now);
 
-      const topIssues = [
-        { issue: 'Account Access', count: Math.floor(totalChats * 0.3) },
-        { issue: 'Payment Issues', count: Math.floor(totalChats * 0.25) },
-        { issue: 'Technical Support', count: Math.floor(totalChats * 0.2) },
-        { issue: 'Feature Request', count: Math.floor(totalChats * 0.15) },
-        { issue: 'Other', count: Math.floor(totalChats * 0.1) },
-      ];
+      // Calculate real customer satisfaction
+      const customerSatisfaction = await this.calculateCustomerSatisfaction(userId, startDate, now);
+
+      // Analyze top issues from conversation titles
+      const topIssues = await this.analyzeTopIssues(conversations);
 
       return {
         period,
@@ -591,7 +591,7 @@ class MonitoringService {
         avgResponseTime,
         avgResolutionTime,
         firstResponseTime,
-        customerSatisfaction: 92.5, // Mock data
+        customerSatisfaction,
         chatsByHour,
         responseTimeByAgent,
         topIssues,
@@ -599,6 +599,244 @@ class MonitoringService {
     } catch (error) {
       logger.error('Get performance metrics error:', error instanceof Error ? error : new Error(String(error)));
       throw error;
+    }
+  }
+
+  /**
+   * Calculate customer satisfaction from feedback ratings
+   * @private
+   */
+  private async calculateCustomerSatisfaction(
+    userId: string | undefined,
+    startDate: Date,
+    endDate: Date
+  ): Promise<number> {
+    try {
+      // Get all feedback ratings within the time period
+      const feedbackData = await prisma.helpFeedback.aggregate({
+        where: {
+          ...(userId && { userId }),
+          rating: {
+            not: null,
+          },
+          createdAt: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        _avg: {
+          rating: true,
+        },
+        _count: {
+          rating: true,
+        },
+      });
+
+      // If no ratings exist, return a default value
+      if (!feedbackData._count.rating || feedbackData._count.rating === 0) {
+        logger.debug('No customer satisfaction ratings found for the specified period');
+        return 0;
+      }
+
+      // Convert 5-star rating to percentage (0-100)
+      const avgRating = feedbackData._avg.rating || 0;
+      const satisfactionPercentage = (avgRating / 5) * 100;
+
+      logger.debug(`Customer satisfaction calculated: ${satisfactionPercentage.toFixed(1)}% from ${feedbackData._count.rating} ratings`);
+
+      return Math.round(satisfactionPercentage * 10) / 10; // Round to 1 decimal place
+    } catch (error) {
+      logger.error('Calculate customer satisfaction error:', error instanceof Error ? error : new Error(String(error)));
+      // Return 0 on error to avoid breaking the metrics
+      return 0;
+    }
+  }
+
+  /**
+   * Calculate average response time for a specific team member
+   * @private
+   */
+  private async calculateTeamMemberResponseTime(
+    userId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<number> {
+    try {
+      // Get all messages for this user's conversations
+      const messages = await prisma.chatMessage.findMany({
+        where: {
+          conversation: {
+            userId,
+          },
+          createdAt: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+        select: {
+          conversationId: true,
+          role: true,
+          createdAt: true,
+        },
+      });
+
+      if (messages.length === 0) {
+        return 0;
+      }
+
+      // Group messages by conversation
+      const conversationMessages = messages.reduce((acc, msg) => {
+        if (!acc[msg.conversationId]) {
+          acc[msg.conversationId] = [];
+        }
+        acc[msg.conversationId].push(msg);
+        return acc;
+      }, {} as Record<string, typeof messages>);
+
+      // Calculate response times
+      let totalResponseTime = 0;
+      let responseCount = 0;
+
+      for (const convMessages of Object.values(conversationMessages)) {
+        for (let i = 1; i < convMessages.length; i++) {
+          if (convMessages[i - 1].role === 'USER' && convMessages[i].role === 'ASSISTANT') {
+            const responseTime =
+              convMessages[i].createdAt.getTime() - convMessages[i - 1].createdAt.getTime();
+            totalResponseTime += responseTime;
+            responseCount++;
+          }
+        }
+      }
+
+      if (responseCount === 0) {
+        return 0;
+      }
+
+      // Return average response time in seconds
+      return Math.round(totalResponseTime / responseCount / 1000);
+    } catch (error) {
+      logger.error('Calculate team member response time error:', error instanceof Error ? error : new Error(String(error)));
+      return 0;
+    }
+  }
+
+  /**
+   * Calculate response time by agent/user
+   * @private
+   */
+  private async calculateResponseTimeByAgent(
+    startDate: Date,
+    endDate: Date
+  ): Promise<Array<{ agentId: string; agentName: string; avgTime: number }>> {
+    try {
+      // Get all users who have conversations in this period
+      const users = await prisma.user.findMany({
+        where: {
+          chatConversations: {
+            some: {
+              createdAt: {
+                gte: startDate,
+                lte: endDate,
+              },
+            },
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+        take: 10, // Limit to top 10 agents
+      });
+
+      const responseTimeByAgent: Array<{ agentId: string; agentName: string; avgTime: number }> = [];
+
+      for (const user of users) {
+        const avgTime = await this.calculateTeamMemberResponseTime(user.id, startDate, endDate);
+
+        if (avgTime > 0) {
+          responseTimeByAgent.push({
+            agentId: user.id,
+            agentName: user.name || user.email.split('@')[0],
+            avgTime,
+          });
+        }
+      }
+
+      // Sort by average time (fastest first)
+      responseTimeByAgent.sort((a, b) => a.avgTime - b.avgTime);
+
+      return responseTimeByAgent;
+    } catch (error) {
+      logger.error('Calculate response time by agent error:', error instanceof Error ? error : new Error(String(error)));
+      return [];
+    }
+  }
+
+  /**
+   * Analyze top issues from conversation titles
+   * @private
+   */
+  private async analyzeTopIssues(
+    conversations: Array<{ title: string }>
+  ): Promise<Array<{ issue: string; count: number }>> {
+    try {
+      if (conversations.length === 0) {
+        return [];
+      }
+
+      // Keywords to categorize issues
+      const issueCategories = {
+        'Account Access': ['account', 'login', 'password', 'access', 'sign in', 'authentication'],
+        'Payment Issues': ['payment', 'billing', 'invoice', 'charge', 'refund', 'subscription'],
+        'Technical Support': ['error', 'bug', 'broken', 'not working', 'issue', 'problem', 'technical'],
+        'Feature Request': ['feature', 'request', 'suggestion', 'enhancement', 'add', 'new'],
+        'Data & Reports': ['report', 'data', 'export', 'analytics', 'dashboard', 'chart'],
+        'Integration': ['integration', 'api', 'webhook', 'connect', 'sync'],
+      };
+
+      const issueCounts: Record<string, number> = {
+        'Account Access': 0,
+        'Payment Issues': 0,
+        'Technical Support': 0,
+        'Feature Request': 0,
+        'Data & Reports': 0,
+        'Integration': 0,
+        'Other': 0,
+      };
+
+      // Categorize each conversation
+      for (const conv of conversations) {
+        const title = conv.title.toLowerCase();
+        let categorized = false;
+
+        for (const [category, keywords] of Object.entries(issueCategories)) {
+          if (keywords.some(keyword => title.includes(keyword))) {
+            issueCounts[category]++;
+            categorized = true;
+            break;
+          }
+        }
+
+        if (!categorized) {
+          issueCounts['Other']++;
+        }
+      }
+
+      // Convert to array and sort by count
+      const topIssues = Object.entries(issueCounts)
+        .map(([issue, count]) => ({ issue, count }))
+        .filter(item => item.count > 0)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5); // Top 5 issues
+
+      return topIssues;
+    } catch (error) {
+      logger.error('Analyze top issues error:', error instanceof Error ? error : new Error(String(error)));
+      return [];
     }
   }
 }

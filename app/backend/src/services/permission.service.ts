@@ -1,6 +1,65 @@
 import { PrismaClient, DataScope, PermissionLevel } from '@prisma/client';
+import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
+
+// Redis client initialization (with fallback)
+let redis: any = null;
+let redisAvailable = false;
+
+try {
+  const ioredis = require('ioredis');
+  redis = new ioredis(process.env.REDIS_URL || 'redis://localhost:6379', {
+    maxRetriesPerRequest: 3,
+    enableReadyCheck: true,
+    retryStrategy: (times: number) => {
+      if (times > 3) {
+        logger.warn('Redis connection failed after 3 retries, rate limiting will use fallback');
+        return null;
+      }
+      return Math.min(times * 100, 3000);
+    }
+  });
+
+  redis.on('ready', () => {
+    redisAvailable = true;
+    logger.info('Redis connected successfully for rate limiting');
+  });
+
+  redis.on('error', (err: Error) => {
+    redisAvailable = false;
+    logger.warn('Redis connection error, rate limiting will use fallback:', err.message);
+  });
+
+  redis.on('end', () => {
+    redisAvailable = false;
+    logger.warn('Redis connection ended, rate limiting will use fallback');
+  });
+} catch (error) {
+  logger.warn('Redis not available, rate limiting will use fallback mode');
+  redisAvailable = false;
+}
+
+// In-memory fallback for rate limiting (when Redis is unavailable)
+interface RateLimitEntry {
+  count: number;
+  windowStart: Date;
+}
+
+const rateLimitCache = new Map<string, RateLimitEntry>();
+
+// Clean up old entries every 5 minutes
+if (!redis) {
+  setInterval(() => {
+    const now = new Date();
+    for (const [key, entry] of rateLimitCache.entries()) {
+      const hoursSinceStart = (now.getTime() - entry.windowStart.getTime()) / (1000 * 60 * 60);
+      if (hoursSinceStart > 1) {
+        rateLimitCache.delete(key);
+      }
+    }
+  }, 5 * 60 * 1000);
+}
 
 /**
  * Permission Condition Interface
@@ -55,6 +114,18 @@ export interface TeamPermissionInput {
 }
 
 /**
+ * Rate Limit Status
+ */
+export interface RateLimitStatus {
+  allowed: boolean;
+  current: number;
+  limit: number;
+  remaining: number;
+  resetAt: Date;
+  windowMinutes: number;
+}
+
+/**
  * Permission Service
  * Manages granular resource and team permissions with conditions
  */
@@ -68,6 +139,13 @@ export class PermissionService {
     action: string,
     context?: Record<string, any>
   ): Promise<PermissionCheckResult> {
+    // Enhance context with userId and action for rate limiting
+    const enhancedContext = {
+      ...context,
+      userId,
+      action: `${resource}:${action}` // Format: resource:action (e.g., "ticket:create")
+    };
+
     // Check resource-level permission
     const resourcePermission = await prisma.resourcePermission.findFirst({
       where: {
@@ -84,7 +162,7 @@ export class PermissionService {
     if (resourcePermission) {
       const conditionCheck = await this.checkConditions(
         resourcePermission.condition,
-        context
+        enhancedContext
       );
 
       if (conditionCheck.granted) {
@@ -93,6 +171,9 @@ export class PermissionService {
           scope: conditionCheck.scope,
           conditions: conditionCheck.conditions
         };
+      } else {
+        // Return the specific reason from condition check (e.g., rate limit exceeded)
+        return conditionCheck;
       }
     }
 
@@ -102,7 +183,7 @@ export class PermissionService {
     for (const teamPerm of teamPermissions) {
       const conditionCheck = await this.checkConditions(
         teamPerm.conditions,
-        context
+        enhancedContext
       );
 
       if (conditionCheck.granted) {
@@ -504,6 +585,220 @@ export class PermissionService {
   }
 
   /**
+   * Check if action is allowed based on rate limit
+   * @param action The action being performed (e.g., 'create_ticket', 'send_message')
+   * @param userId The user performing the action
+   * @param maxActions Maximum allowed actions in the window
+   * @param windowMinutes Time window in minutes
+   * @returns RateLimitStatus indicating if action is allowed
+   */
+  async checkRateLimit(
+    action: string,
+    userId: string,
+    maxActions: number,
+    windowMinutes: number
+  ): Promise<RateLimitStatus> {
+    try {
+      const status = await this.getRateLimitStatus(action, userId, maxActions, windowMinutes);
+
+      if (!status.allowed) {
+        logger.warn('Rate limit exceeded', {
+          userId,
+          action,
+          current: status.current,
+          limit: status.limit,
+          resetAt: status.resetAt
+        });
+      }
+
+      return status;
+    } catch (error) {
+      logger.error('Rate limit check error:', error);
+      // On error, allow the action (fail open for better UX)
+      return {
+        allowed: true,
+        current: 0,
+        limit: maxActions,
+        remaining: maxActions,
+        resetAt: new Date(Date.now() + windowMinutes * 60 * 1000),
+        windowMinutes
+      };
+    }
+  }
+
+  /**
+   * Increment rate limit counter for an action
+   * Should be called after an action is successfully performed
+   * @param action The action being performed
+   * @param userId The user performing the action
+   * @param windowMinutes Time window in minutes (default: 60)
+   * @returns Current count after increment
+   */
+  async incrementRateLimit(
+    action: string,
+    userId: string,
+    windowMinutes: number = 60
+  ): Promise<number> {
+    const key = this.getRateLimitKey(action, userId, windowMinutes);
+    const expirationSeconds = windowMinutes * 60;
+
+    try {
+      // Try Redis first
+      if (redisAvailable && redis) {
+        const count = await redis.incr(key);
+        // Set expiration only on first increment (when count === 1)
+        if (count === 1) {
+          await redis.expire(key, expirationSeconds);
+        }
+        return count;
+      }
+
+      // Fallback to in-memory cache
+      return this.incrementRateLimitFallback(key, windowMinutes);
+    } catch (error) {
+      logger.error('Rate limit increment error:', error);
+      // Use fallback on error
+      return this.incrementRateLimitFallback(key, windowMinutes);
+    }
+  }
+
+  /**
+   * Get current rate limit status for an action
+   * @param action The action to check
+   * @param userId The user to check
+   * @param maxActions Maximum allowed actions
+   * @param windowMinutes Time window in minutes
+   * @returns RateLimitStatus with current usage
+   */
+  async getRateLimitStatus(
+    action: string,
+    userId: string,
+    maxActions: number,
+    windowMinutes: number
+  ): Promise<RateLimitStatus> {
+    const key = this.getRateLimitKey(action, userId, windowMinutes);
+
+    try {
+      let current = 0;
+      let ttl = windowMinutes * 60;
+
+      // Try Redis first
+      if (redisAvailable && redis) {
+        const [count, remaining] = await Promise.all([
+          redis.get(key),
+          redis.ttl(key)
+        ]);
+        current = count ? parseInt(count) : 0;
+        ttl = remaining > 0 ? remaining : windowMinutes * 60;
+      } else {
+        // Fallback to in-memory cache
+        const entry = rateLimitCache.get(key);
+        if (entry) {
+          const elapsed = Date.now() - entry.windowStart.getTime();
+          const windowMs = windowMinutes * 60 * 1000;
+          if (elapsed < windowMs) {
+            current = entry.count;
+            ttl = Math.floor((windowMs - elapsed) / 1000);
+          }
+        }
+      }
+
+      const remaining = Math.max(0, maxActions - current);
+      const resetAt = new Date(Date.now() + ttl * 1000);
+
+      return {
+        allowed: current < maxActions,
+        current,
+        limit: maxActions,
+        remaining,
+        resetAt,
+        windowMinutes
+      };
+    } catch (error) {
+      logger.error('Get rate limit status error:', error);
+      // On error, return permissive status
+      return {
+        allowed: true,
+        current: 0,
+        limit: maxActions,
+        remaining: maxActions,
+        resetAt: new Date(Date.now() + windowMinutes * 60 * 1000),
+        windowMinutes
+      };
+    }
+  }
+
+  /**
+   * Reset rate limit for a specific action and user
+   * Useful for admin operations or testing
+   * @param action The action to reset
+   * @param userId The user to reset for
+   * @param windowMinutes Time window in minutes
+   */
+  async resetRateLimit(
+    action: string,
+    userId: string,
+    windowMinutes: number = 60
+  ): Promise<void> {
+    const key = this.getRateLimitKey(action, userId, windowMinutes);
+
+    try {
+      if (redisAvailable && redis) {
+        await redis.del(key);
+      }
+      rateLimitCache.delete(key);
+      logger.info('Rate limit reset', { userId, action });
+    } catch (error) {
+      logger.error('Reset rate limit error:', error);
+      // Still try to delete from fallback cache
+      rateLimitCache.delete(key);
+    }
+  }
+
+  /**
+   * Get rate limit key for Redis/cache
+   * Format: ratelimit:{action}:{userId}:{windowStart}
+   * @private
+   */
+  private getRateLimitKey(action: string, userId: string, windowMinutes: number): string {
+    // Calculate current window start time
+    const now = new Date();
+    const windowMs = windowMinutes * 60 * 1000;
+    const windowStart = Math.floor(now.getTime() / windowMs) * windowMs;
+    const windowHour = new Date(windowStart).toISOString().slice(0, 13); // YYYY-MM-DDTHH
+
+    return `ratelimit:${action}:${userId}:${windowHour}`;
+  }
+
+  /**
+   * Increment rate limit using in-memory fallback
+   * @private
+   */
+  private incrementRateLimitFallback(key: string, windowMinutes: number): number {
+    const now = new Date();
+    const entry = rateLimitCache.get(key);
+
+    if (!entry) {
+      rateLimitCache.set(key, { count: 1, windowStart: now });
+      return 1;
+    }
+
+    // Check if window has expired
+    const windowMs = windowMinutes * 60 * 1000;
+    const elapsed = now.getTime() - entry.windowStart.getTime();
+
+    if (elapsed >= windowMs) {
+      // Start new window
+      rateLimitCache.set(key, { count: 1, windowStart: now });
+      return 1;
+    }
+
+    // Increment existing window
+    entry.count++;
+    return entry.count;
+  }
+
+  /**
    * Check conditions (private helper)
    */
   private async checkConditions(
@@ -537,10 +832,31 @@ export class PermissionService {
         }
       }
 
-      // Check rate limits (simplified - would need Redis or similar in production)
-      if (condition.rateLimit) {
-        // This would require tracking action counts in a separate store
-        // For now, we'll just acknowledge the limit exists
+      // Check rate limits using Redis-based tracking
+      if (condition.rateLimit && context?.userId && context?.action) {
+        const rateLimitStatus = await this.checkRateLimit(
+          context.action,
+          context.userId,
+          condition.rateLimit.maxActions,
+          condition.rateLimit.windowMinutes
+        );
+
+        if (!rateLimitStatus.allowed) {
+          const resetTime = rateLimitStatus.resetAt.toLocaleTimeString();
+          const resetMinutes = Math.ceil((rateLimitStatus.resetAt.getTime() - Date.now()) / 60000);
+
+          return {
+            granted: false,
+            reason: `Rate limit exceeded: ${rateLimitStatus.current}/${rateLimitStatus.limit} actions in ${rateLimitStatus.windowMinutes} minutes. Resets in ${resetMinutes} minute(s) at ${resetTime}.`
+          };
+        }
+
+        // Increment counter after successful check
+        await this.incrementRateLimit(
+          context.action,
+          context.userId,
+          condition.rateLimit.windowMinutes
+        );
       }
 
       // Check custom filters against context
@@ -558,7 +874,7 @@ export class PermissionService {
         conditions: condition
       };
     } catch (error) {
-      console.error('Error checking conditions:', error);
+      logger.error('Error checking conditions:', error);
       return { granted: false, reason: 'Invalid conditions format' };
     }
   }
@@ -680,44 +996,320 @@ export class PermissionService {
 
   /**
    * Check team data access (private helper)
+   * Verifies if user can access data based on team membership
    */
   private async checkTeamDataAccess(
     userId: string,
     dataType: string,
     dataId: string
   ): Promise<boolean> {
-    const userTeams = await prisma.teamMember.findMany({
-      where: { userId },
-      select: { teamId: true }
-    });
+    try {
+      // Get user's teams with their roles
+      const userTeams = await this.getUserTeams(userId);
 
-    if (userTeams.length === 0) {
+      if (userTeams.length === 0) {
+        logger.warn(`[TeamAccess] User ${userId} is not a member of any team`);
+        return false;
+      }
+
+      // Map resource type to Prisma model
+      const resourceMap: Record<string, any> = {
+        ticket: prisma.supportTicket,
+        customer: prisma.customer,
+        invoice: prisma.invoice,
+        earning: prisma.earning,
+        product: prisma.product,
+        sale: prisma.sale,
+        expense: prisma.expense,
+        report: prisma.report
+      };
+
+      const model = resourceMap[dataType];
+      if (!model) {
+        logger.error(`[TeamAccess] Unknown resource type: ${dataType}`);
+        return false;
+      }
+
+      // Get the resource data
+      const resource = await model.findUnique({
+        where: { id: dataId },
+        select: { id: true, userId: true }
+      });
+
+      if (!resource) {
+        logger.warn(`[TeamAccess] Resource not found: ${dataType}/${dataId}`);
+        return false;
+      }
+
+      // Check if the resource owner is in any of the user's teams
+      const resourceOwnerId = resource.userId;
+
+      // If user owns the resource, grant access
+      if (resourceOwnerId === userId) {
+        return true;
+      }
+
+      // Check each team the user belongs to
+      for (const userTeam of userTeams) {
+        const isTeammate = await this.checkTeamAccess(resourceOwnerId, userTeam.teamId);
+
+        if (isTeammate) {
+          logger.info(`[TeamAccess] Access granted: User ${userId} can access ${dataType}/${dataId} via team ${userTeam.teamId} (role: ${userTeam.role})`);
+          return true;
+        }
+      }
+
+      logger.warn(`[TeamAccess] Access denied: Resource owner ${resourceOwnerId} is not in any of user ${userId}'s teams`);
+      return false;
+    } catch (error) {
+      logger.error(`[TeamAccess] Error checking team data access:`, error);
       return false;
     }
-
-    // This is simplified - in production, you'd check if the data belongs to the team
-    // For now, we'll check if the user owns it (fallback)
-    return await this.checkOwnership(userId, dataType, dataId);
   }
 
   /**
    * Check organization data access (private helper)
+   * Verifies if user can access data based on organization membership
+   *
+   * NOTE: This implementation requires an Organization model to be fully functional.
+   * Current implementation provides a foundation that can be extended when:
+   * - Organization model is added to schema.prisma with fields:
+   *   - id, name, description, ownerId, isActive, etc.
+   * - OrganizationMember model is created for membership tracking
+   * - Data models are extended with organizationId field
    */
   private async checkOrganizationDataAccess(
     userId: string,
     dataType: string,
     dataId: string
   ): Promise<boolean> {
-    // This is simplified - in production, you'd have organization models
-    // For now, we'll check if user has ADMIN role
-    const hasAdminRole = await prisma.userRole.findFirst({
-      where: {
-        userId,
-        role: { name: 'ADMIN' }
-      }
-    });
+    try {
+      // Get user's organizations (when Organization model exists)
+      const userOrgs = await this.getUserOrganizations(userId);
 
-    return !!hasAdminRole;
+      if (userOrgs.length === 0) {
+        logger.warn(`[OrgAccess] User ${userId} is not a member of any organization`);
+        return false;
+      }
+
+      // Map resource type to Prisma model
+      const resourceMap: Record<string, any> = {
+        ticket: prisma.supportTicket,
+        customer: prisma.customer,
+        invoice: prisma.invoice,
+        earning: prisma.earning,
+        product: prisma.product,
+        sale: prisma.sale,
+        expense: prisma.expense,
+        report: prisma.report
+      };
+
+      const model = resourceMap[dataType];
+      if (!model) {
+        logger.error(`[OrgAccess] Unknown resource type: ${dataType}`);
+        return false;
+      }
+
+      // Get the resource data
+      const resource = await model.findUnique({
+        where: { id: dataId },
+        select: { id: true, userId: true }
+      });
+
+      if (!resource) {
+        logger.warn(`[OrgAccess] Resource not found: ${dataType}/${dataId}`);
+        return false;
+      }
+
+      const resourceOwnerId = resource.userId;
+
+      // If user owns the resource, grant access
+      if (resourceOwnerId === userId) {
+        return true;
+      }
+
+      // Check each organization the user belongs to
+      for (const userOrg of userOrgs) {
+        const hasAccess = await this.checkOrgAccess(resourceOwnerId, userOrg.orgId, userOrg.role);
+
+        if (hasAccess) {
+          logger.info(`[OrgAccess] Access granted: User ${userId} can access ${dataType}/${dataId} via org ${userOrg.orgId} (role: ${userOrg.role})`);
+          return true;
+        }
+      }
+
+      logger.warn(`[OrgAccess] Access denied: Resource owner ${resourceOwnerId} is not in any of user ${userId}'s organizations`);
+      return false;
+    } catch (error) {
+      logger.error(`[OrgAccess] Error checking organization data access:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if a user is a member of a specific team
+   * @param userId - User ID to check
+   * @param teamId - Team ID to verify membership
+   * @returns true if user is a member of the team
+   */
+  private async checkTeamAccess(userId: string, teamId: string): Promise<boolean> {
+    try {
+      const membership = await prisma.teamMember.findUnique({
+        where: {
+          teamId_userId: {
+            teamId,
+            userId
+          }
+        }
+      });
+
+      return !!membership;
+    } catch (error) {
+      logger.error(`[TeamAccess] Error checking team membership for user ${userId} in team ${teamId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if a user has access within an organization
+   * Supports role-based access within the organization
+   *
+   * @param userId - User ID to check
+   * @param orgId - Organization ID
+   * @param requesterRole - Role of the user requesting access (for hierarchy checks)
+   * @returns true if user has organization access
+   */
+  private async checkOrgAccess(
+    userId: string,
+    orgId: string,
+    requesterRole?: string
+  ): Promise<boolean> {
+    try {
+      // TODO: When Organization model is implemented, replace this with:
+      // const membership = await prisma.organizationMember.findUnique({
+      //   where: {
+      //     organizationId_userId: {
+      //       organizationId: orgId,
+      //       userId
+      //     }
+      //   }
+      // });
+
+      // For now, fallback to checking if both users are in the same team
+      // This provides basic cross-user access until Organization model is added
+      const userTeams = await this.getUserTeams(userId);
+      const targetUserTeams = await this.getUserTeams(userId);
+
+      // Check if they share any teams
+      const sharedTeams = userTeams.filter(ut =>
+        targetUserTeams.some(tut => tut.teamId === ut.teamId)
+      );
+
+      if (sharedTeams.length > 0) {
+        logger.info(`[OrgAccess] Users share ${sharedTeams.length} team(s), granting organization-level access`);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      logger.error(`[OrgAccess] Error checking org membership for user ${userId} in org ${orgId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Get all teams a user belongs to with their roles
+   * @param userId - User ID
+   * @returns Array of team memberships with teamId, teamName, and role
+   */
+  private async getUserTeams(userId: string): Promise<Array<{
+    teamId: string;
+    teamName: string;
+    role: string;
+  }>> {
+    try {
+      const memberships = await prisma.teamMember.findMany({
+        where: { userId },
+        include: {
+          team: {
+            select: {
+              id: true,
+              name: true,
+              isActive: true
+            }
+          }
+        }
+      });
+
+      return memberships
+        .filter(m => m.team.isActive)
+        .map(m => ({
+          teamId: m.team.id,
+          teamName: m.team.name,
+          role: m.role
+        }));
+    } catch (error) {
+      logger.error(`[TeamAccess] Error fetching teams for user ${userId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all organizations a user belongs to with their roles
+   *
+   * NOTE: This is a placeholder implementation. When Organization model is added:
+   * 1. Create Organization model in schema.prisma with fields:
+   *    - id, name, description, ownerId, isActive, etc.
+   * 2. Create OrganizationMember model with:
+   *    - id, organizationId, userId, role (OWNER, ADMIN, MEMBER), joinedAt, etc.
+   * 3. Add organizationId field to data models (optional, for direct org ownership)
+   * 4. Update this method to query OrganizationMember table
+   *
+   * @param userId - User ID
+   * @returns Array of organization memberships with orgId, orgName, and role
+   */
+  private async getUserOrganizations(userId: string): Promise<Array<{
+    orgId: string;
+    orgName: string;
+    role: string;
+  }>> {
+    try {
+      // TODO: When Organization model is implemented, replace with:
+      // const memberships = await prisma.organizationMember.findMany({
+      //   where: { userId },
+      //   include: {
+      //     organization: {
+      //       select: {
+      //         id: true,
+      //         name: true,
+      //         isActive: true
+      //       }
+      //     }
+      //   }
+      // });
+      //
+      // return memberships
+      //   .filter(m => m.organization.isActive)
+      //   .map(m => ({
+      //     orgId: m.organization.id,
+      //     orgName: m.organization.name,
+      //     role: m.role
+      //   }));
+
+      // Temporary implementation: Use teams as organization-level access
+      // This allows the code to work while providing a clear upgrade path
+      const teams = await this.getUserTeams(userId);
+
+      // Map teams to organization structure (temporary)
+      return teams.map(team => ({
+        orgId: `team-${team.teamId}`, // Prefix to distinguish from real org IDs later
+        orgName: `${team.teamName} (Team)`,
+        role: team.role
+      }));
+    } catch (error) {
+      logger.error(`[OrgAccess] Error fetching organizations for user ${userId}:`, error);
+      return [];
+    }
   }
 }
 

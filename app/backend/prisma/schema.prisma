@@ -74,6 +74,11 @@ enum FileSharePermission {
   EDIT
 }
 
+enum CustomerFileSharePermission {
+  VIEW
+  VIEW_DOWNLOAD
+}
+
 enum WebhookStatus {
   ACTIVE
   INACTIVE
@@ -130,15 +135,16 @@ enum SyncStatus {
 // ============================================
 
 model User {
-  id           String     @id @default(uuid())
-  email        String     @unique @db.VarChar(255)
-  passwordHash String     @map("password_hash")
-  name         String?
-  timezone     String     @default("UTC")
-  currency     String     @default("USD") @db.VarChar(3)
-  language     String     @default("en") @db.VarChar(5)
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  id               String     @id @default(uuid())
+  email            String     @unique @db.VarChar(255)
+  passwordHash     String     @map("password_hash")
+  name             String?
+  stripeCustomerId String?    @unique @map("stripe_customer_id") @db.VarChar(255)
+  timezone         String     @default("UTC")
+  currency         String     @default("USD") @db.VarChar(3)
+  language         String     @default("en") @db.VarChar(5)
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
 
   platforms         Platform[]
   earnings          Earning[]
@@ -156,7 +162,8 @@ model User {
   chatConfig        ChatConfig?
   fileUploads       FileUpload[]
   fileFolders       FileFolder[]
-  sharedFiles       FileShare[]     @relation("SharedWithUser")
+  sharedFiles       FileShare[]          @relation("SharedWithUser")
+  customerFileShares CustomerFileShare[] @relation("CustomerFileShareSharedBy")
   financialReports  FinancialReport[]
   taxCategories     TaxCategory[]
   financialMetrics  FinancialMetrics[]
@@ -360,6 +367,7 @@ model Customer {
   customerProfile     CustomerProfile?
   ticketPortalAccess  TicketPortalAccess?
   segmentMemberships  SegmentMember[]
+  sharedFiles         CustomerFileShare[]
 
   @@unique([userId, email])
   @@index([userId, isActive])
@@ -636,9 +644,10 @@ model FileUpload {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folder      FileFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  shares      FileShare[]
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder        FileFolder?         @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  shares        FileShare[]
+  customerShares CustomerFileShare[]
 
   @@index([userId, uploadedAt(sort: Desc)])
   @@index([folderId, uploadedAt(sort: Desc)])
@@ -683,6 +692,28 @@ model FileShare {
   @@index([fileId, createdAt(sort: Desc)])
   @@index([sharedWith, createdAt(sort: Desc)])
   @@map("file_shares")
+}
+
+model CustomerFileShare {
+  id          String                      @id @default(uuid())
+  fileId      String                      @map("file_id")
+  customerId  String                      @map("customer_id")
+  sharedBy    String                      @map("shared_by") // User ID who shared
+  permission  CustomerFileSharePermission @default(VIEW)
+  canDownload Boolean                     @default(true) @map("can_download")
+  expiresAt   DateTime?                   @map("expires_at")
+  createdAt   DateTime                    @default(now()) @map("created_at")
+  updatedAt   DateTime                    @updatedAt @map("updated_at")
+
+  file       FileUpload @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sharedByUser User     @relation("CustomerFileShareSharedBy", fields: [sharedBy], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, customerId])
+  @@index([fileId, createdAt(sort: Desc)])
+  @@index([customerId, createdAt(sort: Desc)])
+  @@index([expiresAt])
+  @@map("customer_file_shares")
 }
 
 // ============================================

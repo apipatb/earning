@@ -3,6 +3,7 @@ import { AuthRequest } from '../types';
 import { quotaService } from '../services/quota.service';
 import { QuotaTier, UsagePeriod } from '@prisma/client';
 import { rbacService } from '../services/rbac.service';
+import { subscriptionService } from '../services/subscription.service';
 
 /**
  * Quota Controller
@@ -231,12 +232,35 @@ export const upgradeQuotaTier = async (req: AuthRequest, res: Response) => {
 
     // Check if user has active subscription for paid tiers
     if (tier !== QuotaTier.FREE) {
-      // TODO: Verify subscription status with payment provider
-      // For now, admins can upgrade any tier, others need subscription verification
+      // Admins can upgrade to any tier without subscription
       const isAdmin = await rbacService.hasRole(userId, 'ADMIN');
+
       if (!isAdmin) {
-        // In a real implementation, verify subscription status here
-        // throw new Error('Active subscription required for paid tiers');
+        // Verify user has active subscription for paid tiers
+        try {
+          const hasActiveSubscription = await subscriptionService.hasActiveSubscription(userId);
+
+          if (!hasActiveSubscription) {
+            console.warn(`[Quota] User ${userId} attempted to upgrade to ${tier} without active subscription`);
+            return res.status(402).json({
+              error: 'Payment Required',
+              message: 'An active subscription is required to upgrade to paid tiers. Please subscribe to a plan first.',
+              requiredAction: 'subscribe',
+            });
+          }
+
+          // Get subscription details for logging
+          const subscription = await subscriptionService.getActiveSubscription(userId);
+          console.log(`[Quota] User ${userId} has active subscription (plan: ${subscription?.plan.name}, status: ${subscription?.status})`);
+        } catch (error) {
+          console.error(`[Quota] Error verifying subscription for user ${userId}:`, error);
+          return res.status(500).json({
+            error: 'Internal Server Error',
+            message: 'Failed to verify subscription status. Please try again later.',
+          });
+        }
+      } else {
+        console.log(`[Quota] Admin user ${userId} upgrading to ${tier} (subscription check bypassed)`);
       }
     }
 

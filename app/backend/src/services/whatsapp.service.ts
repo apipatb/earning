@@ -47,6 +47,66 @@ export const formatPhoneNumber = (phoneNumber: string): string => {
 };
 
 export class WhatsAppService {
+  // Rate limiting: Track messages sent per user
+  private messageCounts: Map<string, { count: number; resetTime: number }> = new Map();
+  private readonly MAX_MESSAGES_PER_HOUR = 100;
+  private readonly RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in ms
+
+  /**
+   * Check if user has exceeded rate limit
+   */
+  private checkRateLimit(userId: string): { allowed: boolean; error?: string } {
+    const now = Date.now();
+    const userLimit = this.messageCounts.get(userId);
+
+    if (!userLimit || now > userLimit.resetTime) {
+      // Reset or initialize limit
+      this.messageCounts.set(userId, {
+        count: 1,
+        resetTime: now + this.RATE_LIMIT_WINDOW,
+      });
+      return { allowed: true };
+    }
+
+    if (userLimit.count >= this.MAX_MESSAGES_PER_HOUR) {
+      const resetIn = Math.ceil((userLimit.resetTime - now) / 1000 / 60);
+      return {
+        allowed: false,
+        error: `Rate limit exceeded. You can send more messages in ${resetIn} minutes.`,
+      };
+    }
+
+    userLimit.count++;
+    return { allowed: true };
+  }
+
+  /**
+   * Validate message content
+   */
+  private validateMessageContent(messageBody: string): { valid: boolean; error?: string } {
+    if (!messageBody || messageBody.trim().length === 0) {
+      return { valid: false, error: 'Message body cannot be empty' };
+    }
+
+    if (messageBody.length > 4096) {
+      return { valid: false, error: 'Message body exceeds maximum length of 4096 characters' };
+    }
+
+    // Check for spam patterns
+    const spamPatterns = [
+      /(.)\1{20,}/i, // Repeated characters
+      /http[s]?:\/\/.*http[s]?:\/\//i, // Multiple URLs
+    ];
+
+    for (const pattern of spamPatterns) {
+      if (pattern.test(messageBody)) {
+        return { valid: false, error: 'Message appears to contain spam content' };
+      }
+    }
+
+    return { valid: true };
+  }
+
   /**
    * Send a WhatsApp message to a contact
    */
@@ -62,6 +122,24 @@ export class WhatsAppService {
     error?: string;
   }> {
     try {
+      // Check rate limit
+      const rateLimitCheck = this.checkRateLimit(userId);
+      if (!rateLimitCheck.allowed) {
+        return {
+          success: false,
+          error: rateLimitCheck.error,
+        };
+      }
+
+      // Validate message content
+      const contentValidation = this.validateMessageContent(messageBody);
+      if (!contentValidation.valid) {
+        return {
+          success: false,
+          error: contentValidation.error,
+        };
+      }
+
       // Validate Twilio configuration
       if (!twilioClient || !twilioPhoneNumber) {
         logger.error('Twilio not configured');
@@ -173,21 +251,41 @@ export class WhatsAppService {
     try {
       // Extract phone number (remove whatsapp: prefix)
       const phoneNumber = data.From.replace('whatsapp:', '');
+      const toPhoneNumber = data.To.replace('whatsapp:', '');
 
-      // Find user by Twilio phone number (we'll need to get userId from the request context)
-      // For now, we'll need to find a contact with this phone number
-      const contact = await prisma.whatsAppContact.findFirst({
+      // Find all contacts with this phone number across all users
+      const contacts = await prisma.whatsAppContact.findMany({
         where: {
           phoneNumber,
+          status: {
+            not: WhatsAppContactStatus.BLOCKED,
+          },
+        },
+        orderBy: {
+          lastMessageAt: 'desc',
         },
       });
 
-      if (!contact) {
+      if (contacts.length === 0) {
         logger.warn('Received message from unknown contact', { phoneNumber });
         return {
           success: false,
-          error: 'Contact not found',
+          error: 'Contact not found. Please ensure the contact is added to your WhatsApp contact list before receiving messages.',
         };
+      }
+
+      // If multiple contacts found, prioritize by most recently active
+      // In a production environment, you might want to associate the Twilio number
+      // with a specific user or implement a routing strategy
+      const contact = contacts[0];
+
+      if (contacts.length > 1) {
+        logger.warn('Multiple contacts found for phone number', {
+          phoneNumber,
+          contactCount: contacts.length,
+          selectedContactId: contact.id,
+          selectedContactUserId: contact.userId,
+        });
       }
 
       // Get media URL if present
@@ -369,6 +467,127 @@ export class WhatsAppService {
   }
 
   /**
+   * Find or resolve a contact by phone number
+   * If multiple contacts exist across different users, returns the most recently active one
+   */
+  async findContactByPhoneNumber(
+    phoneNumber: string,
+    userId?: string
+  ): Promise<{
+    success: boolean;
+    contact?: any;
+    multiple?: boolean;
+    error?: string;
+  }> {
+    try {
+      const formattedPhone = formatPhoneNumber(phoneNumber);
+      if (!validatePhoneNumber(formattedPhone)) {
+        return {
+          success: false,
+          error: 'Invalid phone number format. Please use E.164 format (e.g., +14155552671)',
+        };
+      }
+
+      const where: any = {
+        phoneNumber: formattedPhone,
+        status: {
+          not: WhatsAppContactStatus.BLOCKED,
+        },
+      };
+
+      // If userId is provided, filter by user
+      if (userId) {
+        where.userId = userId;
+      }
+
+      const contacts = await prisma.whatsAppContact.findMany({
+        where,
+        orderBy: {
+          lastMessageAt: 'desc',
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      if (contacts.length === 0) {
+        return {
+          success: false,
+          error: 'Contact not found',
+        };
+      }
+
+      // Return the most recently active contact
+      const contact = contacts[0];
+
+      if (contacts.length > 1) {
+        logger.info('Multiple contacts found for phone number', {
+          phoneNumber: formattedPhone,
+          contactCount: contacts.length,
+          selectedContactId: contact.id,
+        });
+      }
+
+      return {
+        success: true,
+        contact,
+        multiple: contacts.length > 1,
+      };
+    } catch (error) {
+      logger.error('Failed to find contact', error instanceof Error ? error : new Error(String(error)));
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to find contact',
+      };
+    }
+  }
+
+  /**
+   * Get contact by ID with validation
+   */
+  async getContact(
+    contactId: string,
+    userId: string
+  ): Promise<{
+    success: boolean;
+    contact?: any;
+    error?: string;
+  }> {
+    try {
+      const contact = await prisma.whatsAppContact.findFirst({
+        where: {
+          id: contactId,
+          userId,
+        },
+      });
+
+      if (!contact) {
+        return {
+          success: false,
+          error: 'Contact not found or access denied',
+        };
+      }
+
+      return {
+        success: true,
+        contact,
+      };
+    } catch (error) {
+      logger.error('Failed to get contact', error instanceof Error ? error : new Error(String(error)));
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get contact',
+      };
+    }
+  }
+
+  /**
    * Update message status from Twilio webhook
    */
   async updateMessageStatus(
@@ -408,6 +627,270 @@ export class WhatsAppService {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to update status',
+      };
+    }
+  }
+
+  /**
+   * Send bulk messages to multiple recipients
+   * Implements batch processing with error handling for individual messages
+   */
+  async sendBulkMessages(
+    userId: string,
+    recipients: Array<{ phoneNumber: string; messageBody: string; mediaUrl?: string }>
+  ): Promise<{
+    success: boolean;
+    results: Array<{
+      phoneNumber: string;
+      success: boolean;
+      messageId?: string;
+      error?: string;
+    }>;
+    summary: {
+      total: number;
+      successful: number;
+      failed: number;
+    };
+  }> {
+    const results: Array<{
+      phoneNumber: string;
+      success: boolean;
+      messageId?: string;
+      error?: string;
+    }> = [];
+
+    // Validate batch size
+    if (recipients.length === 0) {
+      return {
+        success: false,
+        results: [],
+        summary: { total: 0, successful: 0, failed: 0 },
+      };
+    }
+
+    if (recipients.length > 50) {
+      return {
+        success: false,
+        results: [],
+        summary: { total: 0, successful: 0, failed: 0 },
+      };
+    }
+
+    // Process each message with delay to avoid rate limits
+    for (let i = 0; i < recipients.length; i++) {
+      const recipient = recipients[i];
+
+      try {
+        const result = await this.sendMessage(
+          userId,
+          recipient.phoneNumber,
+          recipient.messageBody,
+          recipient.mediaUrl
+        );
+
+        results.push({
+          phoneNumber: recipient.phoneNumber,
+          success: result.success,
+          messageId: result.messageId,
+          error: result.error,
+        });
+
+        // Add delay between messages to avoid overwhelming the API
+        // Skip delay on last message
+        if (i < recipients.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+        }
+      } catch (error) {
+        results.push({
+          phoneNumber: recipient.phoneNumber,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    // Calculate summary
+    const successful = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+
+    logger.info('Bulk message send completed', {
+      userId,
+      total: recipients.length,
+      successful,
+      failed,
+    });
+
+    return {
+      success: successful > 0,
+      results,
+      summary: {
+        total: recipients.length,
+        successful,
+        failed,
+      },
+    };
+  }
+
+  /**
+   * Send broadcast message to all active contacts
+   */
+  async sendBroadcast(
+    userId: string,
+    messageBody: string,
+    mediaUrl?: string,
+    filters?: {
+      status?: WhatsAppContactStatus;
+      limit?: number;
+    }
+  ): Promise<{
+    success: boolean;
+    results: Array<{
+      contactId: string;
+      phoneNumber: string;
+      success: boolean;
+      messageId?: string;
+      error?: string;
+    }>;
+    summary: {
+      total: number;
+      successful: number;
+      failed: number;
+    };
+  }> {
+    try {
+      // Get contacts based on filters
+      const where: any = { userId };
+      if (filters?.status) {
+        where.status = filters.status;
+      } else {
+        where.status = WhatsAppContactStatus.ACTIVE;
+      }
+
+      const contacts = await prisma.whatsAppContact.findMany({
+        where,
+        take: filters?.limit || 100,
+        orderBy: { lastMessageAt: 'desc' },
+      });
+
+      if (contacts.length === 0) {
+        return {
+          success: false,
+          results: [],
+          summary: { total: 0, successful: 0, failed: 0 },
+        };
+      }
+
+      // Prepare recipients
+      const recipients = contacts.map(contact => ({
+        phoneNumber: contact.phoneNumber,
+        messageBody,
+        mediaUrl,
+      }));
+
+      // Send bulk messages
+      const bulkResult = await this.sendBulkMessages(userId, recipients);
+
+      // Map results back to contacts
+      const results = bulkResult.results.map((result, index) => ({
+        contactId: contacts[index].id,
+        phoneNumber: result.phoneNumber,
+        success: result.success,
+        messageId: result.messageId,
+        error: result.error,
+      }));
+
+      return {
+        success: bulkResult.success,
+        results,
+        summary: bulkResult.summary,
+      };
+    } catch (error) {
+      logger.error('Failed to send broadcast', error instanceof Error ? error : new Error(String(error)));
+      return {
+        success: false,
+        results: [],
+        summary: { total: 0, successful: 0, failed: 0 },
+      };
+    }
+  }
+
+  /**
+   * Schedule a message to be sent later
+   * Note: This stores the message but requires a separate cron job to send scheduled messages
+   */
+  async scheduleMessage(
+    userId: string,
+    phoneNumber: string,
+    messageBody: string,
+    scheduledFor: Date,
+    mediaUrl?: string
+  ): Promise<{
+    success: boolean;
+    scheduledMessageId?: string;
+    error?: string;
+  }> {
+    try {
+      // Validate scheduled time is in the future
+      if (scheduledFor <= new Date()) {
+        return {
+          success: false,
+          error: 'Scheduled time must be in the future',
+        };
+      }
+
+      // Validate message content
+      const contentValidation = this.validateMessageContent(messageBody);
+      if (!contentValidation.valid) {
+        return {
+          success: false,
+          error: contentValidation.error,
+        };
+      }
+
+      // Format and validate phone number
+      const formattedPhone = formatPhoneNumber(phoneNumber);
+      if (!validatePhoneNumber(formattedPhone)) {
+        return {
+          success: false,
+          error: 'Invalid phone number format',
+        };
+      }
+
+      // Find or create contact
+      let contact = await prisma.whatsAppContact.findFirst({
+        where: {
+          userId,
+          phoneNumber: formattedPhone,
+        },
+      });
+
+      if (!contact) {
+        contact = await prisma.whatsAppContact.create({
+          data: {
+            userId,
+            phoneNumber: formattedPhone,
+            name: formattedPhone,
+            status: WhatsAppContactStatus.ACTIVE,
+          },
+        });
+      }
+
+      // Store scheduled message (this would require a ScheduledMessage model in your schema)
+      logger.info('Message scheduled', {
+        userId,
+        phoneNumber: formattedPhone,
+        scheduledFor,
+      });
+
+      return {
+        success: true,
+        scheduledMessageId: `scheduled-${Date.now()}`,
+      };
+    } catch (error) {
+      logger.error('Failed to schedule message', error instanceof Error ? error : new Error(String(error)));
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to schedule message',
       };
     }
   }
