@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Clock, Play, Pause, CheckCircle } from 'lucide-react';
 import { notify } from '../store/notification.store';
+import { FormValidation } from '../lib/validation';
 
 interface RecurringEarning {
   id: string;
@@ -215,7 +216,7 @@ export default function RecurringEarnings() {
                 </label>
                 <select
                   value={formData.frequency}
-                  onChange={(e) => setFormData({ ...formData, frequency: e.target.value as any })}
+                  onChange={(e) => setFormData({ ...formData, frequency: FormValidation.parseFrequency(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   <option value="daily">Daily</option>

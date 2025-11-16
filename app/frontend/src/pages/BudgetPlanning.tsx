@@ -3,6 +3,7 @@ import { Plus, Edit2, Trash2, Target, TrendingUp, AlertCircle, CheckCircle, Pigg
 import { notify } from '../store/notification.store';
 import { useCurrencyStore } from '../store/currency.store';
 import { formatCurrency } from '../lib/currency';
+import { FormValidation } from '../lib/validation';
 
 interface BudgetCategory {
   id: string;
@@ -382,7 +383,7 @@ export default function BudgetPlanning() {
                 </label>
                 <select
                   value={budgetFormData.period}
-                  onChange={(e) => setBudgetFormData({ ...budgetFormData, period: e.target.value as any })}
+                  onChange={(e) => setBudgetFormData({ ...budgetFormData, period: FormValidation.parseBudgetPeriod(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 >
                   <option value="monthly">Monthly</option>
@@ -633,7 +634,7 @@ export default function BudgetPlanning() {
                 </label>
                 <select
                   value={savingsFormData.priority}
-                  onChange={(e) => setSavingsFormData({ ...savingsFormData, priority: e.target.value as any })}
+                  onChange={(e) => setSavingsFormData({ ...savingsFormData, priority: FormValidation.parsePriority(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 >
                   <option value="low">Low</option>

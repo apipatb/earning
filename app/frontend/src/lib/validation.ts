@@ -72,6 +72,34 @@ export const FormValidation = {
   },
 
   /**
+   * Parse budget period enum
+   */
+  parseBudgetPeriod: (value: string | undefined): 'weekly' | 'monthly' | 'quarterly' | 'yearly' => {
+    return parseEnumValue(value, ['weekly', 'monthly', 'quarterly', 'yearly'] as const, 'monthly');
+  },
+
+  /**
+   * Parse priority enum
+   */
+  parsePriority: (value: string | undefined): 'low' | 'medium' | 'high' => {
+    return parseEnumValue(value, ['low', 'medium', 'high'] as const, 'medium');
+  },
+
+  /**
+   * Parse report type enum
+   */
+  parseReportType: (value: string | undefined): 'earnings' | 'expenses' | 'profit' | 'summary' => {
+    return parseEnumValue(value, ['earnings', 'expenses', 'profit', 'summary'] as const, 'summary');
+  },
+
+  /**
+   * Parse frequency enum (for recurring earnings)
+   */
+  parseFrequency: (value: string | undefined): 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly' => {
+    return parseEnumValue(value, ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'] as const, 'monthly');
+  },
+
+  /**
    * Parse boolean from string
    */
   parseBoolean: (value: string | undefined, defaultValue: boolean = false): boolean => {

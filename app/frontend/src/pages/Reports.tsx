@@ -6,6 +6,7 @@ import { analyticsAPI, earningsAPI, salesAPI, expensesAPI, invoicesAPI, customer
 import { useCurrency } from '../hooks/useCurrency';
 import { exportToCSV, exportDateRangeToCSV } from '../lib/export';
 import { notify } from '../store/notification.store';
+import { FormValidation } from '../lib/validation';
 
 interface MonthlyReport {
   month: string;
@@ -460,7 +461,7 @@ export default function Reports() {
             </label>
             <select
               value={reportType}
-              onChange={(e) => setReportType(e.target.value as any)}
+              onChange={(e) => setReportType(FormValidation.parseReportType(e.target.value) as any)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="business">Business Report</option>
