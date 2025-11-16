@@ -42,7 +42,6 @@ export default function Sales() {
       setProducts(productsRes.products || []);
       setSummary(summaryRes);
     } catch (error) {
-      console.error('Failed to load data:', error);
       notify.error('Error', 'Failed to load sales data. Please try again.');
     } finally {
       setLoading(false);

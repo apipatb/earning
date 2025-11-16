@@ -25,7 +25,6 @@ export default function Products() {
       const response = await productsAPI.getAll();
       setProducts(response.products);
     } catch (error) {
-      console.error('Failed to load products:', error);
       notify.error('Error', 'Failed to load products. Please try again.');
     } finally {
       setLoading(false);

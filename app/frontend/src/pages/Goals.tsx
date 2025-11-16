@@ -40,7 +40,6 @@ export default function Goals() {
       const data = await goalsAPI.getGoals(filterStatus === 'all' ? undefined : filterStatus);
       setGoals(data);
     } catch (error) {
-      console.error('Failed to load goals:', error);
       notify.error('Error', 'Failed to load goals. Please try again.');
     } finally {
       setLoading(false);
@@ -68,7 +67,6 @@ export default function Goals() {
       resetForm();
       loadGoals();
     } catch (error) {
-      console.error('Failed to save goal:', error);
       notify.error('Error', 'Failed to save goal. Please try again.');
     }
   };
@@ -92,7 +90,6 @@ export default function Goals() {
       notify.success('Goal Deleted', 'Goal has been removed successfully.');
       loadGoals();
     } catch (error) {
-      console.error('Failed to delete goal:', error);
       notify.error('Error', 'Failed to delete goal. Please try again.');
     }
   };
@@ -103,7 +100,6 @@ export default function Goals() {
       notify.success('Progress Updated', 'Goal progress has been refreshed.');
       loadGoals();
     } catch (error) {
-      console.error('Failed to update goal progress:', error);
       notify.error('Error', 'Failed to update goal progress. Please try again.');
     }
   };
@@ -118,7 +114,6 @@ export default function Goals() {
       notify.success(statusText, message);
       loadGoals();
     } catch (error) {
-      console.error('Failed to update goal status:', error);
       notify.error('Error', 'Failed to update goal status. Please try again.');
     }
   };

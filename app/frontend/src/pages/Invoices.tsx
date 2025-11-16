@@ -44,7 +44,6 @@ export default function Invoices() {
       setSummary(summRes.summary);
       setOverdueInvoices(overdueRes.overdueInvoices);
     } catch (error) {
-      console.error('Failed to load invoices:', error);
       notify.error('Error', 'Failed to load invoices');
     } finally {
       setLoading(false);

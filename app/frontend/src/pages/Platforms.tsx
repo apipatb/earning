@@ -16,7 +16,6 @@ export default function Platforms() {
       const response = await platformsAPI.getAll();
       setPlatforms(response.data.platforms);
     } catch (error) {
-      console.error('Failed to load platforms:', error);
       notify.error('Error', 'Failed to load platforms. Please try again.');
     } finally {
       setLoading(false);

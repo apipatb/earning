@@ -28,7 +28,6 @@ export default function Customers() {
       const response = await customersAPI.getAll();
       setCustomers(response.customers);
     } catch (error) {
-      console.error('Failed to load customers:', error);
       notify.error('Error', 'Failed to load customers');
     } finally {
       setLoading(false);

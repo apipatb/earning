@@ -44,8 +44,6 @@ export default function Dashboard() {
       ]);
       setSummary(summaryRes.data);
       setRecentEarnings(earningsRes.data.earnings);
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
     } finally {
       setLoading(false);
     }

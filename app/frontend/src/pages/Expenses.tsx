@@ -37,7 +37,6 @@ export default function Expenses() {
       setSummary(summRes);
       setProfitData(profRes);
     } catch (error) {
-      console.error('Failed to load expenses:', error);
       notify.error('Error', 'Failed to load expenses');
     } finally {
       setLoading(false);

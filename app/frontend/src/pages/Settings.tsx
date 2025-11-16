@@ -98,7 +98,6 @@ export default function Settings() {
         currency: data.currency,
       });
     } catch (error) {
-      console.error('Failed to load profile:', error);
       notify.error('Error', 'Failed to load profile. Please try again.');
     } finally {
       setLoading(false);
@@ -124,7 +123,6 @@ export default function Settings() {
       await api.put('/user/profile', profileData);
       notify.success('Profile Updated', 'Your profile has been updated successfully!');
     } catch (error) {
-      console.error('Failed to update profile:', error);
       notify.error('Error', 'Failed to update profile. Please try again.');
     } finally {
       setSaving(false);
@@ -186,7 +184,6 @@ export default function Settings() {
       logout();
       window.location.href = '/login';
     } catch (error) {
-      console.error('Failed to delete account:', error);
       notify.error('Error', 'Failed to delete account. Please try again.');
     } finally {
       setSaving(false);
@@ -257,7 +254,6 @@ export default function Settings() {
         notify.success('Import Complete', 'Your data has been restored successfully! Refreshing page...');
         setTimeout(() => window.location.reload(), 1500);
       } catch (error) {
-        console.error('Failed to import data:', error);
         notify.error('Import Failed', 'The file format is invalid. Please check your backup file.');
       }
     };

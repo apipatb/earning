@@ -62,7 +62,6 @@ export default function Earnings() {
       setEarnings(earningsData);
       setPlatforms(platformsData.filter((p: Platform) => p.id));
     } catch (error) {
-      console.error('Failed to load data:', error);
       notify.error('Error', 'Failed to load earnings data. Please try again.');
     } finally {
       setLoading(false);
@@ -91,7 +90,6 @@ export default function Earnings() {
       resetForm();
       loadData();
     } catch (error) {
-      console.error('Failed to save earning:', error);
       notify.error('Error', 'Failed to save earning. Please try again.');
     }
   };
@@ -116,7 +114,6 @@ export default function Earnings() {
       notify.success('Earning Deleted', 'Earning has been removed successfully.');
       loadData();
     } catch (error) {
-      console.error('Failed to delete earning:', error);
       notify.error('Error', 'Failed to delete earning. Please try again.');
     }
   };

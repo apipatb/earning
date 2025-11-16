@@ -100,7 +100,6 @@ export default function Reports() {
         ]);
       }
     } catch (error) {
-      console.error('Failed to load reports:', error);
       notify.error('Error', 'Failed to load report data');
     } finally {
       setLoading(false);
