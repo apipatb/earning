@@ -17,6 +17,9 @@ import BudgetPlanning from './pages/BudgetPlanning';
 import Settings from './pages/Settings';
 import Products from './pages/Products';
 import Sales from './pages/Sales';
+import Inventory from './pages/Inventory';
+import Customers from './pages/Customers';
+import Expenses from './pages/Expenses';
 import Layout from './components/Layout';
 
 function App() {
@@ -45,6 +48,9 @@ function App() {
           <Route path="earnings" element={<Earnings />} />
           <Route path="products" element={<Products />} />
           <Route path="sales" element={<Sales />} />
+          <Route path="inventory" element={<Inventory />} />
+          <Route path="customers" element={<Customers />} />
+          <Route path="expenses" element={<Expenses />} />
           <Route path="recurring" element={<RecurringEarnings />} />
           <Route path="time-tracking" element={<TimeTracking />} />
           <Route path="clients" element={<ClientManagement />} />

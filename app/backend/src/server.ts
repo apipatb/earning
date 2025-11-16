@@ -15,6 +15,10 @@ import analyticsRoutes from './routes/analytics.routes';
 import goalRoutes from './routes/goal.routes';
 import productRoutes from './routes/product.routes';
 import saleRoutes from './routes/sale.routes';
+import inventoryRoutes from './routes/inventory.routes';
+import customerRoutes from './routes/customer.routes';
+import expenseRoutes from './routes/expense.routes';
+import invoiceRoutes from './routes/invoice.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -53,6 +57,10 @@ app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/goals', goalRoutes);
 app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/sales', saleRoutes);
+app.use('/api/v1/inventory', inventoryRoutes);
+app.use('/api/v1/customers', customerRoutes);
+app.use('/api/v1/expenses', expenseRoutes);
+app.use('/api/v1/invoices', invoiceRoutes);
 
 // Error handling
 app.use(notFound);
