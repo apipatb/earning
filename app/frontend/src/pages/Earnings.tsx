@@ -70,6 +70,32 @@ export default function Earnings() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate required fields
+    if (!formData.platformId) {
+      notify.error('Validation Error', 'Please select a platform');
+      return;
+    }
+
+    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+      notify.error('Validation Error', 'Please enter a valid amount greater than 0');
+      return;
+    }
+
+    if (!formData.date) {
+      notify.error('Validation Error', 'Please select a date');
+      return;
+    }
+
+    // Validate optional hours field if provided
+    if (formData.hours) {
+      const hours = parseFloat(formData.hours);
+      if (isNaN(hours) || hours < 0 || hours > 24) {
+        notify.error('Validation Error', 'Hours must be a number between 0 and 24');
+        return;
+      }
+    }
+
     try {
       const payload = {
         platformId: formData.platformId,

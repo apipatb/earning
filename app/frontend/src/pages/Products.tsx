@@ -35,8 +35,18 @@ export default function Products() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || formData.price <= 0) {
-      notify.error('Validation Error', 'Name and price are required');
+    if (!formData.name || formData.name.trim() === '') {
+      notify.error('Validation Error', 'Product name is required');
+      return;
+    }
+
+    if (formData.price < 0 || !isFinite(formData.price)) {
+      notify.error('Validation Error', 'Price must be a valid positive number');
+      return;
+    }
+
+    if (formData.quantity < 0 || !isFinite(formData.quantity)) {
+      notify.error('Validation Error', 'Quantity must be a valid non-negative number');
       return;
     }
 
@@ -58,13 +68,14 @@ export default function Products() {
     }
   };
 
-  const handleEdit = (product: any) => {
+  const handleEdit = (product: Product) => {
     setFormData({
       name: product.name,
       description: product.description || '',
       price: product.price,
       category: product.category || '',
       sku: product.sku || '',
+      quantity: product.quantity || 0,
     });
     setEditingId(product.id);
     setShowForm(true);

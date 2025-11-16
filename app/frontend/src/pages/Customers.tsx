@@ -35,9 +35,25 @@ export default function Customers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name) {
+
+    if (!formData.name || formData.name.trim() === '') {
       notify.error('Validation Error', 'Name is required');
       return;
+    }
+
+    // Validate email format if provided
+    if (formData.email && formData.email.trim() !== '') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        notify.error('Validation Error', 'Please enter a valid email address');
+        return;
+      }
+    }
+
+    // Validate phone format if provided (basic check for non-empty)
+    if (formData.phone && formData.phone.trim() === '') {
+      // Allow empty phone, but trim it if it's provided
+      formData.phone = '';
     }
 
     try {
@@ -56,7 +72,7 @@ export default function Customers() {
     }
   };
 
-  const handleEdit = (customer: any) => {
+  const handleEdit = (customer: Customer) => {
     setFormData({
       name: customer.name,
       email: customer.email || '',
@@ -64,7 +80,6 @@ export default function Customers() {
       company: customer.company || '',
       city: customer.city || '',
       country: customer.country || '',
-      notes: customer.notes || '',
     });
     setEditingId(customer.id);
     setShowForm(true);

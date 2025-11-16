@@ -48,9 +48,32 @@ export default function Goals() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate required fields
+    if (!formData.title || formData.title.trim() === '') {
+      notify.error('Validation Error', 'Goal title is required');
+      return;
+    }
+
+    if (!formData.targetAmount || parseFloat(formData.targetAmount) <= 0) {
+      notify.error('Validation Error', 'Target amount must be greater than 0');
+      return;
+    }
+
+    // Validate deadline if provided
+    if (formData.deadline) {
+      const deadline = new Date(formData.deadline);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (deadline < today) {
+        notify.error('Validation Error', 'Deadline must be in the future');
+        return;
+      }
+    }
+
     try {
       const payload = {
-        title: formData.title,
+        title: formData.title.trim(),
         description: formData.description || undefined,
         targetAmount: parseFloat(formData.targetAmount),
         deadline: formData.deadline || undefined,
