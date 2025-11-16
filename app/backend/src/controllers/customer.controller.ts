@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
+import { logger } from '../utils/logger';
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
@@ -73,7 +74,7 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
 
     res.json({ customers: customersWithLTV });
   } catch (error) {
-    console.error('Get customers error:', error);
+    logger.error('Get customers error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch customers',
@@ -101,7 +102,7 @@ export const createCustomer = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Create customer error:', error);
+    logger.error('Create customer error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create customer',
@@ -134,7 +135,7 @@ export const updateCustomer = async (req: AuthRequest, res: Response) => {
 
     res.json({ customer: updated });
   } catch (error) {
-    console.error('Update customer error:', error);
+    logger.error('Update customer error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update customer',
@@ -164,7 +165,7 @@ export const deleteCustomer = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Customer deleted successfully' });
   } catch (error) {
-    console.error('Delete customer error:', error);
+    logger.error('Delete customer error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete customer',
@@ -209,7 +210,7 @@ export const getCustomerDetails = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Get customer details error:', error);
+    logger.error('Get customer details error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch customer details',
@@ -246,7 +247,7 @@ export const getTopCustomers = async (req: AuthRequest, res: Response) => {
 
     res.json({ topCustomers: formatted });
   } catch (error) {
-    console.error('Get top customers error:', error);
+    logger.error('Get top customers error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch top customers',

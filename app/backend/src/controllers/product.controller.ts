@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { logger } from '../utils/logger';
 
 const productSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
@@ -60,7 +61,7 @@ export const getAllProducts = async (req: AuthRequest, res: Response) => {
 
     res.json({ products: productsWithStats });
   } catch (error) {
-    console.error('Get products error:', error);
+    logger.error('Get products error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch products',
@@ -92,7 +93,7 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Create product error:', error);
+    logger.error('Create product error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create product',
@@ -125,7 +126,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
 
     res.json({ product: updated });
   } catch (error) {
-    console.error('Update product error:', error);
+    logger.error('Update product error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update product',
@@ -156,7 +157,7 @@ export const deleteProduct = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
-    console.error('Delete product error:', error);
+    logger.error('Delete product error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete product',

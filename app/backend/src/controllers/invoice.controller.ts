@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
+import { logger } from '../utils/logger';
 
 const invoiceLineItemSchema = z.object({
   description: z.string().min(1).max(1000),
@@ -91,7 +92,7 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
 
     res.json({ invoices: formatted, total, limit: parsedLimit, offset: parsedOffset });
   } catch (error) {
-    console.error('Get invoices error:', error);
+    logger.error('Get invoices error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch invoices',
@@ -149,7 +150,7 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Create invoice error:', error);
+    logger.error('Create invoice error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create invoice',
@@ -203,7 +204,7 @@ export const updateInvoice = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Update invoice error:', error);
+    logger.error('Update invoice error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update invoice',
@@ -243,7 +244,7 @@ export const markInvoicePaid = async (req: AuthRequest, res: Response) => {
 
     res.json({ invoice: updated });
   } catch (error) {
-    console.error('Mark invoice paid error:', error);
+    logger.error('Mark invoice paid error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to mark invoice as paid',
@@ -273,7 +274,7 @@ export const deleteInvoice = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Invoice deleted successfully' });
   } catch (error) {
-    console.error('Delete invoice error:', error);
+    logger.error('Delete invoice error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete invoice',
@@ -305,7 +306,7 @@ export const getInvoiceSummary = async (req: AuthRequest, res: Response) => {
 
     res.json({ summary });
   } catch (error) {
-    console.error('Get invoice summary error:', error);
+    logger.error('Get invoice summary error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch invoice summary',
@@ -347,7 +348,7 @@ export const getOverdueInvoices = async (req: AuthRequest, res: Response) => {
       totalAmount: formatted.reduce((sum, i) => sum + i.totalAmount, 0),
     });
   } catch (error) {
-    console.error('Get overdue invoices error:', error);
+    logger.error('Get overdue invoices error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch overdue invoices',

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
+import { logger } from '../utils/logger';
 
 const expenseSchema = z.object({
   category: z.string().min(1).max(100),
@@ -68,7 +69,7 @@ export const getAllExpenses = async (req: AuthRequest, res: Response) => {
 
     res.json({ expenses: formatted, total, limit: parsedLimit, offset: parsedOffset });
   } catch (error) {
-    console.error('Get expenses error:', error);
+    logger.error('Get expenses error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch expenses',
@@ -101,7 +102,7 @@ export const createExpense = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Create expense error:', error);
+    logger.error('Create expense error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create expense',
@@ -138,7 +139,7 @@ export const updateExpense = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Update expense error:', error);
+    logger.error('Update expense error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update expense',
@@ -168,7 +169,7 @@ export const deleteExpense = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Expense deleted successfully' });
   } catch (error) {
-    console.error('Delete expense error:', error);
+    logger.error('Delete expense error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete expense',
@@ -227,7 +228,7 @@ export const getExpenseSummary = async (req: AuthRequest, res: Response) => {
       end_date: endDate,
     });
   } catch (error) {
-    console.error('Get expense summary error:', error);
+    logger.error('Get expense summary error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch expense summary',
@@ -289,7 +290,7 @@ export const getProfitMargin = async (req: AuthRequest, res: Response) => {
       end_date: endDate,
     });
   } catch (error) {
-    console.error('Get profit margin error:', error);
+    logger.error('Get profit margin error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch profit margin',

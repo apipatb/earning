@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest, AnalyticsSummary, PlatformBreakdown, DailyBreakdown } from '../types';
 import prisma from '../lib/prisma';
+import { logger } from '../utils/logger';
 
 export const getSummary = async (req: AuthRequest, res: Response) => {
   try {
@@ -118,7 +119,7 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
 
     res.json(summary);
   } catch (error) {
-    console.error('Get summary error:', error);
+    logger.error('Get summary error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch analytics',

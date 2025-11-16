@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
+import { logger } from '../utils/logger';
 
 const inventoryLogSchema = z.object({
   productId: z.string().uuid('Invalid product ID'),
@@ -62,7 +63,7 @@ export const getInventory = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Get inventory error:', error);
+    logger.error('Get inventory error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch inventory',
@@ -109,7 +110,7 @@ export const updateProductStock = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Update stock error:', error);
+    logger.error('Update stock error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update stock',
@@ -173,7 +174,7 @@ export const logInventoryChange = async (req: AuthRequest, res: Response) => {
         message: error.errors[0].message,
       });
     }
-    console.error('Log inventory change error:', error);
+    logger.error('Log inventory change error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to log inventory change',
@@ -225,7 +226,7 @@ export const getInventoryHistory = async (req: AuthRequest, res: Response) => {
       offset: parsedOffset,
     });
   } catch (error) {
-    console.error('Get inventory history error:', error);
+    logger.error('Get inventory history error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch inventory history',
@@ -278,7 +279,7 @@ export const getLowStockAlerts = async (req: AuthRequest, res: Response) => {
       highCount: alerts.filter((a) => a.severity === 'high').length,
     });
   } catch (error) {
-    console.error('Get low stock alerts error:', error);
+    logger.error('Get low stock alerts error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch low stock alerts',

@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { AuthRequest } from '../types';
+import { logger } from '../utils/logger';
 
 const createGoalSchema = z.object({
   title: z.string().min(1).max(200),
@@ -37,7 +38,7 @@ export const getGoals = async (req: AuthRequest, res: Response) => {
 
     res.json(goals);
   } catch (error) {
-    console.error('Get goals error:', error);
+    logger.error('Get goals error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to fetch goals' });
   }
 };
@@ -60,7 +61,7 @@ export const getGoal = async (req: AuthRequest, res: Response) => {
 
     res.json(goal);
   } catch (error) {
-    console.error('Get goal error:', error);
+    logger.error('Get goal error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to fetch goal' });
   }
 };
@@ -87,7 +88,7 @@ export const createGoal = async (req: AuthRequest, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid goal data', details: error.errors });
     }
-    console.error('Create goal error:', error);
+    logger.error('Create goal error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to create goal' });
   }
 };
@@ -124,7 +125,7 @@ export const updateGoal = async (req: AuthRequest, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid goal data', details: error.errors });
     }
-    console.error('Update goal error:', error);
+    logger.error('Update goal error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to update goal' });
   }
 };
@@ -148,7 +149,7 @@ export const deleteGoal = async (req: AuthRequest, res: Response) => {
 
     res.status(204).send();
   } catch (error) {
-    console.error('Delete goal error:', error);
+    logger.error('Delete goal error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to delete goal' });
   }
 };
@@ -193,7 +194,7 @@ export const updateGoalProgress = async (req: AuthRequest, res: Response) => {
 
     res.json(updatedGoal);
   } catch (error) {
-    console.error('Update goal progress error:', error);
+    logger.error('Update goal progress error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: 'Failed to update goal progress' });
   }
 };
