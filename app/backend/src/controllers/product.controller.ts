@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
+import { parseLimitParam, parseOffsetParam } from '../utils/validation';
 
 const productSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
@@ -15,12 +16,19 @@ const productSchema = z.object({
 export const getAllProducts = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { isActive } = req.query;
+    const { isActive, limit: limitParam, offset: offsetParam } = req.query;
+
+    // Parse pagination parameters with safe defaults
+    const limit = parseLimitParam(limitParam);
+    const offset = parseOffsetParam(offsetParam);
 
     const where: any = { userId };
     if (isActive !== undefined) {
       where.isActive = isActive === 'true';
     }
+
+    // Get total count for pagination
+    const total = await prisma.product.count({ where });
 
     const products = await prisma.product.findMany({
       where,
@@ -33,6 +41,8 @@ export const getAllProducts = async (req: AuthRequest, res: Response) => {
         },
       },
       orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
     });
 
     // Calculate stats for each product
@@ -59,7 +69,14 @@ export const getAllProducts = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    res.json({ products: productsWithStats });
+    res.json({
+      products: productsWithStats,
+      pagination: {
+        total,
+        limit,
+        offset,
+      }
+    });
   } catch (error) {
     logger.error('Get products error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({

@@ -19,7 +19,11 @@ const customerSchema = z.object({
 export const getAllCustomers = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { isActive, search, sortBy = 'name' } = req.query;
+    const { isActive, search, sortBy = 'name', limit: limitParam, offset: offsetParam } = req.query;
+
+    // Parse pagination parameters with safe defaults
+    const limit = parseLimitParam(limitParam);
+    const offset = parseOffsetParam(offsetParam);
 
     const where: any = { userId };
     if (isActive !== undefined) {
@@ -48,9 +52,14 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
         orderBy.name = 'asc';
     }
 
+    // Get total count for pagination
+    const total = await prisma.customer.count({ where });
+
     const customers = await prisma.customer.findMany({
       where,
       orderBy,
+      skip: offset,
+      take: limit,
     });
 
     const customersWithLTV = customers.map((customer) => ({
@@ -72,7 +81,14 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
       createdAt: customer.createdAt,
     }));
 
-    res.json({ customers: customersWithLTV });
+    res.json({
+      customers: customersWithLTV,
+      pagination: {
+        total,
+        limit,
+        offset,
+      }
+    });
   } catch (error) {
     logger.error('Get customers error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
