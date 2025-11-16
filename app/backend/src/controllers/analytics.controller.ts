@@ -66,13 +66,13 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
     });
 
     // Calculate totals
-    const totalEarnings = earnings.reduce((sum, e) => sum + Number(e.amount), 0);
-    const totalHours = earnings.reduce((sum, e) => sum + Number(e.hours || 0), 0);
+    const totalEarnings = earnings.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+    const totalHours = earnings.reduce((sum: number, e: any) => sum + Number(e.hours || 0), 0);
     const avgHourlyRate = totalHours > 0 ? totalEarnings / totalHours : 0;
 
     // Group by platform
     const platformMap = new Map<string, PlatformBreakdown>();
-    earnings.forEach((e) => {
+    earnings.forEach((e: any) => {
       const platformId = e.platform.id;
       if (!platformMap.has(platformId)) {
         platformMap.set(platformId, {
@@ -97,7 +97,7 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
 
     // Group by date
     const dailyMap = new Map<string, DailyBreakdown>();
-    earnings.forEach((e) => {
+    earnings.forEach((e: any) => {
       const dateStr = e.date.toISOString().split('T')[0];
       if (!dailyMap.has(dateStr)) {
         dailyMap.set(dateStr, {

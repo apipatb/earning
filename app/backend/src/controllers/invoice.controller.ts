@@ -60,7 +60,7 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
 
     const total = await prisma.invoice.count({ where });
 
-    const formatted = invoices.map((inv) => ({
+    const formatted = invoices.map((inv: any) => ({
       id: inv.id,
       invoiceNumber: inv.invoiceNumber,
       customer: inv.customer,
@@ -73,7 +73,7 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
       paidDate: inv.paidDate,
       status: inv.status,
       paymentMethod: inv.paymentMethod,
-      lineItems: inv.lineItems.map((li) => ({
+      lineItems: inv.lineItems.map((li: any) => ({
         id: li.id,
         description: li.description,
         quantity: Number(li.quantity),
@@ -285,16 +285,16 @@ export const getInvoiceSummary = async (req: AuthRequest, res: Response) => {
 
     const summary = {
       total_invoices: invoices.length,
-      paid: invoices.filter((i) => i.status === 'paid').length,
-      pending: invoices.filter((i) => ['draft', 'sent', 'viewed'].includes(i.status)).length,
-      overdue: invoices.filter((i) => i.status === 'overdue').length,
-      total_amount: invoices.reduce((sum, i) => sum + Number(i.totalAmount), 0),
+      paid: invoices.filter((i: any) => i.status === 'paid').length,
+      pending: invoices.filter((i: any) => ['draft', 'sent', 'viewed'].includes(i.status)).length,
+      overdue: invoices.filter((i: any) => i.status === 'overdue').length,
+      total_amount: invoices.reduce((sum: number, i: any) => sum + Number(i.totalAmount), 0),
       paid_amount: invoices
-        .filter((i) => i.status === 'paid')
-        .reduce((sum, i) => sum + Number(i.totalAmount), 0),
+        .filter((i: any) => i.status === 'paid')
+        .reduce((sum: number, i: any) => sum + Number(i.totalAmount), 0),
       pending_amount: invoices
-        .filter((i) => ['draft', 'sent', 'viewed', 'overdue'].includes(i.status))
-        .reduce((sum, i) => sum + Number(i.totalAmount), 0),
+        .filter((i: any) => ['draft', 'sent', 'viewed', 'overdue'].includes(i.status))
+        .reduce((sum: number, i: any) => sum + Number(i.totalAmount), 0),
     };
 
     res.json({ summary });
@@ -325,7 +325,7 @@ export const getOverdueInvoices = async (req: AuthRequest, res: Response) => {
       orderBy: { dueDate: 'asc' },
     });
 
-    const formatted = overdueInvoices.map((inv) => ({
+    const formatted = overdueInvoices.map((inv: any) => ({
       id: inv.id,
       invoiceNumber: inv.invoiceNumber,
       customer: inv.customer,
@@ -338,7 +338,7 @@ export const getOverdueInvoices = async (req: AuthRequest, res: Response) => {
     res.json({
       overdueInvoices: formatted,
       total: formatted.length,
-      totalAmount: formatted.reduce((sum, i) => sum + i.totalAmount, 0),
+      totalAmount: formatted.reduce((sum: number, i: any) => sum + i.totalAmount, 0),
     });
   } catch (error) {
     console.error('Get overdue invoices error:', error);

@@ -63,7 +63,7 @@ export const getAllEarnings = async (req: AuthRequest, res: Response) => {
       prisma.earning.count({ where }),
     ]);
 
-    const earningsWithRate = earnings.map((e) => ({
+    const earningsWithRate = earnings.map((e: any) => ({
       id: e.id,
       platform: e.platform,
       date: e.date.toISOString().split('T')[0],

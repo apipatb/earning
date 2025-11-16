@@ -23,6 +23,7 @@ import inventoryRoutes from './routes/inventory.routes';
 import customerRoutes from './routes/customer.routes';
 import expenseRoutes from './routes/expense.routes';
 import invoiceRoutes from './routes/invoice.routes';
+import uploadRoutes from './routes/upload.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -87,8 +88,8 @@ const corsOptions = {
 
 // Middleware
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '10kb' })); // Limit payload size
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(express.json({ limit: '50mb' })); // Limit payload size (supports file uploads)
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(loggingMiddleware); // Request/Response logging
 app.use('/api/', limiter);
 
@@ -119,6 +120,7 @@ app.use('/api/v1/inventory', inventoryRoutes);
 app.use('/api/v1/customers', customerRoutes);
 app.use('/api/v1/expenses', expenseRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
+app.use('/api/v1/upload', uploadRoutes);
 
 // Error handling
 app.use(notFound);

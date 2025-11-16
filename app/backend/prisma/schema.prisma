@@ -29,6 +29,7 @@ model User {
   customers      Customer[]
   expenses       Expense[]
   invoices       Invoice[]
+  documents      Document[]
 
   @@map("users")
 }
@@ -255,4 +256,20 @@ model InvoiceLineItem {
   invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@map("invoice_line_items")
+}
+
+model Document {
+  id           String   @id // Custom ID (file hash)
+  userId       String   @map("user_id")
+  filename     String   @db.VarChar(255)
+  storageName  String   @map("storage_name") @db.VarChar(255) // Name in storage
+  mimetype     String   @db.VarChar(50)
+  size         Int      // File size in bytes
+  uploadedAt   DateTime @map("uploaded_at") @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, id])
+  @@index([userId, uploadedAt(sort: Desc)])
+  @@map("documents")
 }

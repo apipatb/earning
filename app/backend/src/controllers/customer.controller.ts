@@ -51,7 +51,7 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
       orderBy,
     });
 
-    const customersWithLTV = customers.map((customer) => ({
+    const customersWithLTV = customers.map((customer: any) => ({
       id: customer.id,
       name: customer.name,
       email: customer.email,
@@ -235,7 +235,7 @@ export const getTopCustomers = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    const formatted = topCustomers.map((c) => ({
+    const formatted = topCustomers.map((c: any) => ({
       ...c,
       totalPurchases: Number(c.totalPurchases),
       averageOrderValue: c.purchaseCount > 0 ? Number(c.totalPurchases) / c.purchaseCount : 0,
