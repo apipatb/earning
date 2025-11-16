@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
 
 const inventoryLogSchema = z.object({
   productId: z.string().uuid('Invalid product ID'),
@@ -183,7 +184,7 @@ export const logInventoryChange = async (req: AuthRequest, res: Response) => {
 export const getInventoryHistory = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { productId, type, limit = '50', offset = '0' } = req.query;
+    const { productId, type, limit, offset } = req.query;
 
     const where: any = { userId };
     if (productId) {
@@ -193,6 +194,9 @@ export const getInventoryHistory = async (req: AuthRequest, res: Response) => {
       where.type = type;
     }
 
+    const parsedLimit = parseLimitParam(limit as string | undefined, 50);
+    const parsedOffset = parseOffsetParam(offset as string | undefined);
+
     const logs = await prisma.inventoryLog.findMany({
       where,
       include: {
@@ -201,8 +205,8 @@ export const getInventoryHistory = async (req: AuthRequest, res: Response) => {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: parseInt(limit as string),
-      skip: parseInt(offset as string),
+      take: parsedLimit,
+      skip: parsedOffset,
     });
 
     const total = await prisma.inventoryLog.count({ where });
@@ -217,8 +221,8 @@ export const getInventoryHistory = async (req: AuthRequest, res: Response) => {
         createdAt: log.createdAt,
       })),
       total,
-      limit: parseInt(limit as string),
-      offset: parseInt(offset as string),
+      limit: parsedLimit,
+      offset: parsedOffset,
     });
   } catch (error) {
     console.error('Get inventory history error:', error);

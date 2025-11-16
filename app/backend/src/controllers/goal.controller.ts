@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma';
+import prisma from '../lib/prisma';
 import { AuthRequest } from '../types';
 
 const createGoalSchema = z.object({
@@ -21,7 +21,7 @@ const updateGoalSchema = z.object({
 
 export const getGoals = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const status = req.query.status as string | undefined;
 
     const goals = await prisma.goal.findMany({
@@ -44,7 +44,7 @@ export const getGoals = async (req: AuthRequest, res: Response) => {
 
 export const getGoal = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     const goal = await prisma.goal.findFirst({
@@ -67,7 +67,7 @@ export const getGoal = async (req: AuthRequest, res: Response) => {
 
 export const createGoal = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const data = createGoalSchema.parse(req.body);
 
     const goal = await prisma.goal.create({
@@ -94,7 +94,7 @@ export const createGoal = async (req: AuthRequest, res: Response) => {
 
 export const updateGoal = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const { id } = req.params;
     const data = updateGoalSchema.parse(req.body);
 
@@ -131,7 +131,7 @@ export const updateGoal = async (req: AuthRequest, res: Response) => {
 
 export const deleteGoal = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     const goal = await prisma.goal.findFirst({
@@ -155,7 +155,7 @@ export const deleteGoal = async (req: AuthRequest, res: Response) => {
 
 export const updateGoalProgress = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const { id } = req.params;
 
     // Recalculate goal progress from earnings

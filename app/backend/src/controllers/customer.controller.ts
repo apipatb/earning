@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
@@ -219,12 +220,14 @@ export const getCustomerDetails = async (req: AuthRequest, res: Response) => {
 export const getTopCustomers = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { limit = '10' } = req.query;
+    const { limit } = req.query;
+
+    const parsedLimit = parseLimitParam(limit as string | undefined, 10);
 
     const topCustomers = await prisma.customer.findMany({
       where: { userId },
       orderBy: { totalPurchases: 'desc' },
-      take: parseInt(limit as string),
+      take: parsedLimit,
       select: {
         id: true,
         name: true,

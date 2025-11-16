@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
 
 const saleSchema = z.object({
   productId: z.string().uuid('Invalid product ID'),
@@ -17,17 +18,22 @@ const saleSchema = z.object({
 export const getAllSales = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { startDate, endDate, productId, status, limit = '50', offset = '0' } = req.query;
+    const { startDate, endDate, productId, status, limit, offset } = req.query;
+
+    const parsedLimit = parseLimitParam(limit as string | undefined, 50);
+    const parsedOffset = parseOffsetParam(offset as string | undefined);
 
     const where: any = { userId };
 
     if (startDate && endDate) {
-      const start = new Date(startDate as string);
-      const end = new Date(endDate as string);
-      where.saleDate = {
-        gte: start,
-        lte: end,
-      };
+      const start = parseDateParam(startDate as string);
+      const end = parseDateParam(endDate as string);
+      if (start && end) {
+        where.saleDate = {
+          gte: start,
+          lte: end,
+        };
+      }
     }
 
     if (productId) {
@@ -35,7 +41,12 @@ export const getAllSales = async (req: AuthRequest, res: Response) => {
     }
 
     if (status) {
-      where.status = status;
+      const validStatus = parseEnumParam(
+        status as string,
+        ['completed', 'pending', 'cancelled'] as const,
+        'completed'
+      );
+      where.status = validStatus;
     }
 
     const sales = await prisma.sale.findMany({
@@ -51,8 +62,8 @@ export const getAllSales = async (req: AuthRequest, res: Response) => {
         },
       },
       orderBy: { saleDate: 'desc' },
-      take: parseInt(limit as string),
-      skip: parseInt(offset as string),
+      take: parsedLimit,
+      skip: parsedOffset,
     });
 
     const total = await prisma.sale.count({ where });
@@ -72,7 +83,7 @@ export const getAllSales = async (req: AuthRequest, res: Response) => {
       updatedAt: sale.updatedAt,
     }));
 
-    res.json({ sales: formattedSales, total, limit: parseInt(limit as string), offset: parseInt(offset as string) });
+    res.json({ sales: formattedSales, total, limit: parsedLimit, offset: parsedOffset });
   } catch (error) {
     console.error('Get sales error:', error);
     res.status(500).json({

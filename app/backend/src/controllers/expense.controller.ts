@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
 
 const expenseSchema = z.object({
   category: z.string().min(1).max(100),
@@ -17,17 +18,19 @@ const expenseSchema = z.object({
 export const getAllExpenses = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { startDate, endDate, category, isTaxDeductible, limit = '50', offset = '0' } = req.query;
+    const { startDate, endDate, category, isTaxDeductible, limit, offset } = req.query;
 
     const where: any = { userId };
 
     if (startDate && endDate) {
-      const start = new Date(startDate as string);
-      const end = new Date(endDate as string);
-      where.expenseDate = {
-        gte: start,
-        lte: end,
-      };
+      const start = parseDateParam(startDate as string);
+      const end = parseDateParam(endDate as string);
+      if (start && end) {
+        where.expenseDate = {
+          gte: start,
+          lte: end,
+        };
+      }
     }
 
     if (category) {
@@ -38,11 +41,14 @@ export const getAllExpenses = async (req: AuthRequest, res: Response) => {
       where.isTaxDeductible = isTaxDeductible === 'true';
     }
 
+    const parsedLimit = parseLimitParam(limit as string | undefined, 50);
+    const parsedOffset = parseOffsetParam(offset as string | undefined);
+
     const expenses = await prisma.expense.findMany({
       where,
       orderBy: { expenseDate: 'desc' },
-      take: parseInt(limit as string),
-      skip: parseInt(offset as string),
+      take: parsedLimit,
+      skip: parsedOffset,
     });
 
     const total = await prisma.expense.count({ where });
@@ -60,7 +66,7 @@ export const getAllExpenses = async (req: AuthRequest, res: Response) => {
       createdAt: e.createdAt,
     }));
 
-    res.json({ expenses: formatted, total, limit: parseInt(limit as string), offset: parseInt(offset as string) });
+    res.json({ expenses: formatted, total, limit: parsedLimit, offset: parsedOffset });
   } catch (error) {
     console.error('Get expenses error:', error);
     res.status(500).json({

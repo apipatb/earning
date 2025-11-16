@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma';
+import prisma from '../lib/prisma';
 import { AuthRequest } from '../types';
 import { hashPassword, comparePassword } from '../utils/password';
 
@@ -17,7 +17,7 @@ const changePasswordSchema = z.object({
 
 export const getProfile = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -45,7 +45,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
 
 export const updateProfile = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const data = updateProfileSchema.parse(req.body);
 
     const user = await prisma.user.update({
@@ -78,7 +78,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
 
 export const changePassword = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const data = changePasswordSchema.parse(req.body);
 
     // Get current user
@@ -117,7 +117,7 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
 
 export const deleteAccount = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
 
     // Delete user (cascade will delete all related data)
     await prisma.user.delete({

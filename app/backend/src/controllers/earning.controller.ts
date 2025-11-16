@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { parseLimitParam, parseOffsetParam, parseDateParam } from '../utils/validation';
 
 const earningSchema = z.object({
   platformId: z.string().uuid(),
@@ -14,15 +15,23 @@ const earningSchema = z.object({
 export const getAllEarnings = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { start_date, end_date, platform_id, limit = '100', offset = '0' } = req.query;
+    const { start_date, end_date, platform_id, limit, offset } = req.query;
+
+    const parsedLimit = parseLimitParam(limit as string | undefined);
+    const parsedOffset = parseOffsetParam(offset as string | undefined);
 
     const where: any = { userId };
 
     if (start_date && end_date) {
-      where.date = {
-        gte: new Date(start_date as string),
-        lte: new Date(end_date as string),
-      };
+      const startDate = parseDateParam(start_date as string);
+      const endDate = parseDateParam(end_date as string);
+
+      if (startDate && endDate) {
+        where.date = {
+          gte: startDate,
+          lte: endDate,
+        };
+      }
     }
 
     if (platform_id) {
@@ -42,8 +51,8 @@ export const getAllEarnings = async (req: AuthRequest, res: Response) => {
           },
         },
         orderBy: { date: 'desc' },
-        take: parseInt(limit as string),
-        skip: parseInt(offset as string),
+        take: parsedLimit,
+        skip: parsedOffset,
       }),
       prisma.earning.count({ where }),
     ]);
@@ -61,7 +70,7 @@ export const getAllEarnings = async (req: AuthRequest, res: Response) => {
     res.json({
       earnings: earningsWithRate,
       total,
-      has_more: total > parseInt(offset as string) + parseInt(limit as string),
+      has_more: total > parsedOffset + parsedLimit,
     });
   } catch (error) {
     console.error('Get earnings error:', error);
