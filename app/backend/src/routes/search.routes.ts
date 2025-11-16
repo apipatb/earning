@@ -35,7 +35,7 @@ router.get('/analytics', getSearchAnalytics);
 // Health check
 router.get('/health', healthCheck);
 
-// Admin operations (TODO: Add admin role check)
+// Admin operations (role check implemented in controller)
 router.post('/reindex', reindexAll);
 
 export default router;

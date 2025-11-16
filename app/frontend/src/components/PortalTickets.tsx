@@ -40,47 +40,32 @@ export default function PortalTickets() {
   const loadTickets = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const response = await fetch(`/api/v1/customer/tickets?customerId=${customerId}&status=${filterStatus !== 'ALL' ? filterStatus : ''}`);
+      const token = localStorage.getItem('token');
 
-      // Mock data
-      setTickets([
-        {
-          id: '1',
-          subject: 'Issue with recent order',
-          description: 'I received the wrong item in my last order.',
-          status: 'OPEN',
-          priority: 'HIGH',
-          category: 'Orders',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          resolvedAt: null,
+      const params = new URLSearchParams({
+        customerId,
+      });
+
+      if (filterStatus !== 'ALL') {
+        params.append('status', filterStatus);
+      }
+
+      const response = await fetch(`/api/v1/customer/tickets?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-        {
-          id: '2',
-          subject: 'Question about pricing',
-          description: 'Can you provide more information about bulk pricing?',
-          status: 'IN_PROGRESS',
-          priority: 'MEDIUM',
-          category: 'Billing',
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          updatedAt: new Date(Date.now() - 86400000).toISOString(),
-          resolvedAt: null,
-        },
-        {
-          id: '3',
-          subject: 'Account access issue',
-          description: 'I am unable to access some features of my account.',
-          status: 'RESOLVED',
-          priority: 'MEDIUM',
-          category: 'Technical',
-          createdAt: new Date(Date.now() - 172800000).toISOString(),
-          updatedAt: new Date(Date.now() - 86400000).toISOString(),
-          resolvedAt: new Date(Date.now() - 43200000).toISOString(),
-        },
-      ]);
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch tickets');
+      }
+
+      const data = await response.json();
+      setTickets(data.data || data);
     } catch (error) {
+      console.error('Error loading tickets:', error);
       notify.error('Error', 'Failed to load tickets');
+      setTickets([]);
     } finally {
       setLoading(false);
     }
@@ -95,17 +80,29 @@ export default function PortalTickets() {
     }
 
     try {
-      // TODO: Replace with actual API call
-      // await fetch('/api/v1/customer/tickets', {
-      //   method: 'POST',
-      //   body: JSON.stringify({ ...formData, customerId }),
-      // });
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/v1/customer/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...formData,
+          customerId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create ticket');
+      }
 
       notify.success('Success', 'Ticket created successfully');
       setShowCreateForm(false);
       setFormData({ subject: '', description: '', priority: 'MEDIUM', category: '' });
       loadTickets();
     } catch (error) {
+      console.error('Error creating ticket:', error);
       notify.error('Error', 'Failed to create ticket');
     }
   };

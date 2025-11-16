@@ -28,50 +28,26 @@ export default function PortalDocuments() {
   const loadDocuments = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const response = await fetch(`/api/v1/customer/documents?customerId=${customerId}`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `/api/v1/customer/documents?customerId=${customerId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-      // Mock data
-      setDocuments([
-        {
-          id: '1',
-          fileName: 'Service Agreement.pdf',
-          fileSize: 245678,
-          mimeType: 'application/pdf',
-          url: '#',
-          thumbnailUrl: null,
-          uploadedAt: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          fileName: 'Product Specifications.docx',
-          fileSize: 89234,
-          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          url: '#',
-          thumbnailUrl: null,
-          uploadedAt: new Date(Date.now() - 86400000).toISOString(),
-        },
-        {
-          id: '3',
-          fileName: 'Invoice_2024_001.pdf',
-          fileSize: 123456,
-          mimeType: 'application/pdf',
-          url: '#',
-          thumbnailUrl: null,
-          uploadedAt: new Date(Date.now() - 172800000).toISOString(),
-        },
-        {
-          id: '4',
-          fileName: 'Product Image.jpg',
-          fileSize: 567890,
-          mimeType: 'image/jpeg',
-          url: '#',
-          thumbnailUrl: '#',
-          uploadedAt: new Date(Date.now() - 259200000).toISOString(),
-        },
-      ]);
+      if (!response.ok) {
+        throw new Error('Failed to fetch documents');
+      }
+
+      const data = await response.json();
+      setDocuments(data.data || data);
     } catch (error) {
+      console.error('Error loading documents:', error);
       notify.error('Error', 'Failed to load documents');
+      setDocuments([]);
     } finally {
       setLoading(false);
     }
@@ -79,9 +55,31 @@ export default function PortalDocuments() {
 
   const handleDownload = async (documentId: string, fileName: string) => {
     try {
-      // TODO: Implement actual download
-      notify.success('Success', `Downloading ${fileName}`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `/api/v1/customer/documents/${documentId}?customerId=${customerId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch document');
+      }
+
+      const documentData = await response.json();
+
+      // If the document has a URL, open it in a new tab
+      if (documentData.url) {
+        window.open(documentData.url, '_blank');
+        notify.success('Success', `Opening ${fileName}`);
+      } else {
+        notify.info('Info', 'Document URL not available');
+      }
     } catch (error) {
+      console.error('Error downloading document:', error);
       notify.error('Error', 'Failed to download document');
     }
   };

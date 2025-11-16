@@ -1,6 +1,7 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { logger } from '../utils/logger';
 import PushNotificationService from '../services/push.service';
+import { verifyToken } from '../utils/jwt';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -21,35 +22,38 @@ export function initializeNotificationHandlers(io: SocketIOServer): void {
       const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace('Bearer ', '');
 
       if (!token) {
+        logger.warn('WebSocket connection attempt without token', {
+          socketId: socket.id,
+        });
         return next(new Error('Authentication token required'));
       }
 
-      // TODO: Verify JWT token and extract user information
-      // For now, we'll assume the token contains user info
-      // In production, verify the token with your auth service
+      // Verify JWT token and extract user information
+      const decoded = verifyToken(token);
 
-      // Example: Decode JWT and extract user info
-      // const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-      // socket.userId = decoded.userId;
-      // socket.userEmail = decoded.email;
-
-      // For demonstration, extracting from auth payload
-      const userId = socket.handshake.auth?.userId;
-      if (!userId) {
-        return next(new Error('User ID not found'));
+      if (!decoded) {
+        logger.warn('WebSocket connection with invalid token', {
+          socketId: socket.id,
+        });
+        return next(new Error('Invalid or expired authentication token'));
       }
 
-      socket.userId = userId;
-      socket.userEmail = socket.handshake.auth?.email || '';
+      // Extract user information from verified token
+      socket.userId = decoded.id;
+      socket.userEmail = decoded.email;
 
       logger.info('User authenticated on notification WebSocket', {
         userId: socket.userId,
+        userEmail: socket.userEmail,
         socketId: socket.id,
       });
 
       next();
     } catch (error) {
-      logger.error('WebSocket authentication error', { error });
+      logger.error('WebSocket authentication error', {
+        error: error instanceof Error ? error.message : String(error),
+        socketId: socket.id,
+      });
       next(new Error('Authentication failed'));
     }
   });

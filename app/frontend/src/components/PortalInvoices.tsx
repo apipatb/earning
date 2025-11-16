@@ -41,56 +41,23 @@ export default function PortalInvoices() {
   const loadInvoices = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const response = await fetch(`/api/v1/customer/invoices?customerId=${customerId}`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/v1/customer/invoices?customerId=${customerId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      // Mock data
-      setInvoices([
-        {
-          id: '1',
-          invoiceNumber: 'INV-2024-001',
-          subtotal: 1500.00,
-          taxAmount: 150.00,
-          discountAmount: 0,
-          totalAmount: 1650.00,
-          invoiceDate: new Date().toISOString(),
-          dueDate: new Date(Date.now() + 2592000000).toISOString(),
-          paidDate: null,
-          status: 'SENT',
-          lineItems: [
-            {
-              id: '1',
-              description: 'Premium Service Package',
-              quantity: 1,
-              unitPrice: 1500.00,
-              totalPrice: 1500.00,
-            },
-          ],
-        },
-        {
-          id: '2',
-          invoiceNumber: 'INV-2024-002',
-          subtotal: 750.00,
-          taxAmount: 75.00,
-          discountAmount: 50.00,
-          totalAmount: 775.00,
-          invoiceDate: new Date(Date.now() - 2592000000).toISOString(),
-          dueDate: new Date(Date.now() - 1296000000).toISOString(),
-          paidDate: new Date(Date.now() - 1296000000).toISOString(),
-          status: 'PAID',
-          lineItems: [
-            {
-              id: '2',
-              description: 'Consulting Services',
-              quantity: 5,
-              unitPrice: 150.00,
-              totalPrice: 750.00,
-            },
-          ],
-        },
-      ]);
+      if (!response.ok) {
+        throw new Error('Failed to fetch invoices');
+      }
+
+      const data = await response.json();
+      setInvoices(data.data || data);
     } catch (error) {
+      console.error('Error loading invoices:', error);
       notify.error('Error', 'Failed to load invoices');
+      setInvoices([]);
     } finally {
       setLoading(false);
     }
@@ -119,9 +86,49 @@ export default function PortalInvoices() {
 
   const handleDownloadInvoice = async (invoiceId: string) => {
     try {
-      // TODO: Implement actual download
-      notify.success('Success', 'Invoice download started');
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `/api/v1/customer/invoices/${invoiceId}?customerId=${customerId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch invoice');
+      }
+
+      const invoiceData = await response.json();
+
+      // Create a simple text representation for download
+      // In production, this would be a PDF from the backend
+      const invoiceText = `
+Invoice: ${invoiceData.invoiceNumber}
+Date: ${new Date(invoiceData.invoiceDate).toLocaleDateString()}
+Due Date: ${new Date(invoiceData.dueDate).toLocaleDateString()}
+Status: ${invoiceData.status}
+
+Subtotal: $${invoiceData.subtotal.toFixed(2)}
+Tax: $${invoiceData.taxAmount.toFixed(2)}
+Discount: $${invoiceData.discountAmount.toFixed(2)}
+Total: $${invoiceData.totalAmount.toFixed(2)}
+      `.trim();
+
+      const blob = new Blob([invoiceText], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${invoiceData.invoiceNumber}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      notify.success('Success', 'Invoice downloaded');
     } catch (error) {
+      console.error('Error downloading invoice:', error);
       notify.error('Error', 'Failed to download invoice');
     }
   };

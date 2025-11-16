@@ -3,6 +3,9 @@
  * Matches backend logger interface for consistency
  */
 
+import * as Sentry from '@sentry/react';
+import { captureException, captureMessage } from './sentry';
+
 const LOG_LEVELS = {
   DEBUG: 'debug',
   INFO: 'info',
@@ -61,8 +64,84 @@ class Logger {
   }
 
   private sendToMonitoring(entry: LogEntry) {
-    // TODO: Implement monitoring service integration
-    // Example: Sentry.captureMessage(entry.message, entry.level);
+    // Only send to monitoring if Sentry is configured (DSN present)
+    const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
+    const monitoringEnabled = import.meta.env.VITE_ENABLE_MONITORING === 'true';
+
+    if (!sentryDsn || !monitoringEnabled) {
+      // Fall back to console logging if monitoring is not configured
+      console.log(`[${entry.timestamp}] [${entry.level.toUpperCase()}] ${entry.message}`);
+      if (entry.context) console.log('Context:', entry.context);
+      if (entry.error) console.error('Error:', entry.error);
+      return;
+    }
+
+    try {
+      // Map log levels to Sentry severity levels
+      const sentryLevel = this.mapToSentryLevel(entry.level);
+
+      // Set context if available
+      if (entry.context) {
+        Sentry.setContext('log_context', entry.context);
+      }
+
+      // Handle errors differently from regular messages
+      if (entry.error) {
+        // For errors, capture the full exception with context
+        Sentry.withScope((scope) => {
+          scope.setLevel(sentryLevel);
+          scope.setContext('error_details', {
+            message: entry.message,
+            timestamp: entry.timestamp,
+            ...entry.context,
+          });
+
+          // Reconstruct error object if needed
+          const error = entry.error instanceof Error
+            ? entry.error
+            : new Error(entry.error?.message || entry.message);
+
+          captureException(error, entry.context);
+        });
+      } else {
+        // For non-error messages, capture as message
+        Sentry.withScope((scope) => {
+          scope.setLevel(sentryLevel);
+          if (entry.context) {
+            scope.setContext('message_context', entry.context);
+          }
+          captureMessage(entry.message, sentryLevel);
+        });
+      }
+
+      // Add breadcrumb for tracking the log event
+      Sentry.addBreadcrumb({
+        category: 'log',
+        message: entry.message,
+        level: sentryLevel,
+        data: entry.context,
+        timestamp: new Date(entry.timestamp).getTime() / 1000,
+      });
+    } catch (error) {
+      // If monitoring fails, fall back to console logging
+      console.error('Failed to send log to monitoring service:', error);
+      console.log(`[${entry.timestamp}] [${entry.level.toUpperCase()}] ${entry.message}`);
+      if (entry.context) console.log('Context:', entry.context);
+      if (entry.error) console.error('Error:', entry.error);
+    }
+  }
+
+  /**
+   * Map internal log levels to Sentry severity levels
+   */
+  private mapToSentryLevel(level: LogLevel): Sentry.SeverityLevel {
+    const levelMap: Record<LogLevel, Sentry.SeverityLevel> = {
+      debug: 'debug',
+      info: 'info',
+      warn: 'warning',
+      error: 'error',
+    };
+    return levelMap[level];
   }
 
   debug(message: string, context?: Record<string, any>) {

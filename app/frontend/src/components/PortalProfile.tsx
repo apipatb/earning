@@ -45,38 +45,33 @@ export default function PortalProfile() {
   const loadProfileData = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API calls
-      // const profileResponse = await fetch(`/api/v1/customer/profile?customerId=${customerId}`);
-      // const statsResponse = await fetch(`/api/v1/customer/stats?customerId=${customerId}`);
+      const token = localStorage.getItem('token');
 
-      // Mock data for demonstration
-      setProfile({
-        customer: {
-          id: customerId,
-          name: 'John Doe',
-          email: 'john.doe@example.com',
-          phone: '+1 (555) 123-4567',
-          company: 'Acme Corporation',
-          totalPurchases: 15750.00,
-          purchaseCount: 24,
-          lastPurchase: new Date().toISOString(),
-        },
-        profile: {
-          preferences: {},
-          subscribedTo: ['invoices', 'tickets'],
-        },
-      });
+      // Fetch profile and stats in parallel
+      const [profileResponse, statsResponse] = await Promise.all([
+        fetch(`/api/v1/customer/profile?customerId=${customerId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        fetch(`/api/v1/customer/stats?customerId=${customerId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      ]);
 
-      setStats({
-        totalPurchases: 15750.00,
-        purchaseCount: 24,
-        lastPurchase: new Date().toISOString(),
-        ticketCount: 12,
-        openTickets: 2,
-        invoiceCount: 18,
-        unpaidInvoices: 1,
-      });
+      if (!profileResponse.ok || !statsResponse.ok) {
+        throw new Error('Failed to fetch profile data');
+      }
+
+      const profileData = await profileResponse.json();
+      const statsData = await statsResponse.json();
+
+      setProfile(profileData);
+      setStats(statsData);
     } catch (error) {
+      console.error('Error loading profile data:', error);
       notify.error('Error', 'Failed to load profile data');
     } finally {
       setLoading(false);

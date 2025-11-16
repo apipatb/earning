@@ -6,7 +6,7 @@ import path from 'path';
 import archiver from 'archiver';
 import crypto from 'crypto';
 import { createWriteStream, createReadStream } from 'fs';
-import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 const execAsync = promisify(exec);
 const prisma = new PrismaClient();
@@ -343,6 +343,42 @@ export class BackupService {
   }
 
   /**
+   * Delete backup from S3
+   */
+  private static async deleteFromS3(s3Location: string): Promise<void> {
+    if (!BackupService.s3Client || !BackupService.S3_BUCKET) {
+      throw new Error('S3 is not configured');
+    }
+
+    try {
+      // Parse S3 URL (format: s3://bucket-name/key)
+      const s3UrlMatch = s3Location.match(/^s3:\/\/([^/]+)\/(.+)$/);
+
+      if (!s3UrlMatch) {
+        throw new Error(`Invalid S3 URL format: ${s3Location}`);
+      }
+
+      const [, bucket, key] = s3UrlMatch;
+
+      // Verify bucket matches configured bucket
+      if (bucket !== BackupService.S3_BUCKET) {
+        throw new Error(`Bucket mismatch: expected ${BackupService.S3_BUCKET}, got ${bucket}`);
+      }
+
+      // Delete object from S3
+      await BackupService.s3Client.send(new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      }));
+
+      console.log(`Backup deleted from S3: ${s3Location}`);
+    } catch (error) {
+      console.error('S3 deletion failed:', error);
+      throw new Error(`Failed to delete backup from S3: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Count files in archive
    */
   private static async countFiles(archivePath: string): Promise<number> {
@@ -405,7 +441,7 @@ export class BackupService {
 
           // Delete from S3 if applicable
           if (backup.location.startsWith('s3://')) {
-            // TODO: Implement S3 deletion
+            await this.deleteFromS3(backup.location);
           } else {
             // Delete local file
             await fs.unlink(backup.location).catch(() => {});

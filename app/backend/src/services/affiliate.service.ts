@@ -700,18 +700,82 @@ export class AffiliateService {
   }
 
   /**
-   * Encrypt bank details (placeholder - implement with proper encryption)
+   * Encrypt bank details using AES-256-GCM
    */
   private static encryptBankDetails(bankDetails: string): string {
-    // TODO: Implement proper encryption using crypto library
-    return Buffer.from(bankDetails).toString('base64');
+    try {
+      const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+
+      if (!ENCRYPTION_KEY) {
+        throw new Error('ENCRYPTION_KEY environment variable is required for encrypting sensitive data');
+      }
+
+      // Ensure the key is 32 bytes for AES-256
+      const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+
+      // Generate a random initialization vector (IV)
+      const iv = crypto.randomBytes(16);
+
+      // Create cipher using AES-256-GCM
+      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+
+      // Encrypt the data
+      let encrypted = cipher.update(bankDetails, 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+
+      // Get the authentication tag
+      const authTag = cipher.getAuthTag();
+
+      // Combine IV, auth tag, and encrypted data (all in hex format)
+      // Format: iv:authTag:encryptedData
+      const result = `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+
+      return result;
+    } catch (error) {
+      logger.error('Error encrypting bank details:', error instanceof Error ? error : new Error(String(error)));
+      throw new Error('Failed to encrypt sensitive data');
+    }
   }
 
   /**
-   * Decrypt bank details (placeholder - implement with proper decryption)
+   * Decrypt bank details using AES-256-GCM
    */
   private static decryptBankDetails(encryptedDetails: string): string {
-    // TODO: Implement proper decryption using crypto library
-    return Buffer.from(encryptedDetails, 'base64').toString('utf-8');
+    try {
+      const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+
+      if (!ENCRYPTION_KEY) {
+        throw new Error('ENCRYPTION_KEY environment variable is required for decrypting sensitive data');
+      }
+
+      // Ensure the key is 32 bytes for AES-256
+      const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+
+      // Split the encrypted data into its components
+      const parts = encryptedDetails.split(':');
+
+      if (parts.length !== 3) {
+        throw new Error('Invalid encrypted data format');
+      }
+
+      const iv = Buffer.from(parts[0], 'hex');
+      const authTag = Buffer.from(parts[1], 'hex');
+      const encryptedData = parts[2];
+
+      // Create decipher using AES-256-GCM
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+
+      // Set the authentication tag
+      decipher.setAuthTag(authTag);
+
+      // Decrypt the data
+      let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+
+      return decrypted;
+    } catch (error) {
+      logger.error('Error decrypting bank details:', error instanceof Error ? error : new Error(String(error)));
+      throw new Error('Failed to decrypt sensitive data');
+    }
   }
 }
