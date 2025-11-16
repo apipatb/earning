@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
+import { logInfo, logDebug, logError, logWarn } from '../lib/logger';
 
 const earningSchema = z.object({
   platformId: z.string().uuid(),
@@ -12,9 +13,17 @@ const earningSchema = z.object({
 });
 
 export const getAllEarnings = async (req: AuthRequest, res: Response) => {
+  const userId = req.user!.id;
+  const requestId = (req as any).requestId || 'unknown';
+
   try {
-    const userId = req.user!.id;
     const { start_date, end_date, platform_id, limit = '100', offset = '0' } = req.query;
+
+    logDebug('Fetching earnings', {
+      requestId,
+      userId,
+      filters: { start_date, end_date, platform_id, limit, offset },
+    });
 
     const where: any = { userId };
 
@@ -58,13 +67,23 @@ export const getAllEarnings = async (req: AuthRequest, res: Response) => {
       notes: e.notes,
     }));
 
+    logInfo('Earnings fetched successfully', {
+      requestId,
+      userId,
+      count: earnings.length,
+      total,
+    });
+
     res.json({
       earnings: earningsWithRate,
       total,
       has_more: total > parseInt(offset as string) + parseInt(limit as string),
     });
   } catch (error) {
-    console.error('Get earnings error:', error);
+    logError('Failed to fetch earnings', error, {
+      requestId,
+      userId,
+    });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch earnings',
@@ -73,9 +92,18 @@ export const getAllEarnings = async (req: AuthRequest, res: Response) => {
 };
 
 export const createEarning = async (req: AuthRequest, res: Response) => {
+  const userId = req.user!.id;
+  const requestId = (req as any).requestId || 'unknown';
+
   try {
-    const userId = req.user!.id;
     const data = earningSchema.parse(req.body);
+    logDebug('Creating earning', {
+      requestId,
+      userId,
+      platformId: data.platformId,
+      amount: data.amount,
+      date: data.date,
+    });
 
     // Verify platform ownership
     const platform = await prisma.platform.findFirst({
@@ -83,6 +111,11 @@ export const createEarning = async (req: AuthRequest, res: Response) => {
     });
 
     if (!platform) {
+      logWarn('Platform not found for earning creation', {
+        requestId,
+        userId,
+        platformId: data.platformId,
+      });
       return res.status(404).json({
         error: 'Not Found',
         message: 'Platform not found',
@@ -109,15 +142,32 @@ export const createEarning = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    logInfo('Earning created successfully', {
+      requestId,
+      userId,
+      earningId: earning.id,
+      amount: earning.amount,
+      platformId: earning.platformId,
+    });
+
     res.status(201).json({ earning });
   } catch (error) {
     if (error instanceof z.ZodError) {
+      logWarn('Validation error during earning creation', {
+        requestId,
+        userId,
+        errors: error.errors,
+      });
       return res.status(400).json({
         error: 'Validation Error',
         message: error.errors[0].message,
       });
     }
-    console.error('Create earning error:', error);
+    logError('Failed to create earning', error, {
+      requestId,
+      userId,
+      platformId: req.body?.platformId,
+    });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create earning',
@@ -126,10 +176,18 @@ export const createEarning = async (req: AuthRequest, res: Response) => {
 };
 
 export const updateEarning = async (req: AuthRequest, res: Response) => {
+  const userId = req.user!.id;
+  const earningId = req.params.id;
+  const requestId = (req as any).requestId || 'unknown';
+
   try {
-    const userId = req.user!.id;
-    const earningId = req.params.id;
     const data = earningSchema.partial().parse(req.body);
+    logDebug('Updating earning', {
+      requestId,
+      userId,
+      earningId,
+      updates: data,
+    });
 
     // Check ownership
     const earning = await prisma.earning.findFirst({
@@ -137,6 +195,11 @@ export const updateEarning = async (req: AuthRequest, res: Response) => {
     });
 
     if (!earning) {
+      logWarn('Earning not found for update', {
+        requestId,
+        userId,
+        earningId,
+      });
       return res.status(404).json({
         error: 'Not Found',
         message: 'Earning not found',
@@ -163,9 +226,20 @@ export const updateEarning = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    logInfo('Earning updated successfully', {
+      requestId,
+      userId,
+      earningId,
+      updatedFields: Object.keys(updateData),
+    });
+
     res.json({ earning: updated });
   } catch (error) {
-    console.error('Update earning error:', error);
+    logError('Failed to update earning', error, {
+      requestId,
+      userId,
+      earningId,
+    });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update earning',
@@ -174,9 +248,16 @@ export const updateEarning = async (req: AuthRequest, res: Response) => {
 };
 
 export const deleteEarning = async (req: AuthRequest, res: Response) => {
+  const userId = req.user!.id;
+  const earningId = req.params.id;
+  const requestId = (req as any).requestId || 'unknown';
+
   try {
-    const userId = req.user!.id;
-    const earningId = req.params.id;
+    logDebug('Deleting earning', {
+      requestId,
+      userId,
+      earningId,
+    });
 
     // Check ownership
     const earning = await prisma.earning.findFirst({
@@ -184,6 +265,11 @@ export const deleteEarning = async (req: AuthRequest, res: Response) => {
     });
 
     if (!earning) {
+      logWarn('Earning not found for deletion', {
+        requestId,
+        userId,
+        earningId,
+      });
       return res.status(404).json({
         error: 'Not Found',
         message: 'Earning not found',
@@ -194,9 +280,20 @@ export const deleteEarning = async (req: AuthRequest, res: Response) => {
       where: { id: earningId },
     });
 
+    logInfo('Earning deleted successfully', {
+      requestId,
+      userId,
+      earningId,
+      deletedAmount: earning.amount,
+    });
+
     res.json({ message: 'Earning deleted successfully' });
   } catch (error) {
-    console.error('Delete earning error:', error);
+    logError('Failed to delete earning', error, {
+      requestId,
+      userId,
+      earningId,
+    });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete earning',

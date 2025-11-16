@@ -1,0 +1,131 @@
+name: Build
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install root dependencies
+        run: npm ci
+        working-directory: /home/user/earning
+        continue-on-error: true
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: app/backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: app/frontend
+
+      - name: Build backend
+        run: |
+          echo "Building backend..."
+          npm run build
+          if [ $? -eq 0 ]; then
+            echo "✓ Backend build successful"
+            ls -la dist/ | head -10 || echo "dist directory not found"
+          else
+            echo "❌ Backend build failed"
+            exit 1
+          fi
+        working-directory: app/backend
+        continue-on-error: false
+
+      - name: Verify backend build output
+        run: |
+          if [ -d "dist" ]; then
+            echo "Build output directory found"
+            echo "Files generated:"
+            find dist -type f | head -10
+          else
+            echo "⚠ Warning: dist directory not found after build"
+          fi
+        working-directory: app/backend
+        continue-on-error: true
+
+      - name: Build frontend
+        run: |
+          echo "Building frontend..."
+          npm run build
+          if [ $? -eq 0 ]; then
+            echo "✓ Frontend build successful"
+            ls -la dist/ | head -10
+          else
+            echo "❌ Frontend build failed"
+            exit 1
+          fi
+        working-directory: app/frontend
+        continue-on-error: false
+
+      - name: Verify frontend build output
+        run: |
+          if [ -d "dist" ]; then
+            echo "Frontend build output directory found"
+            echo "Build size:"
+            du -sh dist/
+            echo "Files generated:"
+            find dist -type f | wc -l
+            echo "Total files"
+          else
+            echo "❌ Error: dist directory not found after frontend build"
+            exit 1
+          fi
+        working-directory: app/frontend
+        continue-on-error: false
+
+      - name: Upload frontend build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: app/frontend/dist/
+          retention-days: 5
+        if: always()
+
+      - name: Upload backend build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-build-${{ github.sha }}
+          path: app/backend/dist/
+          retention-days: 5
+        if: always()
+
+      - name: Build Status Report
+        if: always()
+        run: |
+          echo "## Build Status"
+          echo ""
+          echo "### Backend"
+          if [ -d "app/backend/dist" ]; then
+            echo "✓ Build successful"
+            echo "- Output: app/backend/dist"
+            echo "- Files: $(find app/backend/dist -type f | wc -l)"
+          else
+            echo "✗ Build failed"
+          fi
+          echo ""
+          echo "### Frontend"
+          if [ -d "app/frontend/dist" ]; then
+            echo "✓ Build successful"
+            echo "- Output: app/frontend/dist"
+            echo "- Size: $(du -sh app/frontend/dist/ | cut -f1)"
+            echo "- Files: $(find app/frontend/dist -type f | wc -l)"
+          else
+            echo "✗ Build failed"
+          fi

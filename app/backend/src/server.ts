@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
+import logger, { logInfo, logDebug, logError } from './lib/logger';
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +24,7 @@ import invoiceRoutes from './routes/invoice.routes';
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
 import { notFound } from './middleware/notFound.middleware';
+import loggingMiddleware from './middleware/logging.middleware';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -78,6 +80,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10kb' })); // Limit payload size
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(loggingMiddleware); // Request/Response logging
 app.use('/api/', limiter);
 
 // Health check
@@ -103,9 +106,48 @@ app.use('/api/v1/invoices', invoiceRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+const server = app.listen(PORT, () => {
+  logInfo('Server started successfully', {
+    port: PORT,
+    environment: NODE_ENV,
+    nodeVersion: process.version,
+  });
+});
+
+// Graceful shutdown
+const gracefulShutdown = (signal: string) => {
+  logInfo(`Graceful shutdown initiated by ${signal}`);
+
+  server.close(() => {
+    logInfo('Server closed');
+    process.exit(0);
+  });
+
+  // Force shutdown after 10 seconds
+  setTimeout(() => {
+    logError('Forced shutdown - graceful shutdown timeout');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logError('Uncaught exception', error, {
+    timestamp: new Date().toISOString(),
+  });
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logError('Unhandled rejection', reason as Error, {
+    promise: promise.toString(),
+    timestamp: new Date().toISOString(),
+  });
+  process.exit(1);
 });
 
 export default app;

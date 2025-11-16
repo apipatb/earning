@@ -1,11 +1,21 @@
 import { Response } from 'express';
 import { AuthRequest, AnalyticsSummary, PlatformBreakdown, DailyBreakdown } from '../types';
 import prisma from '../lib/prisma';
+import { logInfo, logDebug, logError } from '../lib/logger';
 
 export const getSummary = async (req: AuthRequest, res: Response) => {
+  const userId = req.user!.id;
+  const requestId = (req as any).requestId || 'unknown';
+
   try {
-    const userId = req.user!.id;
     const { period = 'month', start_date, end_date } = req.query;
+
+    logDebug('Fetching analytics summary', {
+      requestId,
+      userId,
+      period,
+      customDateRange: start_date && end_date ? true : false,
+    });
 
     // Calculate date range
     let startDate: Date;
@@ -116,9 +126,24 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
       daily_breakdown: dailyBreakdown,
     };
 
+    logInfo('Analytics summary generated successfully', {
+      requestId,
+      userId,
+      period,
+      totalEarnings,
+      totalHours,
+      platformCount: byPlatform.length,
+      dateRangeStart: startDate.toISOString().split('T')[0],
+      dateRangeEnd: endDate.toISOString().split('T')[0],
+    });
+
     res.json(summary);
   } catch (error) {
-    console.error('Get summary error:', error);
+    logError('Failed to fetch analytics summary', error, {
+      requestId,
+      userId,
+      period: req.query.period,
+    });
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to fetch analytics',

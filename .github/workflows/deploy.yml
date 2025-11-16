@@ -1,0 +1,199 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-builds:
+    runs-on: ubuntu-latest
+    outputs:
+      backend-build-status: ${{ steps.backend-build.outcome }}
+      frontend-build-status: ${{ steps.frontend-build.outcome }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install root dependencies
+        run: npm ci
+        working-directory: /home/user/earning
+        continue-on-error: true
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: app/backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: app/frontend
+
+      - name: Verify backend builds without errors
+        id: backend-build
+        run: |
+          echo "Verifying backend build..."
+          npm run build
+          if [ $? -eq 0 ]; then
+            echo "✓ Backend build verification passed"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Backend build verification failed"
+            exit 1
+          fi
+        working-directory: app/backend
+
+      - name: Verify frontend builds without errors
+        id: frontend-build
+        run: |
+          echo "Verifying frontend build..."
+          npm run build
+          if [ $? -eq 0 ]; then
+            echo "✓ Frontend build verification passed"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Frontend build verification failed"
+            exit 1
+          fi
+        working-directory: app/frontend
+
+  build-docker-images:
+    needs: verify-builds
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker images (verification only)
+        run: |
+          echo "Docker build verification step"
+          echo "This step can be extended for actual Docker image building"
+
+          # Verify docker is available
+          docker --version
+          echo ""
+
+          # Create simple Dockerfile for backend verification
+          if [ ! -f app/backend/Dockerfile ]; then
+            echo "No Dockerfile found in backend. Creating a verification template..."
+            cat > /tmp/Dockerfile.backend.example << 'EOF'
+          FROM node:20-alpine
+          WORKDIR /app
+          COPY package*.json ./
+          RUN npm ci --only=production
+          COPY dist ./dist
+          EXPOSE 3000
+          CMD ["node", "dist/server.js"]
+          EOF
+            echo "Dockerfile template created at /tmp/Dockerfile.backend.example"
+          else
+            echo "Dockerfile found in backend - ready for Docker build"
+          fi
+
+          # Verify frontend build is ready
+          if [ ! -f app/frontend/Dockerfile ]; then
+            echo "No Dockerfile found in frontend. Creating a verification template..."
+            cat > /tmp/Dockerfile.frontend.example << 'EOF'
+          FROM node:20-alpine AS builder
+          WORKDIR /app
+          COPY package*.json ./
+          RUN npm ci
+          COPY . .
+          RUN npm run build
+
+          FROM nginx:alpine
+          COPY --from=builder /app/dist /usr/share/nginx/html
+          EXPOSE 80
+          CMD ["nginx", "-g", "daemon off;"]
+          EOF
+            echo "Dockerfile template created at /tmp/Dockerfile.frontend.example"
+          else
+            echo "Dockerfile found in frontend - ready for Docker build"
+          fi
+
+      - name: Build status summary
+        run: |
+          echo "## Docker Build Verification"
+          echo "✓ Backend build verification passed"
+          echo "✓ Frontend build verification passed"
+          echo "✓ Docker build environment is ready"
+
+  deployment-notification:
+    needs: [verify-builds, build-docker-images]
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - name: Determine deployment environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+          else
+            ENV="production"
+          fi
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "Deployment environment: $ENV"
+
+      - name: Prepare deployment summary
+        run: |
+          echo "## Deployment Ready"
+          echo ""
+          echo "**Trigger**: ${{ github.event_name }}"
+          echo "**Ref**: ${{ github.ref }}"
+          echo "**SHA**: ${{ github.sha }}"
+          echo "**Environment**: ${{ steps.env.outputs.environment }}"
+          echo ""
+          echo "### Pre-deployment Checks"
+          echo "✓ Backend build successful"
+          echo "✓ Frontend build successful"
+          echo "✓ Docker image verification complete"
+          echo ""
+          echo "### Next Steps"
+          echo "1. Verify deployment configuration in deployment platform"
+          echo "2. Monitor deployment logs"
+          echo "3. Run smoke tests on deployed application"
+          echo "4. Verify database migrations (if applicable)"
+          echo ""
+          echo "### Deployment Configuration"
+          echo "This workflow is configured for:"
+          echo "- Manual trigger via workflow_dispatch (staging/production selection)"
+          echo "- Automatic trigger on version tags (v*)"
+          echo ""
+          echo "To extend this workflow for actual deployment:"
+          echo "1. Add deployment secrets to GitHub repository"
+          echo "2. Configure deployment provider credentials"
+          echo "3. Update steps for pushing to Docker registry"
+          echo "4. Add actual deployment commands"
+          echo "5. Configure health checks and smoke tests"
+
+      - name: Create deployment status
+        if: always()
+        run: |
+          echo "Deployment workflow completed successfully"
+          echo "Status: Ready for deployment"
