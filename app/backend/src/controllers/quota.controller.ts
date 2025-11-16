@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../types';
 import { quotaService } from '../services/quota.service';
 import { QuotaTier, UsagePeriod } from '@prisma/client';
+import { rbacService } from '../services/rbac.service';
 
 /**
  * Quota Controller
@@ -230,8 +231,13 @@ export const upgradeQuotaTier = async (req: AuthRequest, res: Response) => {
 
     // Check if user has active subscription for paid tiers
     if (tier !== QuotaTier.FREE) {
-      // TODO: Verify subscription status
-      // For now, we'll allow the upgrade
+      // TODO: Verify subscription status with payment provider
+      // For now, admins can upgrade any tier, others need subscription verification
+      const isAdmin = await rbacService.hasRole(userId, 'ADMIN');
+      if (!isAdmin) {
+        // In a real implementation, verify subscription status here
+        // throw new Error('Active subscription required for paid tiers');
+      }
     }
 
     const quota = await quotaService.updateQuotaTier(userId, tier);
@@ -268,10 +274,14 @@ export const resetQuota = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
-    // TODO: Add admin check
-    // if (!req.user.isAdmin) {
-    //   return res.status(403).json({ error: 'Forbidden' });
-    // }
+    // Admin check - only administrators can reset quotas
+    const isAdmin = await rbacService.hasRole(userId, 'ADMIN');
+    if (!isAdmin) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Only administrators can reset quotas',
+      });
+    }
 
     const quota = await quotaService.resetQuota(userId);
 

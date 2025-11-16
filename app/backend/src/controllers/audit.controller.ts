@@ -4,6 +4,7 @@ import { AuthRequest } from '../types';
 import { AuditService } from '../services/audit.service';
 import { AuditAction, AuditStatus, ComplianceReportType } from '@prisma/client';
 import { logger } from '../utils/logger';
+import { rbacService } from '../services/rbac.service';
 
 // Validation schemas
 const getAuditLogsSchema = z.object({
@@ -315,7 +316,17 @@ export const getAuditStats = async (req: AuthRequest, res: Response) => {
  */
 export const cleanupOldLogs = async (req: AuthRequest, res: Response) => {
   try {
-    // TODO: Add admin role check here
+    const userId = req.user!.id;
+
+    // Admin role check
+    const isAdmin = await rbacService.hasRole(userId, 'ADMIN');
+    if (!isAdmin) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Only administrators can cleanup audit logs',
+      });
+    }
+
     const result = await AuditService.cleanupOldLogs();
 
     res.json({

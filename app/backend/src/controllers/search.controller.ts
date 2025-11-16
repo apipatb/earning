@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AuthRequest } from '../types';
 import { elasticsearchService, INDICES } from '../services/elasticsearch.service';
 import { logger } from '../utils/logger';
+import { rbacService } from '../services/rbac.service';
 
 // Validation schemas
 const globalSearchSchema = z.object({
@@ -595,8 +596,17 @@ export const healthCheck = async (req: AuthRequest, res: Response) => {
  */
 export const reindexAll = async (req: AuthRequest, res: Response) => {
   try {
-    // TODO: Add admin role check
     const userId = req.user!.id;
+
+    // Admin role check - only administrators can trigger reindexing
+    const isAdmin = await rbacService.hasRole(userId, 'ADMIN');
+    if (!isAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden',
+        message: 'Only administrators can trigger reindexing operations',
+      });
+    }
 
     await elasticsearchService.reindexAll(userId);
 

@@ -5,6 +5,7 @@ import { ticketService } from '../services/ticket.service';
 import { TicketStatus, TicketPriority } from '@prisma/client';
 import { parseLimitParam, parseOffsetParam, parseEnumParam } from '../utils/validation';
 import { logger } from '../utils/logger';
+import { rbacService } from '../services/rbac.service';
 
 // Validation schemas
 const createTicketSchema = z.object({
@@ -139,11 +140,14 @@ export const getTicketById = async (req: AuthRequest, res: Response) => {
 
     // Check if user has access to this ticket
     if (ticket.userId !== userId) {
-      // TODO: Add role-based access check for agents/admins
-      return res.status(403).json({
-        success: false,
-        error: 'Access denied',
-      });
+      // Allow agents/admins to access any ticket
+      const hasAccess = await rbacService.hasAnyRole(userId, ['ADMIN', 'AGENT']);
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied',
+        });
+      }
     }
 
     res.json({
@@ -176,11 +180,14 @@ export const updateTicket = async (req: AuthRequest, res: Response) => {
     }
 
     if (existingTicket.userId !== userId) {
-      // TODO: Add role-based access check for agents/admins
-      return res.status(403).json({
-        success: false,
-        error: 'Access denied',
-      });
+      // Allow agents/admins to update any ticket
+      const hasAccess = await rbacService.hasAnyRole(userId, ['ADMIN', 'AGENT']);
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied',
+        });
+      }
     }
 
     const ticket = await ticketService.updateTicket(id, validatedData);
