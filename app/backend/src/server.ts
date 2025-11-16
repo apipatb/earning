@@ -12,6 +12,7 @@ import {
   sentryErrorHandler,
   sentryUserContextMiddleware,
 } from './lib/sentry';
+import { initSwagger } from './lib/swagger';
 
 // Load environment variables first
 dotenv.config();
@@ -122,6 +123,9 @@ app.use(sentryUserContextMiddleware);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Initialize Swagger UI
+initSwagger(app);
 
 // API Routes
 app.use('/api/v1/auth', authRoutes);
