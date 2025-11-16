@@ -36,7 +36,8 @@ yarn-error.log*
 Thumbs.db
 
 # Prisma
-prisma/migrations/
+# Note: Keep migrations/ included for version control
+prisma/dev.db
 
 # Testing
 coverage/
