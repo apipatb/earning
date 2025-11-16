@@ -1,0 +1,126 @@
+{
+  "common": {
+    "success": "Erfolg",
+    "error": "Fehler",
+    "warning": "Warnung",
+    "info": "Information",
+    "notFound": "Nicht gefunden",
+    "unauthorized": "Nicht autorisierter Zugriff",
+    "forbidden": "Verboten",
+    "badRequest": "Ungültige Anfrage",
+    "internalError": "Interner Serverfehler",
+    "validationError": "Validierungsfehler"
+  },
+  "auth": {
+    "loginSuccess": "Anmeldung erfolgreich",
+    "loginFailed": "Anmeldung fehlgeschlagen",
+    "logoutSuccess": "Erfolgreich abgemeldet",
+    "registerSuccess": "Registrierung erfolgreich",
+    "registerFailed": "Registrierung fehlgeschlagen",
+    "invalidCredentials": "Ungültige Anmeldedaten",
+    "emailAlreadyExists": "E-Mail existiert bereits",
+    "passwordResetSent": "Passwort-Zurücksetzen-E-Mail gesendet",
+    "passwordResetSuccess": "Passwort erfolgreich zurückgesetzt",
+    "tokenExpired": "Token ist abgelaufen",
+    "tokenInvalid": "Ungültiger Token",
+    "unauthorized": "Nicht autorisierter Zugriff"
+  },
+  "user": {
+    "profileUpdated": "Profil erfolgreich aktualisiert",
+    "profileUpdateFailed": "Aktualisierung des Profils fehlgeschlagen",
+    "userNotFound": "Benutzer nicht gefunden",
+    "userCreated": "Benutzer erfolgreich erstellt",
+    "userDeleted": "Benutzer erfolgreich gelöscht",
+    "languageUpdated": "Spracheinstellung aktualisiert",
+    "passwordChanged": "Passwort erfolgreich geändert",
+    "passwordChangeFailed": "Passwortänderung fehlgeschlagen",
+    "invalidPassword": "Ungültiges Passwort"
+  },
+  "earnings": {
+    "created": "Einkommen erfolgreich erstellt",
+    "updated": "Einkommen erfolgreich aktualisiert",
+    "deleted": "Einkommen erfolgreich gelöscht",
+    "notFound": "Einkommen nicht gefunden",
+    "listRetrieved": "Einkommen erfolgreich abgerufen"
+  },
+  "platforms": {
+    "created": "Plattform erfolgreich erstellt",
+    "updated": "Plattform erfolgreich aktualisiert",
+    "deleted": "Plattform erfolgreich gelöscht",
+    "notFound": "Plattform nicht gefunden",
+    "alreadyExists": "Eine Plattform mit diesem Namen existiert bereits"
+  },
+  "goals": {
+    "created": "Ziel erfolgreich erstellt",
+    "updated": "Ziel erfolgreich aktualisiert",
+    "deleted": "Ziel erfolgreich gelöscht",
+    "completed": "Glückwunsch! Ziel erreicht!",
+    "notFound": "Ziel nicht gefunden"
+  },
+  "invoices": {
+    "created": "Rechnung erfolgreich erstellt",
+    "updated": "Rechnung erfolgreich aktualisiert",
+    "deleted": "Rechnung erfolgreich gelöscht",
+    "sent": "Rechnung erfolgreich gesendet",
+    "paid": "Rechnung als bezahlt markiert",
+    "notFound": "Rechnung nicht gefunden",
+    "pdfGenerated": "PDF erfolgreich generiert"
+  },
+  "products": {
+    "created": "Produkt erfolgreich erstellt",
+    "updated": "Produkt erfolgreich aktualisiert",
+    "deleted": "Produkt erfolgreich gelöscht",
+    "notFound": "Produkt nicht gefunden",
+    "lowStock": "Niedriger Lagerbestand für {{name}}",
+    "outOfStock": "{{name}} ist nicht auf Lager"
+  },
+  "customers": {
+    "created": "Kunde erfolgreich erstellt",
+    "updated": "Kunde erfolgreich aktualisiert",
+    "deleted": "Kunde erfolgreich gelöscht",
+    "notFound": "Kunde nicht gefunden"
+  },
+  "expenses": {
+    "created": "Ausgabe erfolgreich erstellt",
+    "updated": "Ausgabe erfolgreich aktualisiert",
+    "deleted": "Ausgabe erfolgreich gelöscht",
+    "notFound": "Ausgabe nicht gefunden"
+  },
+  "reports": {
+    "generated": "Bericht erfolgreich generiert",
+    "notFound": "Bericht nicht gefunden",
+    "exportSuccess": "Bericht erfolgreich exportiert",
+    "exportFailed": "Export des Berichts fehlgeschlagen"
+  },
+  "emails": {
+    "sent": "E-Mail erfolgreich gesendet",
+    "sendFailed": "E-Mail-Versand fehlgeschlagen",
+    "templateNotFound": "E-Mail-Vorlage nicht gefunden",
+    "invalidRecipient": "Ungültige Empfänger-E-Mail"
+  },
+  "notifications": {
+    "goalDeadlineApproaching": "Zielfrist nähert sich: {{title}}",
+    "invoiceOverdue": "Rechnung {{number}} ist überfällig",
+    "lowStockAlert": "Niedriger Lagerbestand: {{product}}",
+    "newCustomer": "Neuer Kunde registriert: {{name}}",
+    "paymentReceived": "Zahlung erhalten: {{amount}}"
+  },
+  "validation": {
+    "required": "{{field}} ist erforderlich",
+    "invalidEmail": "Ungültige E-Mail-Adresse",
+    "invalidDate": "Ungültiges Datum",
+    "invalidNumber": "Ungültige Nummer",
+    "minLength": "{{field}} muss mindestens {{min}} Zeichen lang sein",
+    "maxLength": "{{field}} darf {{max}} Zeichen nicht überschreiten",
+    "passwordMismatch": "Passwörter stimmen nicht überein"
+  },
+  "languages": {
+    "en": "Englisch",
+    "es": "Spanisch",
+    "fr": "Französisch",
+    "de": "Deutsch",
+    "zh": "Chinesisch",
+    "ja": "Japanisch",
+    "th": "Thailändisch"
+  }
+}

@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react';
 import App from './App';
 import './index.css';
 import { initSentry } from './lib/sentry';
+import './i18n/config'; // Initialize i18n
 
 // Initialize Sentry as early as possible
 initSentry();

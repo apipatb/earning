@@ -35,7 +35,11 @@ const Products = lazy(() => import('./pages/Products'));
 const Sales = lazy(() => import('./pages/Sales'));
 const Inventory = lazy(() => import('./pages/Inventory'));
 const Customers = lazy(() => import('./pages/Customers'));
+const CustomerSegmentation = lazy(() => import('./pages/CustomerSegmentation'));
+const CustomerPortal = lazy(() => import('./pages/CustomerPortal'));
 const Expenses = lazy(() => import('./pages/Expenses'));
+const MonitoringDashboard = lazy(() => import('./pages/MonitoringDashboard'));
+const LiveChat = lazy(() => import('./pages/LiveChat'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 /**
@@ -236,10 +240,42 @@ function App() {
               }
             />
             <Route
+              path="customer-segmentation"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CustomerSegmentation />
+                </Suspense>
+              }
+            />
+            <Route
+              path="customer-portal"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CustomerPortal />
+                </Suspense>
+              }
+            />
+            <Route
               path="expenses"
               element={
                 <Suspense fallback={<PageLoader />}>
                   <Expenses />
+                </Suspense>
+              }
+            />
+            <Route
+              path="monitoring"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <MonitoringDashboard />
+                </Suspense>
+              }
+            />
+            <Route
+              path="live-chat"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <LiveChat />
                 </Suspense>
               }
             />

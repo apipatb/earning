@@ -1,0 +1,65 @@
+{
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "export": "Exporter",
+    "import": "Importer",
+    "loading": "Chargement...",
+    "noData": "Aucune donnée disponible",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "next": "Suivant",
+    "finish": "Terminer",
+    "close": "Fermer",
+    "download": "Télécharger",
+    "upload": "Téléverser",
+    "yes": "Oui",
+    "no": "Non"
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "platforms": "Plateformes",
+    "earnings": "Revenus",
+    "goals": "Objectifs",
+    "analytics": "Analyses",
+    "reports": "Rapports",
+    "invoices": "Factures",
+    "settings": "Paramètres",
+    "logout": "Déconnexion"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "totalEarned": "Total gagné",
+    "thisMonth": "Ce mois",
+    "hoursWorked": "Heures travaillées",
+    "avgHourlyRate": "Taux horaire moyen"
+  },
+  "earnings": {
+    "title": "Revenus",
+    "addEarning": "Ajouter un revenu",
+    "platform": "Plateforme",
+    "date": "Date",
+    "amount": "Montant",
+    "hours": "Heures"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "profile": "Profil",
+    "language": "Langue",
+    "theme": "Thème"
+  },
+  "auth": {
+    "login": "Connexion",
+    "logout": "Déconnexion",
+    "email": "E-mail",
+    "password": "Mot de passe"
+  },
+  "notifications": {
+    "languageChanged": "Langue changée avec succès!"
+  }
+}

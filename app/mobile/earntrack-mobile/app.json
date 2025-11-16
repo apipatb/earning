@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "EarnTrack Mobile",
+    "slug": "earntrack-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "earntrack",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#007AFF"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.earntrack.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow EarnTrack to access your camera to upload photos for tickets and support requests.",
+        "NSPhotoLibraryUsageDescription": "Allow EarnTrack to access your photo library to upload images.",
+        "NSFaceIDUsageDescription": "Use Face ID for secure authentication."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#007AFF"
+      },
+      "package": "com.earntrack.mobile",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-local-authentication",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow EarnTrack to access your camera."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#007AFF"
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:3001/api/v1",
+      "wsUrl": "ws://localhost:3001",
+      "eas": {
+        "projectId": "earntrack-mobile"
+      }
+    }
+  }
+}

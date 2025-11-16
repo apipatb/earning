@@ -4,7 +4,13 @@ import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
 import helmet from 'helmet';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
+import { Server as SocketIOServer } from 'socket.io';
 import { logger } from './utils/logger';
+import { createMonitoringWebSocketServer } from './lib/monitoring-websocket';
+import { initializeChatHandlers } from './websocket/chat.handler';
+import { initializeNotificationHandlers } from './websocket/notification.handler';
 import {
   initSentry,
   sentryRequestHandler,
@@ -15,10 +21,18 @@ import {
 import { initSwagger } from './lib/swagger';
 import { createApolloServer } from './graphql/server';
 import { graphqlDocsHandler } from './graphql/docs';
+import { initializeI18n } from './services/i18n.service';
+import { i18nMiddleware } from './middleware/i18n.middleware';
 
 // Load environment variables first
 dotenv.config();
 
+// Initialize i18n
+initializeI18n().then(() => {
+  logger.info('i18n initialized successfully');
+}).catch((error) => {
+  logger.error('Failed to initialize i18n', { error });
+});
 // Import routes
 import authRoutes from './routes/auth.routes';
 import twoFactorRoutes from './routes/2fa.routes';
@@ -32,6 +46,7 @@ import productRoutes from './routes/product.routes';
 import saleRoutes from './routes/sale.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import customerRoutes from './routes/customer.routes';
+import customerPortalRoutes from './routes/customer-portal.routes';
 import expenseRoutes from './routes/expense.routes';
 import invoiceRoutes from './routes/invoice.routes';
 import webhookRoutes from './routes/webhook.routes';
@@ -43,6 +58,25 @@ import reportRoutes from './routes/report.routes';
 import workflowRoutes from './routes/workflow.routes';
 import emailRoutes from './routes/email.routes';
 import biRoutes from './routes/bi.routes';
+import i18nRoutes from './routes/i18n.routes';
+import monitoringRoutes from './routes/monitoring.routes';
+import healthRoutes from './routes/health.routes';
+import smartReplyRoutes from './routes/smart-reply.routes';
+import ticketRoutes from './routes/ticket.routes';
+import liveChatRoutes from './routes/live-chat.routes';
+import sentimentRoutes from './routes/sentiment.routes';
+import auditRoutes from './routes/audit.routes';
+import pushRoutes from './routes/push.routes';
+import searchRoutes from './routes/search.routes';
+import mobileRoutes from './routes/mobile.routes';
+import segmentRoutes from './routes/segment.routes';
+import funnelRoutes from './routes/funnel.routes';
+import quotaRoutes from './routes/quota.routes';
+import rbacRoutes from './routes/rbac.routes';
+import knowledgeRoutes from './routes/knowledge.routes';
+import financialRoutes from './routes/financial.routes';
+import integrationRoutes from './routes/integration.routes';
+import backupRoutes from './routes/backup.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -131,6 +165,8 @@ app.use('/api/', limiter);
 
 // Set Sentry user context after authentication (applies to all routes)
 app.use(sentryUserContextMiddleware);
+// i18n middleware for multi-language support
+app.use(i18nMiddleware);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -159,6 +195,8 @@ app.get('/api/graphql/docs', graphqlDocsHandler);
 
 // API Routes
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/auth', mobileRoutes); // Mobile-specific auth endpoints
+app.use('/api/v1/mobile', mobileRoutes); // Mobile app config and device management
 app.use('/api/v1/auth/2fa', twoFactorRoutes);
 app.use('/api/v1/auth/webauthn', webauthnRoutes);
 app.use('/api/v1/user', userRoutes);
@@ -170,6 +208,7 @@ app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/sales', saleRoutes);
 app.use('/api/v1/inventory', inventoryRoutes);
 app.use('/api/v1/customers', customerRoutes);
+app.use('/api/v1/customer', customerPortalRoutes);
 app.use('/api/v1/expenses', expenseRoutes);
 app.use('/api/v1/invoices', invoiceRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
@@ -182,6 +221,24 @@ app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/workflows', workflowRoutes);
 app.use('/api/v1/emails', emailRoutes);
 app.use('/api/v1/bi', biRoutes);
+app.use('/api/v1/i18n', i18nRoutes);
+app.use('/api/v1/monitoring', monitoringRoutes);
+app.use('/', healthRoutes); // Mounts /health (public) and /api/v1/health/* (authenticated)
+app.use('/api/v1/smart-reply', smartReplyRoutes);
+app.use('/api/v1/tickets', ticketRoutes);
+app.use('/api/v1/chat', liveChatRoutes);
+app.use('/api/v1/sentiment', sentimentRoutes);
+app.use('/api/v1/audit', auditRoutes);
+app.use('/api/v1/notifications', pushRoutes);
+app.use('/api/v1/search', searchRoutes);
+app.use('/api/v1/segments', segmentRoutes);
+app.use('/api/v1/funnels', funnelRoutes);
+app.use('/api/v1/quota', quotaRoutes);
+app.use('/api/v1/rbac', rbacRoutes);
+app.use('/api/v1/knowledge', knowledgeRoutes);
+app.use('/api/v1/financial', financialRoutes);
+app.use('/api/v1/integrations', integrationRoutes);
+app.use('/api/v1', backupRoutes); // Backup and restore routes
 
 // Sentry error handler must be before other error handlers
 app.use(sentryErrorHandler());
@@ -190,10 +247,87 @@ app.use(sentryErrorHandler());
 app.use(notFound);
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+// Create HTTP server
+const server = createServer(app);
+
+// Create WebSocket server for monitoring
+const wss = new WebSocketServer({
+  server,
+  path: '/ws/monitoring',
+});
+
+// Initialize monitoring WebSocket server
+const monitoringWS = createMonitoringWebSocketServer(wss);
+logger.info('Monitoring WebSocket server initialized', {
+  path: '/ws/monitoring',
+});
+
+// Initialize Socket.io for live chat
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000'];
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+  transports: ['websocket', 'polling'],
+});
+
+// Initialize chat handlers
+initializeChatHandlers(io);
+// Initialize notification handlers
+initializeNotificationHandlers(io);
+logger.info('Socket.io notification server initialized', {
+  namespace: '/notifications',
+  origins: allowedOrigins,
+});
+logger.info('Socket.io chat server initialized', {
+  namespace: '/chat',
+  origins: allowedOrigins,
+});
+
+// Initialize Elasticsearch indices
+import { elasticsearchService } from './services/elasticsearch.service';
+elasticsearchService.initializeIndices().catch((error) => {
+  logger.error('Failed to initialize Elasticsearch indices', { error });
+});
+
+// Initialize health monitoring cron jobs
+import { startHealthCronJobs, stopHealthCronJobs } from './jobs/health.cron';
+if (process.env.HEALTH_MONITORING_ENABLED !== 'false') {
+  startHealthCronJobs();
+  logger.info('Health monitoring cron jobs initialized');
+}
+
+// Initialize backup scheduler
+import { BackupSchedulerService, initializeDefaultSchedules } from './services/backup-scheduler.service';
+if (process.env.BACKUP_SCHEDULER_ENABLED !== 'false') {
+  initializeDefaultSchedules().then(() => {
+    return BackupSchedulerService.initialize();
+  }).then(() => {
+    logger.info('Backup scheduler initialized successfully');
+  }).catch((error) => {
+    logger.error('Failed to initialize backup scheduler', { error });
+  });
+}
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM signal received: closing HTTP server');
+  stopHealthCronJobs();
+  BackupSchedulerService.stopAll();
+  monitoringWS.stop();
+  server.close(() => {
+    logger.info('HTTP server closed');
+    process.exit(0);
+  });
+});
+
+server.listen(PORT, () => {
   logger.info('Server started', {
     port: PORT,
     environment: NODE_ENV,
+    websocket: '/ws/monitoring',
   });
 });
 

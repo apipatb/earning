@@ -136,6 +136,7 @@ model User {
   name         String?
   timezone     String     @default("UTC")
   currency     String     @default("USD") @db.VarChar(3)
+  language     String     @default("en") @db.VarChar(5)
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
@@ -168,6 +169,34 @@ model User {
   helpFeedback      HelpFeedback[]
   integrations      Integration[]
   dashboards        Dashboard[]
+  userRoles         UserRole[]
+  subscriptions     Subscription[]
+  paymentMethods    PaymentMethodModel[]
+  supportTickets    SupportTicket[]
+  assignedTickets   SupportTicket[]      @relation("AssignedTickets")
+  liveChatMessages  LiveChatMessage[]
+  liveChatParticipants LiveChatParticipant[]
+
+  ownedTeams        Team[]               @relation("TeamOwner")
+  teamMemberships   TeamMember[]         @relation("TeamMembership")
+  auditLogs         AuditLog[]
+  complianceReports ComplianceReport[]
+  ticketMessages    TicketMessage[]
+  resourcePermissions ResourcePermission[]
+  pushSubscriptions PushSubscription[]
+  pushNotifications PushNotification[]
+  notificationPreferences NotificationPreference?
+
+  apiQuota          ApiQuota?
+  apiUsage          ApiUsage[]
+  rateLimitViolations RateLimitViolation[]
+
+  slackIntegrations SlackIntegration[]
+  teamsIntegrations TeamsIntegration[]
+  botNotifications  BotNotification[]
+  funnelDefinitions FunnelDefinition[]
+  funnelEvents      FunnelEvent[]
+  customerSegments  CustomerSegment[]
 
   @@map("users")
 }
@@ -325,8 +354,12 @@ model Customer {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  invoices       Invoice[]
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices            Invoice[]
+  tickets             Ticket[]
+  customerProfile     CustomerProfile?
+  ticketPortalAccess  TicketPortalAccess?
+  segmentMemberships  SegmentMember[]
 
   @@unique([userId, email])
   @@index([userId, isActive])
@@ -1223,6 +1256,37 @@ enum BillingStatus {
   CANCELLED
 }
 
+enum RoleName {
+  ADMIN
+  MANAGER
+  AGENT
+  CUSTOMER
+}
+
+enum PermissionAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  MANAGE
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+  CRITICAL
+}
+
 model PricingPlan {
   id            String        @id @default(uuid())
   name          String        @db.VarChar(255)
@@ -1309,4 +1373,1151 @@ model PaymentMethodModel {
   @@index([userId, isDefault])
   @@index([userId, isActive])
   @@map("payment_methods")
+}
+
+// ============================================
+// ROLE-BASED ACCESS CONTROL (RBAC) MODELS
+// ============================================
+
+model Role {
+  id          String   @id @default(uuid())
+  name        RoleName @unique
+  displayName String   @map("display_name") @db.VarChar(100)
+  description String?  @db.Text
+  isSystem    Boolean  @default(false) @map("is_system") // System roles cannot be deleted
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@index([name])
+  @@index([isSystem])
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  name        String           @unique @db.VarChar(100)
+  displayName String           @map("display_name") @db.VarChar(100)
+  description String?          @db.Text
+  resource    String           @db.VarChar(100) // e.g., "earnings", "invoices", "users"
+  action      PermissionAction
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@index([resource])
+  @@index([action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String   @map("role_id")
+  permissionId String   @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  roleId     String   @map("role_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  assignedBy String?  @map("assigned_by") // User ID who assigned this role
+  expiresAt  DateTime? @map("expires_at") // Optional role expiration
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([expiresAt])
+  @@map("user_roles")
+}
+
+// ============================================
+// CUSTOMER PORTAL MODELS
+// ============================================
+
+model Ticket {
+  id          String         @id @default(uuid())
+  userId      String         @map("user_id")
+  customerId  String?        @map("customer_id")
+  subject     String         @db.VarChar(255)
+  description String         @db.Text
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  assignedTo  String?        @map("assigned_to") // User ID of agent
+  category    String?        @db.VarChar(100)
+  tags        String?        @db.Text // JSON array of tags
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  resolvedAt  DateTime?      @map("resolved_at")
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer        Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  comments        TicketComment[]
+  sentimentAlerts SentimentAlert[]
+
+  @@index([userId, status])
+  @@index([customerId, status])
+  @@index([assignedTo, status])
+  @@index([status, priority])
+  @@index([createdAt(sort: Desc)])
+  @@map("tickets")
+}
+
+model CustomerProfile {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  customerId   String   @unique @map("customer_id")
+  preferences  String?  @db.Text // JSON preferences
+  subscribedTo String?  @map("subscribed_to") @db.Text // JSON array of notification subscriptions
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([customerId])
+  @@map("customer_profiles")
+}
+
+model TicketPortalAccess {
+  id               String   @id @default(uuid())
+  customerId       String   @unique @map("customer_id")
+  canViewTickets   Boolean  @default(true) @map("can_view_tickets")
+  canCreateTickets Boolean  @default(true) @map("can_create_tickets")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("ticket_portal_access")
+}
+
+// ============================================
+// LIVE CHAT MODELS
+// ============================================
+
+enum LiveChatRoomType {
+  SUPPORT
+  SALES
+  GENERAL
+}
+
+enum ParticipantStatus {
+  ONLINE
+  AWAY
+  OFFLINE
+}
+
+model LiveChatRoom {
+  id          String            @id @default(uuid())
+  name        String            @db.VarChar(255)
+  type        LiveChatRoomType  @default(GENERAL)
+  isActive    Boolean           @default(true) @map("is_active")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  messages     LiveChatMessage[]
+  participants LiveChatParticipant[]
+
+  @@index([isActive, createdAt(sort: Desc)])
+  @@index([type, isActive])
+  @@map("live_chat_rooms")
+}
+
+model LiveChatMessage {
+  id          String   @id @default(uuid())
+  roomId      String   @map("room_id")
+  senderId    String   @map("sender_id")
+  content     String   @db.Text
+  attachments String?  @db.Text // JSON array of attachment URLs
+  timestamp   DateTime @default(now())
+  isRead      Boolean  @default(false) @map("is_read")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  room   LiveChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, timestamp(sort: Desc)])
+  @@index([senderId, timestamp(sort: Desc)])
+  @@index([roomId, isRead])
+  @@map("live_chat_messages")
+}
+
+model LiveChatParticipant {
+  id        String            @id @default(uuid())
+  roomId    String            @map("room_id")
+  userId    String            @map("user_id")
+  joinedAt  DateTime          @default(now()) @map("joined_at")
+  lastSeen  DateTime          @default(now()) @map("last_seen")
+  status    ParticipantStatus @default(ONLINE)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  room LiveChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([userId, status])
+  @@index([roomId, status])
+  @@index([roomId, lastSeen(sort: Desc)])
+  @@map("live_chat_participants")
+}
+
+// ============================================
+// TEAM MANAGEMENT MODELS
+// ============================================
+
+enum TeamRole {
+  OWNER
+  MANAGER
+  MEMBER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum TeamPermissionType {
+  MANAGE
+  VIEW
+  EDIT
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  ownerId     String   @map("owner_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  owner       User             @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     TeamMember[]
+  invitations TeamInvitation[]
+  permissions TeamPermission[]
+  permissionsExtended TeamPermissionExtended[]
+
+  @@index([ownerId, isActive])
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String   @map("team_id")
+  userId    String   @map("user_id")
+  role      TeamRole @default(MEMBER)
+  joinedAt  DateTime @default(now()) @map("joined_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  team        Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user        User             @relation("TeamMembership", fields: [userId], references: [id], onDelete: Cascade)
+  permissions TeamPermission[]
+
+  @@unique([teamId, userId])
+  @@index([teamId, role])
+  @@index([userId, joinedAt(sort: Desc)])
+  @@map("team_members")
+}
+
+model TeamInvitation {
+  id        String           @id @default(uuid())
+  teamId    String           @map("team_id")
+  email     String           @db.VarChar(255)
+  token     String           @unique @db.VarChar(255)
+  status    InvitationStatus @default(PENDING)
+  role      TeamRole         @default(MEMBER)
+  expiresAt DateTime         @map("expires_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, status])
+  @@index([email, status])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("team_invitations")
+}
+
+model TeamPermission {
+  id         String             @id @default(uuid())
+  teamId     String             @map("team_id")
+  memberId   String             @map("member_id")
+  permission TeamPermissionType
+  resource   String             @db.VarChar(100) // e.g., "earnings", "invoices", "products"
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
+
+  team   Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  member TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, resource])
+  @@index([teamId, resource])
+  @@index([memberId, permission])
+  @@map("team_permissions")
+}
+
+// ============================================
+// CUSTOMER SERVICE & SENTIMENT ANALYSIS MODELS
+// ============================================
+
+enum MessageSender {
+  CUSTOMER
+  AGENT
+  SYSTEM
+}
+
+enum SentimentEmotion {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum AlertSeverity {
+  LOW
+  HIGH
+}
+
+model MessageSentiment {
+  id         String           @id @default(uuid())
+  messageId  String           @unique @map("message_id")
+  score      Decimal          @db.Decimal(3, 2)
+  emotion    SentimentEmotion
+  confidence Decimal          @db.Decimal(5, 2)
+  keywords   String?          @db.Text
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  message TicketMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([emotion, createdAt(sort: Desc)])
+  @@index([score(sort: Asc)])
+  @@map("message_sentiments")
+}
+
+model SentimentAlert {
+  id        String         @id @default(uuid())
+  ticketId  String         @map("ticket_id")
+  triggered DateTime       @default(now())
+  severity  AlertSeverity
+  message   String         @db.Text
+  resolvedAt DateTime?     @map("resolved_at")
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, triggered(sort: Desc)])
+  @@index([severity, resolvedAt])
+  @@index([triggered(sort: Desc)])
+  @@map("sentiment_alerts")
+}
+
+// ============================================
+// SMART REPLY SUGGESTIONS MODELS
+// ============================================
+
+enum SuggestionSource {
+  AI
+  TEMPLATE
+}
+
+model SuggestedReply {
+  id         String           @id @default(uuid())
+  ticketId   String           @map("ticket_id")
+  messageId  String           @map("message_id")
+  suggestion String           @db.Text
+  confidence Decimal          @db.Decimal(5, 2) // 0-100 percentage
+  source     SuggestionSource @default(AI)
+  templateId String?          @map("template_id") // If based on template
+  accepted   Boolean          @default(false)
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  message  TicketMessage  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  template ReplyTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([messageId, confidence(sort: Desc)])
+  @@index([ticketId, createdAt(sort: Desc)])
+  @@index([accepted])
+  @@index([source, createdAt(sort: Desc)])
+  @@map("suggested_replies")
+}
+
+model ReplyTemplate {
+  id         String   @id @default(uuid())
+  teamId     String?  @map("team_id") // Team ID or null for global templates
+  title      String   @db.VarChar(255)
+  content    String   @db.Text
+  category   String?  @db.VarChar(100)
+  usageCount Int      @default(0) @map("usage_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  suggestedReplies SuggestedReply[]
+
+  @@index([teamId, usageCount(sort: Desc)])
+  @@index([teamId, category])
+  @@index([category, usageCount(sort: Desc)])
+  @@map("reply_templates")
+}
+
+// ============================================
+// ADVANCED TICKETING MODELS
+// ============================================
+
+enum TicketMessageType {
+  CUSTOMER
+  AGENT
+  SYSTEM
+  NOTE
+}
+
+model SupportTicket {
+  id          String         @id @default(uuid())
+  userId      String         @map("user_id")
+  customerId  String?        @map("customer_id")
+  assignedTo  String?        @map("assigned_to")
+  subject     String         @db.VarChar(500)
+  description String         @db.Text
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  category    String?        @db.VarChar(100)
+  tags        String?        @db.Text // JSON array
+  metadata    String?        @db.Text // JSON for custom fields
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  resolvedAt  DateTime?      @map("resolved_at")
+  closedAt    DateTime?      @map("closed_at")
+
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer       Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  sentimentAlerts SentimentAlert[]
+  assignedToUser User?               @relation("AssignedTickets", fields: [assignedTo], references: [id], onDelete: SetNull)
+  messages       TicketMessage[]
+  complianceLog  ComplianceReport[]
+
+  @@index([userId, status])
+  @@index([assignedTo, status])
+  @@index([status, priority])
+  @@index([createdAt(sort: Desc)])
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id         String            @id @default(uuid())
+  ticketId   String            @map("ticket_id")
+  userId     String            @map("user_id")
+  type       TicketMessageType @default(AGENT)
+  content    String            @db.Text
+  attachments String?          @db.Text // JSON array of attachment URLs
+  isInternal Boolean           @default(false) @map("is_internal")
+  sentiment  String?           @db.VarChar(50) // POSITIVE, NEUTRAL, NEGATIVE (legacy field)
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
+
+  ticket             SupportTicket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suggestedReplies   SuggestedReply[]
+  sentimentAnalysis  MessageSentiment?
+
+  @@index([ticketId, createdAt(sort: Asc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([type])
+  @@map("ticket_messages")
+}
+
+// ============================================
+// COMPLIANCE & AUDIT MODELS
+// ============================================
+
+enum ComplianceType {
+  GDPR
+  HIPAA
+  SOC2
+  PCI_DSS
+  ISO27001
+}
+
+enum ComplianceStatus {
+  COMPLIANT
+  NON_COMPLIANT
+  UNDER_REVIEW
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  action     String   @db.VarChar(255)
+  resource   String   @db.VarChar(255)
+  resourceId String?  @map("resource_id")
+  details    String?  @db.Text // JSON details
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  timestamp  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([resource, action])
+  @@index([timestamp(sort: Desc)])
+  @@map("audit_logs")
+}
+
+model ComplianceReport {
+  id         String           @id @default(uuid())
+  userId     String           @map("user_id")
+  ticketId   String?          @map("ticket_id")
+  type       ComplianceType
+  status     ComplianceStatus @default(UNDER_REVIEW)
+  findings   String           @db.Text // JSON findings
+  recommendations String?      @db.Text
+  reviewedBy String?          @map("reviewed_by")
+  generatedAt DateTime        @default(now()) @map("generated_at")
+  reviewedAt DateTime?        @map("reviewed_at")
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticket       SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([userId, type])
+  @@index([status, generatedAt(sort: Desc)])
+  @@index([type, status])
+  @@map("compliance_reports")
+}
+
+// ============================================
+// GRANULAR PERMISSION CONTROL MODELS
+// ============================================
+
+enum PermissionLevel {
+  OWNER
+  ADMIN
+  EDIT
+  VIEW
+  NONE
+}
+
+enum DataScope {
+  OWN
+  TEAM
+  ORGANIZATION
+  ALL
+}
+
+model ResourcePermission {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  resource   String    @db.VarChar(100) // tickets, chat, reports, customers, settings, users, team, billing
+  action     String    @db.VarChar(50)  // CREATE, READ, UPDATE, DELETE, EXPORT, ASSIGN, MANAGE
+  condition  String?   @db.Text // JSON condition: {scope: "OWN", filters: {...}}
+  grantedBy  String    @map("granted_by")
+  expiresAt  DateTime? @map("expires_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resource, action])
+  @@index([userId, resource])
+  @@index([resource, action])
+  @@index([expiresAt])
+  @@map("resource_permissions")
+}
+
+model TeamPermissionExtended {
+  id         String          @id @default(uuid())
+  teamId     String          @map("team_id")
+  userId     String?         @map("user_id") // Null for team-wide permissions
+  permission String          @db.VarChar(100)
+  resource   String          @db.VarChar(100)
+  level      PermissionLevel @default(VIEW)
+  scope      DataScope       @default(TEAM)
+  conditions String?         @db.Text // JSON conditions
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId, resource, permission])
+  @@index([teamId, level])
+  @@index([userId, resource])
+  @@index([resource, level])
+  @@map("team_permissions_extended")
+}
+
+// ============================================
+// PUSH NOTIFICATION MODELS
+// ============================================
+
+model PushSubscription {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  endpoint   String   @db.Text
+  auth       String   @db.Text // Push subscription auth key
+  p256dh     String   @db.Text // Push subscription p256dh key
+  userAgent  String?  @map("user_agent") @db.Text
+  browser    String?  @db.VarChar(100)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@index([userId, isActive])
+  @@index([isActive, createdAt(sort: Desc)])
+  @@map("push_subscriptions")
+}
+
+model PushNotification {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  title     String    @db.VarChar(255)
+  body      String    @db.Text
+  icon      String?   @db.Text
+  badge     String?   @db.Text
+  data      String?   @db.Text // JSON data
+  sentAt    DateTime  @default(now()) @map("sent_at")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sentAt(sort: Desc)])
+  @@index([userId, readAt])
+  @@index([readAt])
+  @@map("push_notifications")
+}
+
+model NotificationPreference {
+  id            String   @id @default(uuid())
+  userId        String   @unique @map("user_id")
+  emailNotifs   Boolean  @default(true) @map("email_notifs")
+  pushNotifs    Boolean  @default(true) @map("push_notifs")
+  smsNotifs     Boolean  @default(false) @map("sms_notifs")
+  preferences   String?  @db.Text // JSON preferences for specific notification types
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notification_preferences")
+}
+
+// ============================================
+// API RATE LIMITING & QUOTA MANAGEMENT MODELS
+// ============================================
+
+enum QuotaTier {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum UsagePeriod {
+  HOUR
+  DAY
+  MONTH
+}
+
+enum ViolationAction {
+  WARN
+  BLOCK
+  THROTTLE
+}
+
+model ApiQuota {
+  id                String     @id @default(uuid())
+  userId            String     @unique @map("user_id")
+  tier              QuotaTier  @default(FREE)
+  requestsPerHour   Int        @default(100) @map("requests_per_hour")
+  requestsPerDay    Int        @default(1000) @map("requests_per_day")
+  requestsPerMonth  Int        @default(10000) @map("requests_per_month")
+  storageGB         Decimal    @default(1) @map("storage_gb") @db.Decimal(10, 2)
+  concurrentRequests Int       @default(5) @map("concurrent_requests")
+  resetAt           DateTime   @default(now()) @map("reset_at")
+  customLimits      String?    @map("custom_limits") @db.Text // JSON for custom endpoint limits
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usageRecords      ApiUsage[]
+  violations        RateLimitViolation[]
+
+  @@index([userId, tier])
+  @@index([tier])
+  @@map("api_quotas")
+}
+
+model ApiUsage {
+  id            String      @id @default(uuid())
+  userId        String      @map("user_id")
+  quotaId       String      @map("quota_id")
+  endpoint      String      @db.VarChar(500)
+  method        String      @db.VarChar(10) // GET, POST, PUT, DELETE, etc.
+  count         Int         @default(0)
+  period        UsagePeriod
+  periodStart   DateTime    @map("period_start")
+  periodEnd     DateTime    @map("period_end")
+  lastReset     DateTime    @default(now()) @map("last_reset")
+  responseTime  Int?        @map("response_time") // Average response time in ms
+  errorCount    Int         @default(0) @map("error_count")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quota         ApiQuota    @relation(fields: [quotaId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint, period, periodStart])
+  @@index([userId, period, periodStart])
+  @@index([quotaId, period])
+  @@index([endpoint, period])
+  @@index([periodEnd])
+  @@map("api_usage")
+}
+
+model RateLimitViolation {
+  id            String          @id @default(uuid())
+  userId        String          @map("user_id")
+  quotaId       String          @map("quota_id")
+  endpoint      String          @db.VarChar(500)
+  method        String          @db.VarChar(10)
+  ipAddress     String?         @map("ip_address") @db.VarChar(45)
+  userAgent     String?         @map("user_agent") @db.Text
+  action        ViolationAction @default(WARN)
+  attemptedCount Int            @map("attempted_count") // Number of requests attempted
+  limitExceeded String          @map("limit_exceeded") @db.VarChar(100) // e.g., "hourly_limit", "concurrent_limit"
+  timestamp     DateTime        @default(now())
+  resolved      Boolean         @default(false)
+  resolvedAt    DateTime?       @map("resolved_at")
+  metadata      String?         @db.Text // JSON metadata
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quota         ApiQuota        @relation(fields: [quotaId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([quotaId, timestamp(sort: Desc)])
+  @@index([endpoint, timestamp(sort: Desc)])
+  @@index([action, resolved])
+  @@index([timestamp(sort: Desc)])
+  @@map("rate_limit_violations")
+}
+
+// ============================================
+// BOT INTEGRATION MODELS (SLACK & TEAMS)
+// ============================================
+
+enum BotPlatform {
+  SLACK
+  TEAMS
+}
+
+model SlackIntegration {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  teamId    String   @map("team_id") @db.VarChar(255) // Slack Team ID
+  teamName  String?  @map("team_name") @db.VarChar(255)
+  botToken  String   @map("bot_token") @db.Text // Encrypted bot token
+  channelId String   @map("channel_id") @db.VarChar(255) // Default channel for notifications
+  channelName String? @map("channel_name") @db.VarChar(255)
+  isActive  Boolean  @default(true) @map("is_active")
+
+  // OAuth specific
+  accessToken  String  @map("access_token") @db.Text
+  scope        String? @db.Text // Comma-separated scopes
+  botUserId    String? @map("bot_user_id") @db.VarChar(255)
+
+  // Webhook URL for events
+  webhookUrl   String? @map("webhook_url") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications BotNotification[]
+
+  @@unique([userId, teamId])
+  @@index([userId, isActive])
+  @@index([teamId, isActive])
+  @@map("slack_integrations")
+}
+
+model TeamsIntegration {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  teamId         String   @map("team_id") @db.VarChar(255) // Microsoft Teams Team ID
+  teamName       String?  @map("team_name") @db.VarChar(255)
+  botAppPassword String   @map("bot_app_password") @db.Text // Encrypted bot app password
+  webhookUrl     String   @map("webhook_url") @db.Text // Incoming webhook URL
+  isActive       Boolean  @default(true) @map("is_active")
+
+  // Bot Framework specific
+  botId          String? @map("bot_id") @db.VarChar(255)
+  serviceUrl     String? @map("service_url") @db.Text
+  tenantId       String? @map("tenant_id") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications BotNotification[]
+
+  @@unique([userId, teamId])
+  @@index([userId, isActive])
+  @@index([teamId, isActive])
+  @@map("teams_integrations")
+}
+
+model BotNotification {
+  id                   String       @id @default(uuid())
+  userId               String       @map("user_id")
+  slackIntegrationId   String?      @map("slack_integration_id") // Set if platform is SLACK
+  teamsIntegrationId   String?      @map("teams_integration_id") // Set if platform is TEAMS
+  platform             BotPlatform
+  messageId            String       @map("message_id") @db.VarChar(500) // Platform-specific message ID
+  threadId             String?      @map("thread_id") @db.VarChar(500) // For threaded replies
+  ticketId             String?      @map("ticket_id") // Related ticket if applicable
+  content              String       @db.Text
+  sentAt               DateTime     @default(now()) @map("sent_at")
+  deliveryStatus       String       @default("sent") @map("delivery_status") @db.VarChar(50) // sent, delivered, failed
+  error                String?      @db.Text
+  metadata             String?      @db.Text // JSON metadata
+  createdAt            DateTime     @default(now()) @map("created_at")
+
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slackIntegration  SlackIntegration? @relation(fields: [slackIntegrationId], references: [id], onDelete: Cascade)
+  teamsIntegration  TeamsIntegration? @relation(fields: [teamsIntegrationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sentAt(sort: Desc)])
+  @@index([slackIntegrationId, sentAt(sort: Desc)])
+  @@index([teamsIntegrationId, sentAt(sort: Desc)])
+  @@index([platform, sentAt(sort: Desc)])
+  @@index([ticketId])
+  @@index([deliveryStatus, sentAt(sort: Desc)])
+  @@map("bot_notifications")
+}
+
+// ============================================
+// CONVERSION FUNNEL ANALYSIS MODELS
+// ============================================
+
+model FunnelDefinition {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  name            String   @db.VarChar(255)
+  description     String?  @db.Text
+  steps           String   @db.Text // JSON array of step definitions: [{name, order, conditions}]
+  trackingEnabled Boolean  @default(true) @map("tracking_enabled")
+  metadata        String?  @db.Text // JSON for additional configuration
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events          FunnelEvent[]
+  metrics         FunnelMetrics[]
+
+  @@index([userId, trackingEnabled])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("funnel_definitions")
+}
+
+model FunnelEvent {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  funnelId   String   @map("funnel_id")
+  sessionId  String   @map("session_id") @db.VarChar(255) // User session identifier
+  step       String   @db.VarChar(255) // Step name
+  stepNumber Int      @map("step_number") // Order in funnel (0-indexed)
+  metadata   String?  @db.Text // JSON for additional event data
+  timestamp  DateTime @default(now())
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  funnel     FunnelDefinition @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@index([funnelId, timestamp(sort: Desc)])
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([sessionId, stepNumber(sort: Asc)])
+  @@index([funnelId, step])
+  @@index([funnelId, stepNumber])
+  @@map("funnel_events")
+}
+
+model FunnelMetrics {
+  id             String   @id @default(uuid())
+  funnelId       String   @map("funnel_id")
+  step           String   @db.VarChar(255) // Step name
+  stepNumber     Int      @map("step_number")
+  totalCount     Int      @default(0) @map("total_count") // Users who reached this step
+  conversionRate Decimal  @map("conversion_rate") @db.Decimal(5, 2) // Percentage from previous step
+  dropOffRate    Decimal  @map("drop_off_rate") @db.Decimal(5, 2) // Percentage who didn't continue
+  avgTimeToNext  Int?     @map("avg_time_to_next") // Average time in seconds to next step
+  period         String   @db.VarChar(50) // e.g., "2024-11-16", "2024-W46", "2024-11"
+  periodStart    DateTime @map("period_start")
+  periodEnd      DateTime @map("period_end")
+  segmentData    String?  @map("segment_data") @db.Text // JSON with segment breakdowns
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  funnel FunnelDefinition @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@unique([funnelId, step, period])
+  @@index([funnelId, stepNumber, period])
+  @@index([funnelId, period])
+  @@index([periodStart, periodEnd])
+  @@map("funnel_metrics")
+}
+
+// ============================================
+// SYSTEM HEALTH & INFRASTRUCTURE MONITORING
+// ============================================
+
+enum MetricType {
+  CPU
+  MEMORY
+  DISK
+  API_LATENCY
+  RESPONSE_TIME
+  QUEUE_DEPTH
+  CACHE_HIT_RATE
+  DATABASE_CONNECTIONS
+  NETWORK
+}
+
+enum HealthStatus {
+  HEALTHY
+  WARNING
+  CRITICAL
+  DEGRADED
+  UNKNOWN
+}
+
+model SystemMetric {
+  id        String     @id @default(uuid())
+  metric    MetricType
+  value     Decimal    @db.Decimal(10, 2) // Metric value
+  threshold Decimal?   @db.Decimal(10, 2) // Alert threshold
+  unit      String     @db.VarChar(50) // e.g., "percent", "ms", "MB"
+  details   String?    @db.Text // JSON with additional metric details
+  timestamp DateTime   @default(now())
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@index([metric, timestamp(sort: Desc)])
+  @@index([timestamp(sort: Desc)])
+  @@index([metric, value])
+  @@map("system_metrics")
+}
+
+model HealthAlert {
+  id          String       @id @default(uuid())
+  service     String       @db.VarChar(255) // e.g., "Database", "Redis", "API", "Queue"
+  status      HealthStatus
+  severity    String       @db.VarChar(50) // INFO, WARNING, ERROR, CRITICAL
+  message     String       @db.Text
+  details     String?      @db.Text // JSON with additional context
+  triggeredAt DateTime     @default(now()) @map("triggered_at")
+  resolvedAt  DateTime?    @map("resolved_at")
+  resolvedBy  String?      @map("resolved_by") // User ID or system
+  resolution  String?      @db.Text // Resolution notes
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([service, status, triggeredAt(sort: Desc)])
+  @@index([status, triggeredAt(sort: Desc)])
+  @@index([triggeredAt(sort: Desc)])
+  @@index([resolvedAt])
+  @@map("health_alerts")
+}
+
+model ServiceStatus {
+  id          String       @id @default(uuid())
+  name        String       @unique @db.VarChar(255) // e.g., "Database", "Redis", "BullMQ", "API"
+  type        String       @db.VarChar(100) // e.g., "database", "cache", "queue", "api", "external"
+  status      HealthStatus
+  responseTime Int?        @map("response_time") // Response time in milliseconds
+  lastCheck   DateTime     @default(now()) @map("last_check")
+  uptime      Decimal      @default(100) @db.Decimal(5, 2) // Uptime percentage
+  errorCount  Int          @default(0) @map("error_count") // Errors in current period
+  metadata    String?      @db.Text // JSON with service-specific data
+  endpoint    String?      @db.VarChar(500) // For external services
+  version     String?      @db.VarChar(100) // Service version
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([status, lastCheck(sort: Desc)])
+  @@index([type, status])
+  @@index([lastCheck(sort: Desc)])
+  @@map("service_status")
+}
+
+// ============================================
+// BACKUP AND DISASTER RECOVERY MODELS
+// ============================================
+
+enum BackupType {
+  FULL
+  INCREMENTAL
+}
+
+enum BackupStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum BackupFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model BackupJob {
+  id          String       @id @default(uuid())
+  type        BackupType
+  status      BackupStatus
+  startTime   DateTime     @map("start_time")
+  endTime     DateTime?    @map("end_time")
+  backupSize  BigInt?      @map("backup_size") // Size in bytes
+  location    String       @db.Text // S3 path or local path
+  retention   Int          @default(30) // Days to keep
+  error       String?      @db.Text // Error message if failed
+  metadata    String?      @db.Text // JSON metadata (files backed up, etc.)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  restorePoints RestorePoint[]
+
+  @@index([status, startTime(sort: Desc)])
+  @@index([type, startTime(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("backup_jobs")
+}
+
+model BackupSchedule {
+  id          String          @id @default(uuid())
+  frequency   BackupFrequency
+  time        String          @db.VarChar(10) // HH:MM format (e.g., "02:00")
+  isEnabled   Boolean         @default(true) @map("is_enabled")
+  lastRun     DateTime?       @map("last_run")
+  nextRun     DateTime?       @map("next_run")
+  backupType  BackupType      @default(INCREMENTAL) @map("backup_type")
+  metadata    String?         @db.Text // JSON metadata (retention, compression settings, etc.)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  @@index([isEnabled, nextRun])
+  @@index([frequency, isEnabled])
+  @@map("backup_schedules")
+}
+
+model RestorePoint {
+  id          String   @id @default(uuid())
+  backupId    String   @map("backup_id")
+  timestamp   DateTime
+  description String   @db.Text
+  metadata    String?  @db.Text // JSON metadata (database size, file count, etc.)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  backup BackupJob @relation(fields: [backupId], references: [id], onDelete: Cascade)
+
+  @@index([backupId, timestamp(sort: Desc)])
+  @@index([timestamp(sort: Desc)])
+  @@map("restore_points")
+}
+
+// ============================================
+// CUSTOMER SEGMENTATION MODELS
+// ============================================
+
+model CustomerSegment {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  criteria    String   @db.Text // JSON: {rules, conditions, thresholds}
+  memberCount Int      @default(0) @map("member_count")
+  isAuto      Boolean  @default(false) @map("is_auto") // true for dynamic/ML segments
+  segmentType String   @default("manual") @map("segment_type") @db.VarChar(50) // manual, rule-based, ml-clustering
+  isActive    Boolean  @default(true) @map("is_active")
+  lastUpdated DateTime @default(now()) @map("last_updated") // Last membership update
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members         SegmentMember[]
+  analysis        SegmentAnalysis?
+
+  @@index([userId, isActive])
+  @@index([userId, segmentType])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("customer_segments")
+}
+
+model SegmentMember {
+  id         String   @id @default(uuid())
+  segmentId  String   @map("segment_id")
+  customerId String   @map("customer_id")
+  addedAt    DateTime @default(now()) @map("added_at")
+  score      Decimal? @db.Decimal(10, 4) // ML confidence score or relevance score
+  metadata   String?  @db.Text // JSON: additional member-specific data
+
+  segment  CustomerSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+  customer Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([segmentId, customerId])
+  @@index([segmentId, addedAt(sort: Desc)])
+  @@index([customerId, addedAt(sort: Desc)])
+  @@map("segment_members")
+}
+
+model SegmentAnalysis {
+  id                    String   @id @default(uuid())
+  segmentId             String   @unique @map("segment_id")
+  totalMembers          Int      @default(0) @map("total_members")
+  avgLifetimeValue      Decimal  @default(0) @map("avg_lifetime_value") @db.Decimal(12, 2)
+  totalLifetimeValue    Decimal  @default(0) @map("total_lifetime_value") @db.Decimal(12, 2)
+  avgChurnRisk          Decimal  @default(0) @map("avg_churn_risk") @db.Decimal(5, 2) // 0-100 percentage
+  avgEngagementScore    Decimal  @default(0) @map("avg_engagement_score") @db.Decimal(5, 2) // 0-100
+  avgPurchaseFrequency  Decimal  @default(0) @map("avg_purchase_frequency") @db.Decimal(10, 2)
+  avgRecency            Int      @default(0) @map("avg_recency") // Days since last purchase
+  avgTicketCount        Decimal  @default(0) @map("avg_ticket_count") @db.Decimal(10, 2)
+  conversionRate        Decimal  @default(0) @map("conversion_rate") @db.Decimal(5, 2) // Percentage
+  retentionRate         Decimal  @default(0) @map("retention_rate") @db.Decimal(5, 2) // Percentage
+  metrics               String?  @db.Text // JSON: additional custom metrics
+  lastCalculated        DateTime @default(now()) @map("last_calculated")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  segment CustomerSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+
+  @@index([segmentId, lastCalculated])
+  @@map("segment_analysis")
 }

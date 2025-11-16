@@ -1,0 +1,172 @@
+{
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "add": "Agregar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "export": "Exportar",
+    "import": "Importar",
+    "loading": "Cargando...",
+    "noData": "No hay datos disponibles",
+    "confirm": "Confirmar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "finish": "Finalizar",
+    "close": "Cerrar",
+    "download": "Descargar",
+    "upload": "Subir",
+    "yes": "Sí",
+    "no": "No",
+    "success": "Éxito",
+    "error": "Error",
+    "warning": "Advertencia"
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "platforms": "Plataformas",
+    "earnings": "Ingresos",
+    "goals": "Metas",
+    "analytics": "Analíticas",
+    "reports": "Informes",
+    "invoices": "Facturas",
+    "products": "Productos",
+    "customers": "Clientes",
+    "expenses": "Gastos",
+    "sales": "Ventas",
+    "inventory": "Inventario",
+    "taxCalculator": "Calculadora de Impuestos",
+    "settings": "Configuración",
+    "logout": "Cerrar Sesión"
+  },
+  "dashboard": {
+    "title": "Panel",
+    "customize": "Personalizar",
+    "totalEarned": "Total Ganado",
+    "thisMonth": "Este Mes",
+    "hoursWorked": "Horas Trabajadas",
+    "avgHourlyRate": "Tarifa Promedio por Hora",
+    "earningsByPlatform": "Ingresos por Plataforma",
+    "recentEntries": "Entradas Recientes",
+    "noEarningsYet": "Aún no hay ingresos. ¡Agrega tu primera entrada!",
+    "quickStats": "Estadísticas Rápidas",
+    "topPlatforms": "Principales Plataformas",
+    "recentEarnings": "Ingresos Recientes"
+  },
+  "earnings": {
+    "title": "Ingresos",
+    "addEarning": "Agregar Ingreso",
+    "editEarning": "Editar Ingreso",
+    "platform": "Plataforma",
+    "date": "Fecha",
+    "amount": "Cantidad",
+    "hours": "Horas",
+    "notes": "Notas",
+    "exportCSV": "Exportar CSV",
+    "importCSV": "Importar CSV",
+    "totalAmount": "Cantidad Total",
+    "totalHours": "Horas Totales",
+    "filter": {
+      "today": "Hoy",
+      "week": "Esta Semana",
+      "month": "Este Mes",
+      "all": "Todo el Tiempo"
+    }
+  },
+  "platforms": {
+    "title": "Plataformas",
+    "addPlatform": "Agregar Plataforma",
+    "editPlatform": "Editar Plataforma",
+    "name": "Nombre",
+    "category": "Categoría",
+    "color": "Color",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "totalEarned": "Total Ganado",
+    "avgRate": "Tarifa Promedio",
+    "categories": {
+      "freelance": "Freelance",
+      "parttime": "Tiempo Parcial",
+      "investment": "Inversión",
+      "other": "Otro"
+    }
+  },
+  "goals": {
+    "title": "Metas",
+    "addGoal": "Agregar Meta",
+    "editGoal": "Editar Meta",
+    "goalTitle": "Título de la Meta",
+    "targetAmount": "Cantidad Objetivo",
+    "currentAmount": "Cantidad Actual",
+    "deadline": "Fecha Límite",
+    "progress": "Progreso",
+    "status": {
+      "active": "Activo",
+      "completed": "Completado",
+      "cancelled": "Cancelado"
+    }
+  },
+  "invoices": {
+    "title": "Facturas",
+    "newInvoice": "Nueva Factura",
+    "invoiceNumber": "Número de Factura",
+    "clientName": "Nombre del Cliente",
+    "dueDate": "Fecha de Vencimiento",
+    "subtotal": "Subtotal",
+    "tax": "Impuesto",
+    "total": "Total",
+    "generatePDF": "Generar PDF",
+    "downloadTemplate": "Descargar Plantilla",
+    "status": {
+      "draft": "Borrador",
+      "sent": "Enviado",
+      "paid": "Pagado",
+      "overdue": "Vencido",
+      "cancelled": "Cancelado"
+    }
+  },
+  "settings": {
+    "title": "Configuración",
+    "profile": "Perfil",
+    "name": "Nombre",
+    "email": "Correo Electrónico",
+    "timezone": "Zona Horaria",
+    "currency": "Moneda Predeterminada",
+    "language": "Idioma",
+    "theme": "Tema",
+    "notifications": "Notificaciones",
+    "changePassword": "Cambiar Contraseña",
+    "currentPassword": "Contraseña Actual",
+    "newPassword": "Nueva Contraseña",
+    "confirmPassword": "Confirmar Nueva Contraseña"
+  },
+  "auth": {
+    "login": "Iniciar Sesión",
+    "register": "Registrarse",
+    "logout": "Cerrar Sesión",
+    "email": "Correo Electrónico",
+    "password": "Contraseña",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "rememberMe": "Recuérdame",
+    "noAccount": "¿No tienes cuenta?",
+    "haveAccount": "¿Ya tienes cuenta?",
+    "signUp": "Registrarse",
+    "signIn": "Iniciar Sesión"
+  },
+  "notifications": {
+    "success": "Éxito",
+    "error": "Error",
+    "earningAdded": "¡Ingreso agregado exitosamente!",
+    "earningUpdated": "¡Ingreso actualizado exitosamente!",
+    "profileUpdated": "¡Perfil actualizado exitosamente!",
+    "languageChanged": "¡Idioma cambiado exitosamente!"
+  },
+  "validation": {
+    "required": "Este campo es obligatorio",
+    "email": "Por favor ingresa un correo válido",
+    "minLength": "La longitud mínima es {{min}} caracteres",
+    "maxLength": "La longitud máxima es {{max}} caracteres"
+  }
+}

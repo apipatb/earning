@@ -1,0 +1,126 @@
+{
+  "common": {
+    "success": "Éxito",
+    "error": "Error",
+    "warning": "Advertencia",
+    "info": "Información",
+    "notFound": "No encontrado",
+    "unauthorized": "Acceso no autorizado",
+    "forbidden": "Prohibido",
+    "badRequest": "Solicitud incorrecta",
+    "internalError": "Error interno del servidor",
+    "validationError": "Error de validación"
+  },
+  "auth": {
+    "loginSuccess": "Inicio de sesión exitoso",
+    "loginFailed": "Error al iniciar sesión",
+    "logoutSuccess": "Sesión cerrada exitosamente",
+    "registerSuccess": "Registro exitoso",
+    "registerFailed": "Error al registrarse",
+    "invalidCredentials": "Credenciales inválidas",
+    "emailAlreadyExists": "El correo electrónico ya existe",
+    "passwordResetSent": "Correo de restablecimiento de contraseña enviado",
+    "passwordResetSuccess": "Contraseña restablecida exitosamente",
+    "tokenExpired": "El token ha expirado",
+    "tokenInvalid": "Token inválido",
+    "unauthorized": "Acceso no autorizado"
+  },
+  "user": {
+    "profileUpdated": "Perfil actualizado exitosamente",
+    "profileUpdateFailed": "Error al actualizar el perfil",
+    "userNotFound": "Usuario no encontrado",
+    "userCreated": "Usuario creado exitosamente",
+    "userDeleted": "Usuario eliminado exitosamente",
+    "languageUpdated": "Preferencia de idioma actualizada",
+    "passwordChanged": "Contraseña cambiada exitosamente",
+    "passwordChangeFailed": "Error al cambiar la contraseña",
+    "invalidPassword": "Contraseña inválida"
+  },
+  "earnings": {
+    "created": "Ingreso creado exitosamente",
+    "updated": "Ingreso actualizado exitosamente",
+    "deleted": "Ingreso eliminado exitosamente",
+    "notFound": "Ingreso no encontrado",
+    "listRetrieved": "Ingresos recuperados exitosamente"
+  },
+  "platforms": {
+    "created": "Plataforma creada exitosamente",
+    "updated": "Plataforma actualizada exitosamente",
+    "deleted": "Plataforma eliminada exitosamente",
+    "notFound": "Plataforma no encontrada",
+    "alreadyExists": "Ya existe una plataforma con este nombre"
+  },
+  "goals": {
+    "created": "Meta creada exitosamente",
+    "updated": "Meta actualizada exitosamente",
+    "deleted": "Meta eliminada exitosamente",
+    "completed": "¡Felicitaciones! ¡Meta completada!",
+    "notFound": "Meta no encontrada"
+  },
+  "invoices": {
+    "created": "Factura creada exitosamente",
+    "updated": "Factura actualizada exitosamente",
+    "deleted": "Factura eliminada exitosamente",
+    "sent": "Factura enviada exitosamente",
+    "paid": "Factura marcada como pagada",
+    "notFound": "Factura no encontrada",
+    "pdfGenerated": "PDF generado exitosamente"
+  },
+  "products": {
+    "created": "Producto creado exitosamente",
+    "updated": "Producto actualizado exitosamente",
+    "deleted": "Producto eliminado exitosamente",
+    "notFound": "Producto no encontrado",
+    "lowStock": "Alerta de stock bajo para {{name}}",
+    "outOfStock": "{{name}} está agotado"
+  },
+  "customers": {
+    "created": "Cliente creado exitosamente",
+    "updated": "Cliente actualizado exitosamente",
+    "deleted": "Cliente eliminado exitosamente",
+    "notFound": "Cliente no encontrado"
+  },
+  "expenses": {
+    "created": "Gasto creado exitosamente",
+    "updated": "Gasto actualizado exitosamente",
+    "deleted": "Gasto eliminado exitosamente",
+    "notFound": "Gasto no encontrado"
+  },
+  "reports": {
+    "generated": "Reporte generado exitosamente",
+    "notFound": "Reporte no encontrado",
+    "exportSuccess": "Reporte exportado exitosamente",
+    "exportFailed": "Error al exportar reporte"
+  },
+  "emails": {
+    "sent": "Correo enviado exitosamente",
+    "sendFailed": "Error al enviar correo",
+    "templateNotFound": "Plantilla de correo no encontrada",
+    "invalidRecipient": "Correo del destinatario inválido"
+  },
+  "notifications": {
+    "goalDeadlineApproaching": "Fecha límite de meta acercándose: {{title}}",
+    "invoiceOverdue": "Factura {{number}} está vencida",
+    "lowStockAlert": "Alerta de stock bajo: {{product}}",
+    "newCustomer": "Nuevo cliente registrado: {{name}}",
+    "paymentReceived": "Pago recibido: {{amount}}"
+  },
+  "validation": {
+    "required": "{{field}} es requerido",
+    "invalidEmail": "Dirección de correo electrónico inválida",
+    "invalidDate": "Fecha inválida",
+    "invalidNumber": "Número inválido",
+    "minLength": "{{field}} debe tener al menos {{min}} caracteres",
+    "maxLength": "{{field}} no debe exceder {{max}} caracteres",
+    "passwordMismatch": "Las contraseñas no coinciden"
+  },
+  "languages": {
+    "en": "Inglés",
+    "es": "Español",
+    "fr": "Francés",
+    "de": "Alemán",
+    "zh": "Chino",
+    "ja": "Japonés",
+    "th": "Tailandés"
+  }
+}

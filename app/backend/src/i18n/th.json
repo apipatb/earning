@@ -1,0 +1,126 @@
+{
+  "common": {
+    "success": "สำเร็จ",
+    "error": "ข้อผิดพลาด",
+    "warning": "คำเตือน",
+    "info": "ข้อมูล",
+    "notFound": "ไม่พบ",
+    "unauthorized": "การเข้าถึงไม่ได้รับอนุญาต",
+    "forbidden": "ถูกห้าม",
+    "badRequest": "คำขอไม่ถูกต้อง",
+    "internalError": "ข้อผิดพลาดภายในเซิร์ฟเวอร์",
+    "validationError": "ข้อผิดพลาดในการตรวจสอบ"
+  },
+  "auth": {
+    "loginSuccess": "เข้าสู่ระบบสำเร็จ",
+    "loginFailed": "เข้าสู่ระบบล้มเหลว",
+    "logoutSuccess": "ออกจากระบบสำเร็จ",
+    "registerSuccess": "ลงทะเบียนสำเร็จ",
+    "registerFailed": "ลงทะเบียนล้มเหลว",
+    "invalidCredentials": "ข้อมูลรับรองไม่ถูกต้อง",
+    "emailAlreadyExists": "อีเมลนี้มีอยู่แล้ว",
+    "passwordResetSent": "ส่งอีเมลรีเซ็ตรหัสผ่านแล้ว",
+    "passwordResetSuccess": "รีเซ็ตรหัสผ่านสำเร็จ",
+    "tokenExpired": "โทเคนหมดอายุแล้ว",
+    "tokenInvalid": "โทเคนไม่ถูกต้อง",
+    "unauthorized": "การเข้าถึงไม่ได้รับอนุญาต"
+  },
+  "user": {
+    "profileUpdated": "อัปเดตโปรไฟล์สำเร็จ",
+    "profileUpdateFailed": "อัปเดตโปรไฟล์ล้มเหลว",
+    "userNotFound": "ไม่พบผู้ใช้",
+    "userCreated": "สร้างผู้ใช้สำเร็จ",
+    "userDeleted": "ลบผู้ใช้สำเร็จ",
+    "languageUpdated": "อัปเดตการตั้งค่าภาษาแล้ว",
+    "passwordChanged": "เปลี่ยนรหัสผ่านสำเร็จ",
+    "passwordChangeFailed": "เปลี่ยนรหัสผ่านล้มเหลว",
+    "invalidPassword": "รหัสผ่านไม่ถูกต้อง"
+  },
+  "earnings": {
+    "created": "สร้างรายได้สำเร็จ",
+    "updated": "อัปเดตรายได้สำเร็จ",
+    "deleted": "ลบรายได้สำเร็จ",
+    "notFound": "ไม่พบรายได้",
+    "listRetrieved": "ดึงรายการรายได้สำเร็จ"
+  },
+  "platforms": {
+    "created": "สร้างแพลตฟอร์มสำเร็จ",
+    "updated": "อัปเดตแพลตฟอร์มสำเร็จ",
+    "deleted": "ลบแพลตฟอร์มสำเร็จ",
+    "notFound": "ไม่พบแพลตฟอร์ม",
+    "alreadyExists": "แพลตฟอร์มชื่อนี้มีอยู่แล้ว"
+  },
+  "goals": {
+    "created": "สร้างเป้าหมายสำเร็จ",
+    "updated": "อัปเดตเป้าหมายสำเร็จ",
+    "deleted": "ลบเป้าหมายสำเร็จ",
+    "completed": "ยินดีด้วย! บรรลุเป้าหมายแล้ว!",
+    "notFound": "ไม่พบเป้าหมาย"
+  },
+  "invoices": {
+    "created": "สร้างใบแจ้งหนี้สำเร็จ",
+    "updated": "อัปเดตใบแจ้งหนี้สำเร็จ",
+    "deleted": "ลบใบแจ้งหนี้สำเร็จ",
+    "sent": "ส่งใบแจ้งหนี้สำเร็จ",
+    "paid": "ทำเครื่องหมายใบแจ้งหนี้ว่าชำระแล้ว",
+    "notFound": "ไม่พบใบแจ้งหนี้",
+    "pdfGenerated": "สร้าง PDF สำเร็จ"
+  },
+  "products": {
+    "created": "สร้างสินค้าสำเร็จ",
+    "updated": "อัปเดตสินค้าสำเร็จ",
+    "deleted": "ลบสินค้าสำเร็จ",
+    "notFound": "ไม่พบสินค้า",
+    "lowStock": "แจ้งเตือนสินค้าใกล้หมดสำหรับ {{name}}",
+    "outOfStock": "{{name}} หมดสต็อก"
+  },
+  "customers": {
+    "created": "สร้างลูกค้าสำเร็จ",
+    "updated": "อัปเดตลูกค้าสำเร็จ",
+    "deleted": "ลบลูกค้าสำเร็จ",
+    "notFound": "ไม่พบลูกค้า"
+  },
+  "expenses": {
+    "created": "สร้างค่าใช้จ่ายสำเร็จ",
+    "updated": "อัปเดตค่าใช้จ่ายสำเร็จ",
+    "deleted": "ลบค่าใช้จ่ายสำเร็จ",
+    "notFound": "ไม่พบค่าใช้จ่าย"
+  },
+  "reports": {
+    "generated": "สร้างรายงานสำเร็จ",
+    "notFound": "ไม่พบรายงาน",
+    "exportSuccess": "ส่งออกรายงานสำเร็จ",
+    "exportFailed": "ส่งออกรายงานล้มเหลว"
+  },
+  "emails": {
+    "sent": "ส่งอีเมลสำเร็จ",
+    "sendFailed": "ส่งอีเมลล้มเหลว",
+    "templateNotFound": "ไม่พบเทมเพลตอีเมล",
+    "invalidRecipient": "อีเมลผู้รับไม่ถูกต้อง"
+  },
+  "notifications": {
+    "goalDeadlineApproaching": "กำหนดเวลาเป้าหมายใกล้เข้ามาแล้ว: {{title}}",
+    "invoiceOverdue": "ใบแจ้งหนี้ {{number}} เลยกำหนดแล้ว",
+    "lowStockAlert": "แจ้งเตือนสินค้าใกล้หมด: {{product}}",
+    "newCustomer": "ลูกค้าใหม่ลงทะเบียน: {{name}}",
+    "paymentReceived": "ได้รับการชำระเงิน: {{amount}}"
+  },
+  "validation": {
+    "required": "{{field}} จำเป็นต้องกรอก",
+    "invalidEmail": "ที่อยู่อีเมลไม่ถูกต้อง",
+    "invalidDate": "วันที่ไม่ถูกต้อง",
+    "invalidNumber": "ตัวเลขไม่ถูกต้อง",
+    "minLength": "{{field}} ต้องมีอย่างน้อย {{min}} ตัวอักษร",
+    "maxLength": "{{field}} ต้องไม่เกิน {{max}} ตัวอักษร",
+    "passwordMismatch": "รหัสผ่านไม่ตรงกัน"
+  },
+  "languages": {
+    "en": "อังกฤษ",
+    "es": "สเปน",
+    "fr": "ฝรั่งเศส",
+    "de": "เยอรมัน",
+    "zh": "จีน",
+    "ja": "ญี่ปุ่น",
+    "th": "ไทย"
+  }
+}

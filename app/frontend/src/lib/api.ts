@@ -618,3 +618,49 @@ export const smsAPI = {
   // Unsubscribe
   unsubscribe: (phoneNumber: string) => api.post("/sms/unsubscribe", { phoneNumber }).then(res => res.data),
 };
+
+// ============================================
+// Funnel Analysis API
+// ============================================
+
+export const funnelAPI = {
+  // Funnel Management
+  getFunnels: () => api.get('/funnels').then(res => res.data),
+  getFunnel: (id: string) => api.get(`/funnels/${id}`).then(res => res.data),
+  createFunnel: (data: {
+    name: string;
+    description?: string;
+    steps: { name: string; order: number; conditions?: Record<string, any> }[];
+    trackingEnabled?: boolean;
+    metadata?: Record<string, any>;
+  }) => api.post('/funnels', data).then(res => res.data),
+  updateFunnel: (id: string, data: Partial<{
+    name: string;
+    description?: string;
+    steps: { name: string; order: number; conditions?: Record<string, any> }[];
+    trackingEnabled?: boolean;
+    metadata?: Record<string, any>;
+  }>) => api.put(`/funnels/${id}`, data).then(res => res.data),
+  deleteFunnel: (id: string) => api.delete(`/funnels/${id}`).then(res => res.data),
+  createPresetFunnels: () => api.post('/funnels/presets').then(res => res.data),
+
+  // Event Tracking
+  trackEvent: (data: {
+    funnelId: string;
+    sessionId: string;
+    step: string;
+    stepNumber: number;
+    metadata?: Record<string, any>;
+  }) => api.post('/funnels/events', data).then(res => res.data),
+
+  // Metrics & Analysis
+  getFunnelMetrics: (id: string, period?: string) => api.get(`/funnels/${id}/metrics`, { params: { period } }).then(res => res.data),
+  calculateMetrics: (id: string, periodStart: string, periodEnd: string) =>
+    api.post(`/funnels/${id}/metrics/calculate`, { periodStart, periodEnd }).then(res => res.data),
+  getFunnelAnalysis: (id: string, periodStart?: string, periodEnd?: string) =>
+    api.get(`/funnels/${id}/analysis`, { params: { periodStart, periodEnd } }).then(res => res.data),
+  getCohortAnalysis: (id: string, periodStart: string, periodEnd: string, cohortBy: 'day' | 'week' | 'month' = 'day') =>
+    api.get(`/funnels/${id}/cohort-analysis`, { params: { periodStart, periodEnd, cohortBy } }).then(res => res.data),
+  getSegmentAnalysis: (id: string, segmentBy: string, periodStart?: string, periodEnd?: string) =>
+    api.get(`/funnels/${id}/segment-analysis`, { params: { segmentBy, periodStart, periodEnd } }).then(res => res.data),
+};
