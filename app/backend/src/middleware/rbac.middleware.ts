@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { RoleName, PermissionAction } from '@prisma/client';
 import { rbacService } from '../services/rbac.service';
+import { logger } from '../utils/logger';
 
 /**
  * Extended Request interface with user information
@@ -39,7 +40,7 @@ export const requireRole = (...roles: RoleName[]) => {
 
       next();
     } catch (error) {
-      console.error('Role check error:', error);
+      logger.error('Role check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking user role',
@@ -74,7 +75,7 @@ export const requireAllRoles = (...roles: RoleName[]) => {
 
       next();
     } catch (error) {
-      console.error('Role check error:', error);
+      logger.error('Role check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking user roles',
@@ -109,7 +110,7 @@ export const requirePermission = (permissionName: string) => {
 
       next();
     } catch (error) {
-      console.error('Permission check error:', error);
+      logger.error('Permission check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking user permission',
@@ -145,7 +146,7 @@ export const requireResourcePermission = (resource: string, action: PermissionAc
 
       next();
     } catch (error) {
-      console.error('Resource permission check error:', error);
+      logger.error('Resource permission check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking resource permission',
@@ -202,7 +203,7 @@ export const checkResourceOwnership = (
 
       next();
     } catch (error) {
-      console.error('Resource ownership check error:', error);
+      logger.error('Resource ownership check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking resource ownership',
@@ -256,7 +257,7 @@ export const requireUserManagement = () => {
         message: 'Insufficient permissions. User management access required.',
       });
     } catch (error) {
-      console.error('User management check error:', error);
+      logger.error('User management check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking user management permission',
@@ -298,7 +299,7 @@ export const requireRoleManagement = () => {
         message: 'Insufficient permissions. Role management access required.',
       });
     } catch (error) {
-      console.error('Role management check error:', error);
+      logger.error('Role management check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking role management permission',
@@ -329,7 +330,7 @@ export const attachUserPermissions = async (
 
     next();
   } catch (error) {
-    console.error('Attach permissions error:', error);
+    logger.error('Attach permissions error', error as Error);
     // Don't fail the request, just continue without permissions
     next();
   }
@@ -365,7 +366,7 @@ export const customPermissionCheck = (
 
       next();
     } catch (error) {
-      console.error('Custom permission check error:', error);
+      logger.error('Custom permission check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking permissions',

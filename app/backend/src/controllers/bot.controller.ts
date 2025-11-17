@@ -4,6 +4,7 @@ import { SlackService, createSlackServiceForUser } from '../services/slack.servi
 import { TeamsService, createTeamsServiceForUser } from '../services/teams.service';
 import crypto from 'crypto';
 import axios from 'axios';
+import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 
@@ -33,7 +34,7 @@ export async function handleSlackEvents(req: Request, res: Response): Promise<vo
 
     res.status(200).send();
   } catch (error) {
-    console.error('Error handling Slack events:', error);
+    logger.error('Error handling Slack events', error as Error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -52,7 +53,7 @@ async function processSlackEvent(event: any, teamId: string): Promise<void> {
     });
 
     if (!integration) {
-      console.log('No active integration found for team:', teamId);
+      logger.info('No active integration found for team', { teamId });
       return;
     }
 
@@ -75,10 +76,10 @@ async function processSlackEvent(event: any, teamId: string): Promise<void> {
         break;
 
       default:
-        console.log('Unhandled Slack event type:', event.type);
+        logger.debug('Unhandled Slack event type', { eventType: event.type });
     }
   } catch (error) {
-    console.error('Error processing Slack event:', error);
+    logger.error('Error processing Slack event', error as Error);
   }
 }
 
@@ -134,7 +135,7 @@ async function handleSlackReaction(
   event: any,
   integration: any
 ): Promise<void> {
-  console.log('Reaction added:', event.reaction, 'to message:', event.item.ts);
+  logger.debug('Reaction added', { reaction: event.reaction, messageTs: event.item.ts });
   // Handle reactions - could be used for ticket feedback, quick actions, etc.
 }
 
@@ -219,7 +220,7 @@ export async function handleSlackCommand(req: Request, res: Response): Promise<v
         });
     }
   } catch (error) {
-    console.error('Error handling Slack command:', error);
+    logger.error('Error handling Slack command', error as Error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -271,13 +272,13 @@ export async function handleSlackInteraction(req: Request, res: Response): Promi
           break;
 
         default:
-          console.log('Unhandled action:', action.action_id);
+          logger.debug('Unhandled action', { actionId: action.action_id });
       }
     }
 
     res.status(200).send();
   } catch (error) {
-    console.error('Error handling Slack interaction:', error);
+    logger.error('Error handling Slack interaction', error as Error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -318,7 +319,7 @@ export async function handleTeamsEvents(req: Request, res: Response): Promise<vo
       }
     });
   } catch (error) {
-    console.error('Error handling Teams events:', error);
+    logger.error('Error handling Teams events', error as Error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -393,7 +394,7 @@ export async function connectSlackIntegration(req: Request, res: Response): Prom
       },
     });
   } catch (error: any) {
-    console.error('Error connecting Slack integration:', error);
+    logger.error('Error connecting Slack integration', error as Error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
@@ -447,7 +448,7 @@ export async function connectTeamsIntegration(req: Request, res: Response): Prom
       },
     });
   } catch (error: any) {
-    console.error('Error connecting Teams integration:', error);
+    logger.error('Error connecting Teams integration', error as Error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
@@ -496,7 +497,7 @@ export async function getBotIntegrations(req: Request, res: Response): Promise<v
       teams: teamsIntegrations,
     });
   } catch (error: any) {
-    console.error('Error fetching bot integrations:', error);
+    logger.error('Error fetching bot integrations', error as Error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
@@ -535,7 +536,7 @@ export async function deleteBotIntegration(req: Request, res: Response): Promise
 
     res.json({ success: true });
   } catch (error: any) {
-    console.error('Error deleting bot integration:', error);
+    logger.error('Error deleting bot integration', error as Error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
@@ -577,7 +578,7 @@ export async function toggleBotIntegration(req: Request, res: Response): Promise
 
     res.json({ success: true, isActive });
   } catch (error: any) {
-    console.error('Error toggling bot integration:', error);
+    logger.error('Error toggling bot integration', error as Error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }
@@ -625,7 +626,7 @@ export async function getBotNotifications(req: Request, res: Response): Promise<
       offset: Number(offset),
     });
   } catch (error: any) {
-    console.error('Error fetching bot notifications:', error);
+    logger.error('Error fetching bot notifications', error as Error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 }

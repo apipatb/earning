@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { liveChatService } from '../services/live-chat.service';
 import { LiveChatRoomType } from '@prisma/client';
+import { logger } from '../utils/logger';
 
 /**
  * Create a new chat room
@@ -31,7 +32,7 @@ export const createRoom = async (req: Request, res: Response) => {
       data: room,
     });
   } catch (error: any) {
-    console.error('Error creating room:', error);
+    logger.error('Error creating room', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to create room',
@@ -56,7 +57,7 @@ export const getRooms = async (req: Request, res: Response) => {
       data: rooms,
     });
   } catch (error: any) {
-    console.error('Error fetching rooms:', error);
+    logger.error('Error fetching rooms', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch rooms',
@@ -87,7 +88,7 @@ export const getRoomById = async (req: Request, res: Response) => {
       data: room,
     });
   } catch (error: any) {
-    console.error('Error fetching room:', error);
+    logger.error('Error fetching room', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch room',
@@ -113,7 +114,7 @@ export const getRoomMessages = async (req: Request, res: Response) => {
       data: messages.reverse(), // Return in chronological order
     });
   } catch (error: any) {
-    console.error('Error fetching messages:', error);
+    logger.error('Error fetching messages', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch messages',
@@ -157,7 +158,7 @@ export const sendMessage = async (req: Request, res: Response) => {
       data: message,
     });
   } catch (error: any) {
-    console.error('Error sending message:', error);
+    logger.error('Error sending message', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to send message',
@@ -189,7 +190,7 @@ export const markMessageAsRead = async (req: Request, res: Response) => {
       data: message,
     });
   } catch (error: any) {
-    console.error('Error marking message as read:', error);
+    logger.error('Error marking message as read', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to mark message as read',
@@ -221,7 +222,7 @@ export const markRoomAsRead = async (req: Request, res: Response) => {
       message: 'All messages marked as read',
     });
   } catch (error: any) {
-    console.error('Error marking room as read:', error);
+    logger.error('Error marking room as read', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to mark room as read',
@@ -253,7 +254,7 @@ export const getUnreadCount = async (req: Request, res: Response) => {
       data: { count },
     });
   } catch (error: any) {
-    console.error('Error fetching unread count:', error);
+    logger.error('Error fetching unread count', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch unread count',
@@ -285,7 +286,7 @@ export const joinRoom = async (req: Request, res: Response) => {
       data: participant,
     });
   } catch (error: any) {
-    console.error('Error joining room:', error);
+    logger.error('Error joining room', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to join room',
@@ -317,7 +318,7 @@ export const leaveRoom = async (req: Request, res: Response) => {
       message: 'Left room successfully',
     });
   } catch (error: any) {
-    console.error('Error leaving room:', error);
+    logger.error('Error leaving room', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to leave room',
@@ -341,7 +342,7 @@ export const getRoomParticipants = async (req: Request, res: Response) => {
       data: participants,
     });
   } catch (error: any) {
-    console.error('Error fetching participants:', error);
+    logger.error('Error fetching participants', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch participants',
@@ -374,7 +375,7 @@ export const searchMessages = async (req: Request, res: Response) => {
       data: messages,
     });
   } catch (error: any) {
-    console.error('Error searching messages:', error);
+    logger.error('Error searching messages', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to search messages',
@@ -398,7 +399,7 @@ export const deleteRoom = async (req: Request, res: Response) => {
       message: 'Room deleted successfully',
     });
   } catch (error: any) {
-    console.error('Error deleting room:', error);
+    logger.error('Error deleting room', error as Error);
     res.status(500).json({
       success: false,
       message: 'Failed to delete room',

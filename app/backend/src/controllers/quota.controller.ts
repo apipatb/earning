@@ -4,6 +4,7 @@ import { quotaService } from '../services/quota.service';
 import { QuotaTier, UsagePeriod } from '@prisma/client';
 import { rbacService } from '../services/rbac.service';
 import { subscriptionService } from '../services/subscription.service';
+import { logger } from '../utils/logger';
 
 /**
  * Quota Controller
@@ -27,7 +28,7 @@ export const getCurrentUsage = async (req: AuthRequest, res: Response) => {
       data: usage,
     });
   } catch (error) {
-    console.error('[Quota] Error getting current usage:', error);
+    logger.error('[Quota] Error getting current usage', error as Error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to retrieve current usage',
@@ -63,7 +64,7 @@ export const getQuotaLimits = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[Quota] Error getting quota limits:', error);
+    logger.error('[Quota] Error getting quota limits', error as Error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to retrieve quota limits',
@@ -87,7 +88,7 @@ export const getUsageReport = async (req: AuthRequest, res: Response) => {
       data: report,
     });
   } catch (error) {
-    console.error('[Quota] Error generating usage report:', error);
+    logger.error('[Quota] Error generating usage report', error as Error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to generate usage report',
@@ -136,7 +137,7 @@ export const getUsageHistory = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[Quota] Error getting usage history:', error);
+    logger.error('[Quota] Error getting usage history', error as Error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to retrieve usage history',
@@ -164,7 +165,7 @@ export const getViolations = async (req: AuthRequest, res: Response) => {
       data: violations,
     });
   } catch (error) {
-    console.error('[Quota] Error getting violations:', error);
+    logger.error('[Quota] Error getting violations', error as Error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to retrieve violation history',
@@ -204,7 +205,7 @@ export const getTopEndpoints = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[Quota] Error getting top endpoints:', error);
+    logger.error('[Quota] Error getting top endpoints', error as Error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to retrieve top endpoints',
@@ -241,7 +242,7 @@ export const upgradeQuotaTier = async (req: AuthRequest, res: Response) => {
           const hasActiveSubscription = await subscriptionService.hasActiveSubscription(userId);
 
           if (!hasActiveSubscription) {
-            console.warn(`[Quota] User ${userId} attempted to upgrade to ${tier} without active subscription`);
+            logger.warn(`[Quota] User ${userId} attempted to upgrade to ${tier} without active subscription`);
             return res.status(402).json({
               error: 'Payment Required',
               message: 'An active subscription is required to upgrade to paid tiers. Please subscribe to a plan first.',
@@ -251,16 +252,16 @@ export const upgradeQuotaTier = async (req: AuthRequest, res: Response) => {
 
           // Get subscription details for logging
           const subscription = await subscriptionService.getActiveSubscription(userId);
-          console.log(`[Quota] User ${userId} has active subscription (plan: ${subscription?.plan.name}, status: ${subscription?.status})`);
+          logger.info(`[Quota] User ${userId} has active subscription (plan: ${subscription?.plan.name}, status: ${subscription?.status})`);
         } catch (error) {
-          console.error(`[Quota] Error verifying subscription for user ${userId}:`, error);
+          logger.error(`[Quota] Error verifying subscription for user ${userId}`, error as Error);
           return res.status(500).json({
             error: 'Internal Server Error',
             message: 'Failed to verify subscription status. Please try again later.',
           });
         }
       } else {
-        console.log(`[Quota] Admin user ${userId} upgrading to ${tier} (subscription check bypassed)`);
+        logger.info(`[Quota] Admin user ${userId} upgrading to ${tier} (subscription check bypassed)`);
       }
     }
 
@@ -281,7 +282,7 @@ export const upgradeQuotaTier = async (req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[Quota] Error upgrading quota tier:', error);
+    logger.error('[Quota] Error upgrading quota tier', error as Error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to upgrade quota tier',
@@ -315,7 +316,7 @@ export const resetQuota = async (req: AuthRequest, res: Response) => {
       data: quota,
     });
   } catch (error) {
-    console.error('[Quota] Error resetting quota:', error);
+    logger.error('[Quota] Error resetting quota', error as Error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to reset quota',
@@ -340,7 +341,7 @@ export const checkEndpointQuota = async (req: AuthRequest, res: Response) => {
       data: quotaCheck,
     });
   } catch (error) {
-    console.error('[Quota] Error checking endpoint quota:', error);
+    logger.error('[Quota] Error checking endpoint quota', error as Error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to check endpoint quota',
@@ -420,7 +421,7 @@ export const getAvailableTiers = async (req: AuthRequest, res: Response) => {
       data: tiers,
     });
   } catch (error) {
-    console.error('[Quota] Error getting tiers:', error);
+    logger.error('[Quota] Error getting tiers', error as Error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to retrieve quota tiers',

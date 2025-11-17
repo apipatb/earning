@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { permissionService, PermissionCheckResult } from '../services/permission.service';
 import { DataScope } from '@prisma/client';
+import { logger } from '../utils/logger';
 
 /**
  * Extended Request interface with user information
@@ -57,7 +58,7 @@ export const checkPermission = (
 
       next();
     } catch (error) {
-      console.error('Permission check error:', error);
+      logger.error('Permission check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking permissions',
@@ -114,7 +115,7 @@ export const checkTeamPermission = (
 
       next();
     } catch (error) {
-      console.error('Team permission check error:', error);
+      logger.error('Team permission check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking team permissions',
@@ -166,7 +167,7 @@ export const checkOwnership = (
 
       next();
     } catch (error) {
-      console.error('Ownership check error:', error);
+      logger.error('Ownership check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking resource ownership',
@@ -221,7 +222,7 @@ export const checkDataVisibility = (
 
       next();
     } catch (error) {
-      console.error('Data visibility check error:', error);
+      logger.error('Data visibility check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking data visibility',
@@ -260,7 +261,7 @@ export const checkPermissionsAnd = (
 
       next();
     } catch (error) {
-      console.error('Permission check error:', error);
+      logger.error('Permission check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking permissions',
@@ -299,7 +300,7 @@ export const checkPermissionsOr = (
 
       next();
     } catch (error) {
-      console.error('Permission check error:', error);
+      logger.error('Permission check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking permissions',
@@ -370,7 +371,7 @@ export const checkOwnershipOrPermission = (
 
       next();
     } catch (error) {
-      console.error('Ownership/Permission check error:', error);
+      logger.error('Ownership/Permission check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking access',
@@ -399,7 +400,7 @@ export const attachUserPermissions = async (
 
     next();
   } catch (error) {
-    console.error('Attach permissions error:', error);
+    logger.error('Attach permissions error', error as Error);
     // Don't fail the request, just continue without permissions
     next();
   }
@@ -480,7 +481,7 @@ export const customPermissionCheck = (
 
       next();
     } catch (error) {
-      console.error('Custom permission check error:', error);
+      logger.error('Custom permission check error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking permissions',

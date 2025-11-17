@@ -85,24 +85,26 @@ enum WebhookStatus {
 }
 
 enum WebhookEventType {
-  EARNING_CREATED
-  EARNING_UPDATED
-  EARNING_DELETED
-  INVOICE_CREATED
-  INVOICE_SENT
-  INVOICE_PAID
-  INVOICE_OVERDUE
-  SALE_CREATED
-  SALE_UPDATED
-  PRODUCT_LOW_STOCK
-  CUSTOMER_CREATED
-  EXPENSE_CREATED
-  GOAL_COMPLETED
+  USER_CREATED          @map("user.created")
+  USER_UPDATED          @map("user.updated")
+  USER_DELETED          @map("user.deleted")
+  TICKET_CREATED        @map("ticket.created")
+  TICKET_UPDATED        @map("ticket.updated")
+  TICKET_CLOSED         @map("ticket.closed")
+  PAYMENT_RECEIVED      @map("payment.received")
+  PAYMENT_FAILED        @map("payment.failed")
+  INVOICE_CREATED       @map("invoice.created")
+  INVOICE_PAID          @map("invoice.paid")
+  REPORT_GENERATED      @map("report.generated")
+  NOTIFICATION_SENT     @map("notification.sent")
+  EMAIL_DELIVERED       @map("email.delivered")
 }
 
 enum WhatsAppContactStatus {
   ACTIVE
+  INACTIVE
   BLOCKED
+  ARCHIVED
 }
 
 enum WhatsAppMessageDirection {
@@ -111,6 +113,7 @@ enum WhatsAppMessageDirection {
 }
 
 enum WhatsAppMessageStatus {
+  PENDING
   SENT
   DELIVERED
   READ
@@ -143,6 +146,7 @@ model User {
   timezone         String     @default("UTC")
   currency         String     @default("USD") @db.VarChar(3)
   language         String     @default("en") @db.VarChar(5)
+  currentOrganizationId String? @map("current_organization_id")
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
 
@@ -168,6 +172,8 @@ model User {
   taxCategories     TaxCategory[]
   financialMetrics  FinancialMetrics[]
   workflows         Workflow[]
+  workflowTasks         WorkflowTask[]       @relation("WorkflowTaskOwner")
+  assignedWorkflowTasks WorkflowTask[]       @relation("AssignedWorkflowTasks")
   emailTemplates    EmailTemplate[]
   emailSequences    EmailSequence[]
   reports           Report[]
@@ -204,6 +210,11 @@ model User {
   funnelDefinitions FunnelDefinition[]
   funnelEvents      FunnelEvent[]
   customerSegments  CustomerSegment[]
+  usageRecords      UsageRecord[]    @relation("UserUsageRecords")
+
+  // Organization Relations
+  ownedOrganizations    Organization[]       @relation("OwnedOrganizations")
+  organizations         OrganizationMember[] @relation("OrganizationMemberships")
 
   @@map("users")
 }
@@ -592,7 +603,7 @@ model WhatsAppMessage {
   direction       WhatsAppMessageDirection
   messageBody     String                    @map("message_body") @db.Text
   mediaUrl        String?                   @map("media_url") @db.Text
-  status          WhatsAppMessageStatus     @default(SENT)
+  status          WhatsAppMessageStatus     @default(PENDING)
   twilioSid       String?                   @map("twilio_sid") @db.VarChar(255) // Twilio message SID
   timestamp       DateTime                  @default(now())
   createdAt       DateTime                  @default(now()) @map("created_at")
@@ -792,10 +803,27 @@ enum WorkflowExecutionStatus {
   FAILED
 }
 
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 enum EmailStatus {
   SENT
   FAILED
   BOUNCED
+  OPENED
+  UNSUBSCRIBED
 }
 
 model Workflow {
@@ -810,6 +838,7 @@ model Workflow {
 
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   executions  WorkflowExecution[]
+  tasks       WorkflowTask[]
 
   @@index([userId, isActive])
   @@index([userId, trigger])
@@ -828,10 +857,43 @@ model WorkflowExecution {
   updatedAt   DateTime                @updatedAt @map("updated_at")
 
   workflow    Workflow                @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  tasks       WorkflowTask[]
 
   @@index([workflowId, executedAt(sort: Desc)])
   @@index([status, executedAt(sort: Desc)])
   @@map("workflow_executions")
+}
+
+model WorkflowTask {
+  id                String         @id @default(uuid())
+  workflowId        String         @map("workflow_id")
+  executionId       String         @map("execution_id")
+  userId            String         @map("user_id")
+  assignedTo        String?        @map("assigned_to")
+  title             String         @db.VarChar(500)
+  description       String?        @db.Text
+  status            TaskStatus     @default(PENDING)
+  priority          TaskPriority   @default(MEDIUM)
+  dueDate           DateTime?      @map("due_date")
+  actionConfig      String         @db.Text // JSON of the original action config
+  context           String?        @db.Text // JSON of workflow context
+  metadata          String?        @db.Text // JSON for additional data
+  completedAt       DateTime?      @map("completed_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  workflow          Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  execution         WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  user              User           @relation("WorkflowTaskOwner", fields: [userId], references: [id], onDelete: Cascade)
+  assignee          User?          @relation("AssignedWorkflowTasks", fields: [assignedTo], references: [id], onDelete: SetNull)
+
+  @@index([workflowId, createdAt(sort: Desc)])
+  @@index([executionId, status])
+  @@index([userId, status])
+  @@index([assignedTo, status])
+  @@index([status, dueDate])
+  @@index([status, priority])
+  @@map("workflow_tasks")
 }
 
 model EmailTemplate {
@@ -1337,23 +1399,25 @@ model PricingPlan {
 }
 
 model Subscription {
-  id               String             @id @default(uuid())
-  userId           String             @map("user_id")
-  planId           String             @map("plan_id")
-  status           SubscriptionStatus @default(TRIALING)
-  startDate        DateTime           @map("start_date") @db.Date
-  currentPeriodEnd DateTime           @map("current_period_end") @db.Date
-  trialEndsAt      DateTime?          @map("trial_ends_at") @db.Date
-  cancelledAt      DateTime?          @map("cancelled_at")
-  cancelAtPeriodEnd Boolean           @default(false) @map("cancel_at_period_end")
-  metadata         String?            @db.Text
-  createdAt        DateTime           @default(now()) @map("created_at")
-  updatedAt        DateTime           @updatedAt @map("updated_at")
+  id                 String             @id @default(uuid())
+  userId             String             @map("user_id")
+  planId             String             @map("plan_id")
+  status             SubscriptionStatus @default(TRIALING)
+  startDate          DateTime           @map("start_date") @db.Date
+  currentPeriodStart DateTime?          @map("current_period_start") @db.Date
+  currentPeriodEnd   DateTime           @map("current_period_end") @db.Date
+  trialEndsAt        DateTime?          @map("trial_ends_at") @db.Date
+  cancelledAt        DateTime?          @map("cancelled_at")
+  cancelAtPeriodEnd  Boolean            @default(false) @map("cancel_at_period_end")
+  metadata           String?            @db.Text
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan             PricingPlan        @relation(fields: [planId], references: [id], onDelete: Restrict)
-  billingHistory   BillingHistory[]
-  invoices         Invoice[]          @relation("SubscriptionInvoices")
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan               PricingPlan        @relation(fields: [planId], references: [id], onDelete: Restrict)
+  billingHistory     BillingHistory[]
+  invoices           Invoice[]          @relation("SubscriptionInvoices")
+  usageRecords       UsageRecord[]
 
   @@index([userId, status])
   @@index([status, currentPeriodEnd])
@@ -1383,6 +1447,26 @@ model BillingHistory {
   @@index([status, dueDate])
   @@index([status, nextRetryAt])
   @@map("billing_history")
+}
+
+model UsageRecord {
+  id             String       @id @default(uuid())
+  subscriptionId String       @map("subscription_id")
+  userId         String       @map("user_id")
+  metricName     String       @map("metric_name") @db.VarChar(100)
+  quantity       Decimal      @db.Decimal(15, 4)
+  timestamp      DateTime     @default(now())
+  metadata       String?      @db.Text // JSON metadata
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  user           User         @relation("UserUsageRecords", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, timestamp(sort: Desc)])
+  @@index([userId, metricName, timestamp(sort: Desc)])
+  @@index([metricName, timestamp(sort: Desc)])
+  @@index([timestamp(sort: Desc)])
+  @@map("usage_records")
 }
 
 model PaymentMethodModel {
@@ -1618,6 +1702,21 @@ model LiveChatParticipant {
 // ============================================
 // TEAM MANAGEMENT MODELS
 // ============================================
+// ORGANIZATION MODELS
+// ============================================
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
 
 enum TeamRole {
   OWNER
@@ -1638,22 +1737,100 @@ enum TeamPermissionType {
   EDIT
 }
 
+model Organization {
+  id               String             @id @default(cuid())
+  name             String             @db.VarChar(255)
+  slug             String             @unique @db.VarChar(255)
+  description      String?            @db.Text
+  logo             String?            @db.VarChar(500)
+  website          String?            @db.VarChar(500)
+  stripeCustomerId String?            @unique @map("stripe_customer_id") @db.VarChar(255)
+  status           OrganizationStatus @default(ACTIVE)
+  settings         Json?              @default("{}")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  ownerId String @map("owner_id")
+  owner   User   @relation("OwnedOrganizations", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  members     OrganizationMember[]
+  invitations OrganizationInvitation[]
+  teams       Team[]
+
+  @@index([ownerId, status])
+  @@index([slug])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([stripeCustomerId])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String           @id @default(cuid())
+  organizationId String           @map("organization_id")
+  userId         String           @map("user_id")
+  role           OrganizationRole @default(MEMBER)
+  joinedAt       DateTime         @default(now()) @map("joined_at")
+  invitedAt      DateTime?        @map("invited_at")
+  invitedBy      String?          @map("invited_by") // User ID who invited
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("OrganizationMemberships", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, role])
+  @@index([userId, joinedAt(sort: Desc)])
+  @@index([organizationId, userId, role])
+  @@map("organization_members")
+}
+
+model OrganizationInvitation {
+  id             String           @id @default(cuid())
+  organizationId String           @map("organization_id")
+  email          String           @db.VarChar(255)
+  role           OrganizationRole @default(MEMBER)
+  token          String           @unique @db.VarChar(500)
+  invitedBy      String           @map("invited_by") // User ID who sent invitation
+  expiresAt      DateTime         @map("expires_at")
+  acceptedAt     DateTime?        @map("accepted_at")
+  rejectedAt     DateTime?        @map("rejected_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, email])
+  @@index([email])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("organization_invitations")
+}
+
+
 model Team {
   id          String   @id @default(uuid())
   name        String   @db.VarChar(255)
   description String?  @db.Text
   ownerId     String   @map("owner_id")
+  organizationId String? @map("organization_id")
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   owner       User             @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  organization Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   members     TeamMember[]
   invitations TeamInvitation[]
   permissions TeamPermission[]
   permissionsExtended TeamPermissionExtended[]
 
   @@index([ownerId, isActive])
+  @@index([organizationId, isActive])
   @@index([ownerId, createdAt(sort: Desc)])
   @@map("teams")
 }

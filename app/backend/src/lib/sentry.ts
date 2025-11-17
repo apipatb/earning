@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/node';
 import * as Tracing from '@sentry/tracing';
 import { Express, Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 
 /**
  * Initialize Sentry for error tracking and performance monitoring
@@ -13,7 +14,7 @@ export const initSentry = (app: Express) => {
 
   // Only initialize Sentry if DSN is provided
   if (!dsn) {
-    console.warn('Sentry DSN not provided. Error tracking is disabled.');
+    logger.warn('Sentry DSN not provided. Error tracking is disabled.');
     return;
   }
 
@@ -41,7 +42,7 @@ export const initSentry = (app: Express) => {
     beforeSend(event, hint) {
       // Filter out development errors if needed
       if (environment === 'development') {
-        console.error('Sentry event:', event, hint);
+        logger.debug('Sentry event', { event, hint });
       }
 
       // Don't send events in test environment
@@ -59,7 +60,7 @@ export const initSentry = (app: Express) => {
     release: process.env.APP_VERSION,
   });
 
-  console.info(`Sentry initialized for ${environment} environment`);
+  logger.info(`Sentry initialized for ${environment} environment`);
 };
 
 /**

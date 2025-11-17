@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { GraphQLError } from 'graphql';
 import prisma from '../../lib/prisma';
+import { logger } from '../../utils/logger';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -45,7 +46,7 @@ export const authMiddleware = async ({ req, res }: any): Promise<GraphQLContext>
   } catch (error) {
     // Token is invalid, but don't throw error
     // Let individual resolvers handle authentication requirements
-    console.error('JWT verification failed:', error);
+    logger.error('JWT verification failed', error as Error);
   }
 
   return context;

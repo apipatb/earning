@@ -3,13 +3,7 @@ import { z } from 'zod';
 import { AuthRequest } from '../types';
 import { EmailService } from '../services/email.service';
 import { logger } from '../utils/logger';
-
-// Local enum definition (pending Prisma migration)
-enum EmailStatus {
-  SENT = 'SENT',
-  FAILED = 'FAILED',
-  BOUNCED = 'BOUNCED',
-}
+import { EmailStatus } from '@prisma/client';
 import { parseLimitParam, parseOffsetParam } from '../utils/validation';
 
 // Validation schemas

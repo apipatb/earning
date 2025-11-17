@@ -7,6 +7,16 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
+import { logger } from '../utils/logger';
+import {
+  NotFoundError,
+  ExternalServiceError,
+  FileOperationError,
+  DatabaseError,
+  ConfigurationError,
+  withFallback,
+  tryOptional,
+} from '../errors';
 
 const execAsync = promisify(exec);
 const prisma = new PrismaClient();
@@ -116,7 +126,7 @@ export class RestoreService {
       // Get restore point
       const restorePoint = await this.getRestorePointById(restorePointId);
       if (!restorePoint) {
-        throw new Error('Restore point not found');
+        throw new NotFoundError('Restore point', restorePointId);
       }
 
       console.log(`Starting restore from point: ${restorePointId}`);
@@ -165,11 +175,19 @@ export class RestoreService {
       }
 
       // Clean up extracted files
-      await fs.rm(extractedPath, { recursive: true, force: true }).catch(() => {});
+      await tryOptional(
+        () => fs.rm(extractedPath, { recursive: true, force: true }),
+        undefined,
+        true
+      );
 
       // Clean up downloaded S3 file if applicable
       if (localBackupPath !== restorePoint.backup.location) {
-        await fs.unlink(localBackupPath).catch(() => {});
+        await tryOptional(
+          () => fs.unlink(localBackupPath),
+          undefined,
+          true
+        );
       }
 
       result.success = result.errors.length === 0;
@@ -188,7 +206,7 @@ export class RestoreService {
    */
   private static async downloadFromS3(s3Path: string): Promise<string> {
     if (!RestoreService.s3Client || !RestoreService.S3_BUCKET) {
-      throw new Error('S3 is not configured');
+      throw new ConfigurationError('S3 is not configured', 'AWS_S3_BUCKET');
     }
 
     const key = s3Path.replace(`s3://${RestoreService.S3_BUCKET}/`, '');
@@ -201,17 +219,29 @@ export class RestoreService {
       }));
 
       if (!response.Body) {
-        throw new Error('No data received from S3');
+        throw new ExternalServiceError('AWS S3', 'No data received from S3', false);
       }
 
       const writeStream = createWriteStream(localPath);
       await pipeline(response.Body as Readable, writeStream);
 
-      console.log(`Backup downloaded from S3: ${localPath}`);
+      logger.info('Backup downloaded from S3', { localPath, s3Path });
       return localPath;
     } catch (error) {
-      console.error('S3 download failed:', error);
-      throw error;
+      logger.error('S3 download failed', error instanceof Error ? error : new Error(String(error)), {
+        s3Path,
+        localPath,
+      });
+
+      if (error instanceof ExternalServiceError || error instanceof ConfigurationError) {
+        throw error;
+      }
+
+      throw new ExternalServiceError(
+        'AWS S3',
+        `Failed to download backup from S3: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        true
+      );
     }
   }
 
@@ -230,11 +260,19 @@ export class RestoreService {
       // Extract tar.gz archive
       await execAsync(`tar -xzf ${backupPath} -C ${extractPath}`);
 
-      console.log(`Backup extracted to: ${extractPath}`);
+      logger.info('Backup extracted successfully', { extractPath, backupPath });
       return extractPath;
     } catch (error) {
-      console.error('Extraction failed:', error);
-      throw error;
+      logger.error('Extraction failed', error instanceof Error ? error : new Error(String(error)), {
+        backupPath,
+        extractPath,
+      });
+
+      throw new FileOperationError(
+        'extract',
+        `Failed to extract backup archive: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { backupPath, extractPath }
+      );
     }
   }
 
@@ -248,7 +286,7 @@ export class RestoreService {
       const dbFile = files.find(f => f.startsWith('db-') && (f.endsWith('.sql') || f.endsWith('.sql.gz')));
 
       if (!dbFile) {
-        throw new Error('Database backup file not found');
+        throw new NotFoundError('Database backup file');
       }
 
       const dbBackupPath = path.join(extractPath, dbFile);
@@ -270,7 +308,7 @@ export class RestoreService {
       const urlMatch = dbUrl.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/([^?]+)/);
 
       if (!urlMatch) {
-        throw new Error('Invalid DATABASE_URL format');
+        throw new ConfigurationError('Invalid DATABASE_URL format', 'DATABASE_URL');
       }
 
       const [, user, password, host, port, database] = urlMatch;
@@ -282,10 +320,17 @@ export class RestoreService {
       const pgRestoreCommand = `PGPASSWORD="${password}" pg_restore -h ${host} -p ${port} -U ${user} -d ${database} -c ${sqlPath}`;
       await execAsync(pgRestoreCommand);
 
-      console.log('Database restored successfully');
+      logger.info('Database restored successfully');
       return true;
     } catch (error) {
-      console.error('Database restore failed:', error);
+      logger.error('Database restore failed', error instanceof Error ? error : new Error(String(error)), {
+        operation: 'restoreDatabase',
+      });
+
+      if (error instanceof NotFoundError || error instanceof ConfigurationError) {
+        throw error;
+      }
+
       return false;
     }
   }
@@ -322,10 +367,13 @@ export class RestoreService {
       // Extract files
       await execAsync(`tar -xzf ${filesBackupPath} -C ${restorePath}`);
 
-      console.log('Files restored successfully');
+      logger.info('Files restored successfully', { restorePath });
       return true;
     } catch (error) {
-      console.error('Files restore failed:', error);
+      logger.error('Files restore failed', error instanceof Error ? error : new Error(String(error)), {
+        operation: 'restoreFiles',
+        restorePath,
+      });
       return false;
     }
   }
@@ -474,7 +522,11 @@ export class RestoreService {
         // Check local file
         try {
           await fs.access(backupLocation);
-        } catch {
+        } catch (error) {
+          logger.warn('Backup file not accessible', {
+            backupLocation,
+            error: error instanceof Error ? error.message : String(error),
+          });
           issues.push('Backup file not found at specified location');
         }
       }
@@ -483,6 +535,7 @@ export class RestoreService {
       try {
         await prisma.$queryRaw`SELECT 1`;
       } catch (error) {
+        logger.error('Database connectivity check failed', error instanceof Error ? error : new Error(String(error)));
         issues.push('Cannot connect to database');
       }
 
@@ -497,6 +550,10 @@ export class RestoreService {
           issues.push('Insufficient disk space for restore operation');
         }
       } catch (error) {
+        logger.warn('Disk space check failed', {
+          error: error instanceof Error ? error.message : String(error),
+          restoreDir,
+        });
         issues.push('Cannot check disk space');
       }
 

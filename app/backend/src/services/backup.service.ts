@@ -7,6 +7,15 @@ import archiver from 'archiver';
 import crypto from 'crypto';
 import { createWriteStream, createReadStream } from 'fs';
 import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { logger } from '../utils/logger';
+import {
+  FileOperationError,
+  ExternalServiceError,
+  ConfigurationError,
+  DatabaseError,
+  tryOptional,
+  retry,
+} from '../errors';
 
 const execAsync = promisify(exec);
 const prisma = new PrismaClient();
@@ -53,10 +62,14 @@ export class BackupService {
     try {
       // Create backup directory if it doesn't exist
       await fs.mkdir(BackupService.BACKUP_DIR, { recursive: true });
-      console.log('Backup system initialized');
+      logger.info('Backup system initialized', { backupDir: BackupService.BACKUP_DIR });
     } catch (error) {
-      console.error('Failed to initialize backup system:', error);
-      throw error;
+      logger.error('Failed to initialize backup system', error instanceof Error ? error : new Error(String(error)));
+      throw new FileOperationError(
+        'upload',
+        'Failed to initialize backup system',
+        { backupDir: BackupService.BACKUP_DIR }
+      );
     }
   }
 
@@ -115,7 +128,7 @@ export class BackupService {
       if (BackupService.S3_ENABLED && BackupService.s3Client) {
         finalLocation = await this.uploadToS3(backupJob.id, combinedPath);
         // Clean up local file after upload
-        await fs.unlink(combinedPath).catch(() => {});
+        await tryOptional(() => fs.unlink(combinedPath), undefined, true);
       }
 
       // Update backup job with success
@@ -144,10 +157,17 @@ export class BackupService {
         },
       });
 
-      console.log(`Backup completed successfully: ${backupJob.id}`);
+      logger.info('Backup completed successfully', {
+        backupId: backupJob.id,
+        type: options.type,
+        size: backupMetadata.compressedSize,
+      });
       return backupJob.id;
     } catch (error) {
-      console.error('Backup failed:', error);
+      logger.error('Backup failed', error instanceof Error ? error : new Error(String(error)), {
+        backupId: backupJob?.id,
+        type: options.type,
+      });
 
       if (backupJob) {
         await prisma.backupJob.update({
@@ -268,15 +288,14 @@ export class BackupService {
       });
 
       return new Promise((resolve, reject) => {
-        output.on('close', () => {
+        output.on('close', async () => {
           // Clean up individual backup files
           const cleanupPromises = Object.values(backupPaths)
             .filter(Boolean)
-            .map(path => fs.unlink(path as string).catch(() => {}));
+            .map(p => tryOptional(() => fs.unlink(p as string), undefined, false));
 
-          Promise.all(cleanupPromises).then(() => {
-            resolve(combinedPath);
-          });
+          await Promise.all(cleanupPromises);
+          resolve(combinedPath);
         });
 
         archive.on('error', (err) => {
@@ -444,7 +463,7 @@ export class BackupService {
             await this.deleteFromS3(backup.location);
           } else {
             // Delete local file
-            await fs.unlink(backup.location).catch(() => {});
+            await tryOptional(() => fs.unlink(backup.location), undefined, true);
           }
 
           // Delete backup record and restore points

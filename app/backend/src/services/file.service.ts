@@ -12,6 +12,16 @@ import sharp from 'sharp';
 import { spawn } from 'child_process';
 import { logger } from '../utils/logger';
 import prisma from '../lib/prisma';
+import {
+  ValidationError,
+  NotFoundError,
+  FileOperationError,
+  ExternalServiceError,
+  QuotaExceededError,
+  ForbiddenError,
+  tryOptional,
+  retry,
+} from '../errors';
 
 // File type configurations
 const ALLOWED_MIME_TYPES = [
@@ -69,40 +79,38 @@ export class FileService {
   /**
    * Validate file before upload
    */
-  validateFile(file: Express.Multer.File): { valid: boolean; error?: string } {
+  validateFile(file: Express.Multer.File): void {
     // Check file size
     if (file.size > MAX_FILE_SIZE) {
-      return {
-        valid: false,
-        error: `File size exceeds maximum limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
-      };
+      throw new ValidationError(
+        `File size exceeds maximum limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+        { fileSize: file.size, maxSize: MAX_FILE_SIZE }
+      );
     }
 
     // Check MIME type
     if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      return {
-        valid: false,
-        error: `File type ${file.mimetype} is not allowed`,
-      };
+      throw new ValidationError(
+        `File type ${file.mimetype} is not allowed`,
+        { mimeType: file.mimetype, allowedTypes: ALLOWED_MIME_TYPES }
+      );
     }
 
     // Check for executable extensions (security)
     const dangerousExtensions = ['.exe', '.bat', '.cmd', '.sh', '.bin', '.app'];
     const fileExtension = path.extname(file.originalname).toLowerCase();
     if (dangerousExtensions.includes(fileExtension)) {
-      return {
-        valid: false,
-        error: 'Executable files are not allowed',
-      };
+      throw new ValidationError(
+        'Executable files are not allowed',
+        { extension: fileExtension }
+      );
     }
-
-    return { valid: true };
   }
 
   /**
    * Check user storage quota
    */
-  async checkUserQuota(userId: string, fileSize: number): Promise<{ allowed: boolean; error?: string }> {
+  async checkUserQuota(userId: string, fileSize: number): Promise<void> {
     const totalUsage = await prisma.fileUpload.aggregate({
       where: { userId },
       _sum: { fileSize: true },
@@ -111,13 +119,12 @@ export class FileService {
     const currentUsage = Number(totalUsage._sum.fileSize || 0);
 
     if (currentUsage + fileSize > MAX_USER_STORAGE) {
-      return {
-        allowed: false,
-        error: `Storage quota exceeded. Current: ${(currentUsage / 1024 / 1024 / 1024).toFixed(2)}GB, Limit: ${MAX_USER_STORAGE / 1024 / 1024 / 1024}GB`,
-      };
+      throw new QuotaExceededError(
+        'Storage',
+        currentUsage + fileSize,
+        MAX_USER_STORAGE
+      );
     }
-
-    return { allowed: true };
   }
 
   /**
@@ -150,21 +157,15 @@ export class FileService {
   }> {
     try {
       // Validate file
-      const validation = this.validateFile(file);
-      if (!validation.valid) {
-        throw new Error(validation.error);
-      }
+      this.validateFile(file);
 
       // Check quota
-      const quotaCheck = await this.checkUserQuota(userId, file.size);
-      if (!quotaCheck.allowed) {
-        throw new Error(quotaCheck.error);
-      }
+      await this.checkUserQuota(userId, file.size);
 
       // Generate S3 key
       const s3Key = this.generateS3Key(userId, file.originalname);
 
-      // Upload to S3
+      // Upload to S3 with retry logic
       const uploadCommand = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: s3Key,
@@ -177,7 +178,19 @@ export class FileService {
         },
       });
 
-      await this.s3Client.send(uploadCommand);
+      await retry(
+        () => this.s3Client.send(uploadCommand),
+        {
+          maxAttempts: 3,
+          delayMs: 1000,
+          onRetry: (error, attempt) => {
+            logger.warn(`Retrying S3 upload (attempt ${attempt})`, {
+              s3Key,
+              error: error.message,
+            });
+          },
+        }
+      );
 
       // Generate public URL (or pre-signed URL for private buckets)
       const url = `https://${this.bucketName}.s3.amazonaws.com/${s3Key}`;
@@ -219,8 +232,30 @@ export class FileService {
         thumbnailUrl: fileUpload.thumbnailUrl || undefined,
       };
     } catch (error) {
-      logger.error('File upload error:', error);
-      throw error;
+      logger.error('File upload error', error instanceof Error ? error : new Error(String(error)), {
+        userId,
+        fileName: file.originalname,
+        fileSize: file.size,
+      });
+
+      // Re-throw custom errors
+      if (
+        error instanceof ValidationError ||
+        error instanceof QuotaExceededError ||
+        error instanceof FileOperationError
+      ) {
+        throw error;
+      }
+
+      // Wrap other errors
+      throw new FileOperationError(
+        'upload',
+        'Failed to upload file',
+        {
+          fileName: file.originalname,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
     }
   }
 
@@ -252,10 +287,14 @@ export class FileService {
 
       await this.s3Client.send(uploadCommand);
 
+      logger.info('Thumbnail generated successfully', { thumbnailKey });
       return `https://${this.bucketName}.s3.amazonaws.com/${thumbnailKey}`;
     } catch (error) {
-      logger.error('Thumbnail generation error:', error);
-      // Return empty string if thumbnail generation fails
+      logger.warn('Thumbnail generation failed - non-critical', {
+        error: error instanceof Error ? error.message : String(error),
+        originalS3Key,
+      });
+      // Return empty string if thumbnail generation fails (non-critical)
       return '';
     }
   }
@@ -279,20 +318,29 @@ export class FileService {
       // If infected, delete the file
       if (scanResult.infected) {
         await this.deleteFromS3(s3Key);
-        logger.warn(`Infected file deleted: ${s3Key}`);
+        logger.warn('Infected file detected and deleted', {
+          s3Key,
+          virus: scanResult.virus,
+        });
       }
     } catch (error) {
-      logger.error('File scan error:', error);
-      // Mark as scan failed
-      await prisma.fileUpload.update({
-        where: { s3Key },
-        data: {
-          isScanned: true,
-          scanResult: 'SCAN_FAILED',
-        },
-      }).catch(() => {
-        // Ignore update errors
+      logger.error('File scan error', error instanceof Error ? error : new Error(String(error)), {
+        s3Key,
       });
+
+      // Mark as scan failed (non-critical error)
+      await tryOptional(
+        () =>
+          prisma.fileUpload.update({
+            where: { s3Key },
+            data: {
+              isScanned: true,
+              scanResult: 'SCAN_FAILED',
+            },
+          }),
+        undefined,
+        false
+      );
     }
   }
 
@@ -369,12 +417,15 @@ export class FileService {
     });
 
     if (!file) {
-      throw new Error('File not found or access denied');
+      throw new NotFoundError('File', fileId);
     }
 
     // Check scan result
     if (file.scanResult === 'INFECTED') {
-      throw new Error('File is infected and cannot be downloaded');
+      throw new ForbiddenError('File is infected and cannot be downloaded', {
+        fileId,
+        scanResult: 'INFECTED',
+      });
     }
 
     const command = new GetObjectCommand({
@@ -404,9 +455,12 @@ export class FileService {
       Key: thumbnailKey,
     });
 
-    await this.s3Client.send(deleteThumbnailCommand).catch(() => {
-      // Ignore if thumbnail doesn't exist
-    });
+    // Try to delete thumbnail (non-critical)
+    await tryOptional(
+      () => this.s3Client.send(deleteThumbnailCommand),
+      undefined,
+      false
+    );
   }
 
   /**
@@ -418,7 +472,7 @@ export class FileService {
     });
 
     if (!file) {
-      throw new Error('File not found');
+      throw new NotFoundError('File', fileId);
     }
 
     // Delete from S3
@@ -444,7 +498,10 @@ export class FileService {
     });
 
     if (existing) {
-      throw new Error('Folder with this name already exists in this location');
+      throw new ValidationError('Folder with this name already exists in this location', {
+        name,
+        parentFolderId,
+      });
     }
 
     const folder = await prisma.fileFolder.create({
@@ -474,7 +531,7 @@ export class FileService {
     });
 
     if (!file) {
-      throw new Error('File not found');
+      throw new NotFoundError('File', fileId);
     }
 
     // Create or update share

@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types';
 import financialService from '../services/financial.service';
+import { logger } from '../utils/logger';
 
 class FinancialController {
   /**
@@ -42,7 +43,7 @@ class FinancialController {
         data: statement,
       });
     } catch (error) {
-      console.error('Error generating income statement:', error);
+      logger.error('Error generating income statement', error as Error);
       res.status(500).json({
         error: 'Failed to generate income statement',
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -89,7 +90,7 @@ class FinancialController {
         data: cashFlow,
       });
     } catch (error) {
-      console.error('Error generating cash flow analysis:', error);
+      logger.error('Error generating cash flow analysis', error as Error);
       res.status(500).json({
         error: 'Failed to generate cash flow analysis',
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -136,7 +137,7 @@ class FinancialController {
         data: taxReport,
       });
     } catch (error) {
-      console.error('Error generating tax report:', error);
+      logger.error('Error generating tax report', error as Error);
       res.status(500).json({
         error: 'Failed to generate tax report',
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -183,7 +184,7 @@ class FinancialController {
         data: metrics,
       });
     } catch (error) {
-      console.error('Error calculating financial metrics:', error);
+      logger.error('Error calculating financial metrics', error as Error);
       res.status(500).json({
         error: 'Failed to calculate financial metrics',
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -230,7 +231,7 @@ class FinancialController {
         data: pandl,
       });
     } catch (error) {
-      console.error('Error generating P&L statement:', error);
+      logger.error('Error generating P&L statement', error as Error);
       res.status(500).json({
         error: 'Failed to generate P&L statement',
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -278,7 +279,7 @@ class FinancialController {
         data: taxCategory,
       });
     } catch (error) {
-      console.error('Error creating tax category:', error);
+      logger.error('Error creating tax category', error as Error);
       res.status(500).json({
         error: 'Failed to create tax category',
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -305,7 +306,7 @@ class FinancialController {
         data: categories,
       });
     } catch (error) {
-      console.error('Error fetching tax categories:', error);
+      logger.error('Error fetching tax categories', error as Error);
       res.status(500).json({
         error: 'Failed to fetch tax categories',
         message: error instanceof Error ? error.message : 'Unknown error',

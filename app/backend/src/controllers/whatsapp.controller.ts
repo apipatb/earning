@@ -5,24 +5,7 @@ import prisma from '../lib/prisma';
 import whatsappService, { validatePhoneNumber, formatPhoneNumber } from '../services/whatsapp.service';
 import { logger } from '../utils/logger';
 import { parseLimitParam, parseOffsetParam } from '../utils/validation';
-
-// Local enum definitions (pending Prisma migration)
-enum WhatsAppContactStatus {
-  ACTIVE = 'ACTIVE',
-  BLOCKED = 'BLOCKED',
-}
-
-enum WhatsAppMessageDirection {
-  INBOUND = 'INBOUND',
-  OUTBOUND = 'OUTBOUND',
-}
-
-enum WhatsAppMessageStatus {
-  SENT = 'SENT',
-  DELIVERED = 'DELIVERED',
-  READ = 'READ',
-  FAILED = 'FAILED',
-}
+import { WhatsAppContactStatus, WhatsAppMessageDirection, WhatsAppMessageStatus } from '@prisma/client';
 
 // Validation schemas
 const sendMessageSchema = z.object({
@@ -34,7 +17,7 @@ const sendMessageSchema = z.object({
 const createContactSchema = z.object({
   phoneNumber: z.string().min(1, 'Phone number is required'),
   name: z.string().min(1, 'Name is required').max(255),
-  status: z.enum(['ACTIVE', 'BLOCKED']).optional(),
+  status: z.nativeEnum(WhatsAppContactStatus).optional(),
 });
 
 const createTemplateSchema = z.object({

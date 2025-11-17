@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { segmentationService, SegmentCriteria } from '../services/segmentation.service';
+import { logger } from '../utils/logger';
 
 /**
  * @swagger
@@ -113,7 +114,7 @@ export const createSegment = async (req: Request, res: Response): Promise<void> 
       segment,
     });
   } catch (error: any) {
-    console.error('Error creating segment:', error);
+    logger.error('Error creating segment', error as Error);
     res.status(500).json({ error: error.message || 'Failed to create segment' });
   }
 };
@@ -154,7 +155,7 @@ export const getSegments = async (req: Request, res: Response): Promise<void> =>
       total: segments.length,
     });
   } catch (error: any) {
-    console.error('Error fetching segments:', error);
+    logger.error('Error fetching segments', error as Error);
     res.status(500).json({ error: error.message || 'Failed to fetch segments' });
   }
 };
@@ -200,7 +201,7 @@ export const getSegmentById = async (req: Request, res: Response): Promise<void>
 
     res.status(200).json({ segment });
   } catch (error: any) {
-    console.error('Error fetching segment:', error);
+    logger.error('Error fetching segment', error as Error);
     res.status(500).json({ error: error.message || 'Failed to fetch segment' });
   }
 };
@@ -265,7 +266,7 @@ export const updateSegment = async (req: Request, res: Response): Promise<void> 
       segment,
     });
   } catch (error: any) {
-    console.error('Error updating segment:', error);
+    logger.error('Error updating segment', error as Error);
     res.status(500).json({ error: error.message || 'Failed to update segment' });
   }
 };
@@ -306,7 +307,7 @@ export const deleteSegment = async (req: Request, res: Response): Promise<void> 
 
     res.status(200).json({ message: 'Segment deleted successfully' });
   } catch (error: any) {
-    console.error('Error deleting segment:', error);
+    logger.error('Error deleting segment', error as Error);
     res.status(500).json({ error: error.message || 'Failed to delete segment' });
   }
 };
@@ -352,7 +353,7 @@ export const getSegmentAnalytics = async (req: Request, res: Response): Promise<
 
     res.status(200).json({ analytics });
   } catch (error: any) {
-    console.error('Error fetching segment analytics:', error);
+    logger.error('Error fetching segment analytics', error as Error);
     res.status(500).json({ error: error.message || 'Failed to fetch analytics' });
   }
 };
@@ -416,7 +417,7 @@ export const addCustomersToSegment = async (req: Request, res: Response): Promis
       memberCount: count,
     });
   } catch (error: any) {
-    console.error('Error adding customers to segment:', error);
+    logger.error('Error adding customers to segment', error as Error);
     res.status(500).json({ error: error.message || 'Failed to add customers' });
   }
 };
@@ -480,7 +481,7 @@ export const removeCustomersFromSegment = async (req: Request, res: Response): P
       memberCount: count,
     });
   } catch (error: any) {
-    console.error('Error removing customers from segment:', error);
+    logger.error('Error removing customers from segment', error as Error);
     res.status(500).json({ error: error.message || 'Failed to remove customers' });
   }
 };
@@ -540,7 +541,7 @@ export const refreshSegment = async (req: Request, res: Response): Promise<void>
       memberCount: count,
     });
   } catch (error: any) {
-    console.error('Error refreshing segment:', error);
+    logger.error('Error refreshing segment', error as Error);
     res.status(500).json({ error: error.message || 'Failed to refresh segment' });
   }
 };
@@ -575,7 +576,7 @@ export const createPredefinedSegments = async (req: Request, res: Response): Pro
       count: segments.length,
     });
   } catch (error: any) {
-    console.error('Error creating predefined segments:', error);
+    logger.error('Error creating predefined segments', error as Error);
     res.status(500).json({ error: error.message || 'Failed to create predefined segments' });
   }
 };
@@ -609,7 +610,7 @@ export const refreshAllSegments = async (req: Request, res: Response): Promise<v
       segmentsRefreshed: count,
     });
   } catch (error: any) {
-    console.error('Error refreshing all segments:', error);
+    logger.error('Error refreshing all segments', error as Error);
     res.status(500).json({ error: error.message || 'Failed to refresh segments' });
   }
 };

@@ -5,6 +5,15 @@ import fs from 'fs';
 import path from 'path';
 import { EmailService } from './email.service';
 import { logger } from '../utils/logger';
+import {
+  NotFoundError,
+  PaymentError,
+  ExternalServiceError,
+  FileOperationError,
+  ValidationError,
+  retry,
+  tryOptional,
+} from '../errors';
 
 const prisma = new PrismaClient();
 
@@ -54,38 +63,105 @@ class PaymentService {
       include: { user: true },
     });
 
-    if (!paymentMethod || !paymentMethod.isActive) {
-      throw new Error('Invalid or inactive payment method');
+    if (!paymentMethod) {
+      throw new NotFoundError('Payment method', paymentMethodId);
+    }
+
+    if (!paymentMethod.isActive) {
+      throw new ValidationError('Payment method is inactive', {
+        paymentMethodId,
+        status: 'inactive',
+      });
     }
 
     try {
-      // Create a payment intent with Stripe
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(amount * 100), // Convert to cents
-        currency: paymentMethod.user.currency.toLowerCase(),
-        payment_method: paymentMethod.token,
-        confirm: true,
-        description,
-        metadata: metadata || {},
-        automatic_payment_methods: {
-          enabled: true,
-          allow_redirects: 'never',
+      // Create a payment intent with Stripe (with retry logic for network issues)
+      const paymentIntent = await retry(
+        async () => {
+          return await stripe.paymentIntents.create({
+            amount: Math.round(amount * 100), // Convert to cents
+            currency: paymentMethod.user.currency.toLowerCase(),
+            payment_method: paymentMethod.token,
+            confirm: true,
+            description,
+            metadata: metadata || {},
+            automatic_payment_methods: {
+              enabled: true,
+              allow_redirects: 'never',
+            },
+          });
         },
-      });
+        {
+          maxAttempts: 2,
+          delayMs: 1000,
+          shouldRetry: (error) => {
+            // Only retry on network errors, not on payment failures
+            if (error instanceof Stripe.errors.StripeConnectionError) {
+              return true;
+            }
+            return false;
+          },
+        }
+      );
 
       if (paymentIntent.status === 'succeeded') {
+        logger.info('Payment processed successfully', {
+          paymentIntentId: paymentIntent.id,
+          amount,
+          userId: paymentMethod.userId,
+        });
+
         return {
           success: true,
           paymentIntentId: paymentIntent.id,
           amount: amount,
         };
       } else {
-        throw new Error(`Payment failed with status: ${paymentIntent.status}`);
+        throw new PaymentError(
+          `Payment failed with status: ${paymentIntent.status}`,
+          false,
+          { status: paymentIntent.status, paymentIntentId: paymentIntent.id }
+        );
       }
     } catch (error) {
-      console.error('[Payment] Error processing payment:', error);
-      throw new Error(
-        error instanceof Error ? error.message : 'Payment processing failed'
+      logger.error('[Payment] Error processing payment', error instanceof Error ? error : new Error(String(error)), {
+        amount,
+        paymentMethodId,
+        userId: paymentMethod.userId,
+      });
+
+      // Handle specific Stripe errors
+      if (error instanceof Stripe.errors.StripeCardError) {
+        throw new PaymentError(
+          error.message,
+          false,
+          { code: error.code, declineCode: error.decline_code }
+        );
+      }
+
+      if (error instanceof Stripe.errors.StripeRateLimitError) {
+        throw new PaymentError(
+          'Too many payment requests. Please try again later.',
+          true,
+          { code: 'rate_limit' }
+        );
+      }
+
+      if (error instanceof Stripe.errors.StripeConnectionError) {
+        throw new ExternalServiceError(
+          'Stripe',
+          'Payment service temporarily unavailable. Please try again.',
+          true
+        );
+      }
+
+      if (error instanceof PaymentError) {
+        throw error;
+      }
+
+      throw new PaymentError(
+        error instanceof Error ? error.message : 'Payment processing failed',
+        false
       );
     }
   }
@@ -102,7 +178,7 @@ class PaymentService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new NotFoundError('User', userId);
     }
 
     let paymentMethodData: any = {
@@ -140,8 +216,21 @@ class PaymentService {
           );
         }
       } catch (error) {
-        console.error('[Payment] Error creating payment method:', error);
-        throw new Error('Failed to create payment method with Stripe');
+        logger.error('[Payment] Error creating payment method', error instanceof Error ? error : new Error(String(error)), {
+          userId,
+          stripePaymentMethodId,
+        });
+
+        if (error instanceof Stripe.errors.StripeError) {
+          throw new ExternalServiceError(
+            'Stripe',
+            `Failed to create payment method: ${error.message}`,
+            false,
+            { code: error.code }
+          );
+        }
+
+        throw new PaymentError('Failed to create payment method with Stripe');
       }
     }
 
@@ -167,16 +256,16 @@ class PaymentService {
     });
 
     if (!paymentMethod) {
-      throw new Error('Payment method not found');
+      throw new NotFoundError('Payment method', paymentMethodId);
     }
 
     // Detach from Stripe if it's a Stripe payment method
     if (paymentMethod.type === PaymentMethodType.CARD) {
-      try {
-        await stripe.paymentMethods.detach(paymentMethod.token);
-      } catch (error) {
-        console.error('[Payment] Error detaching payment method from Stripe:', error);
-      }
+      await tryOptional(
+        () => stripe.paymentMethods.detach(paymentMethod.token),
+        undefined,
+        true
+      );
     }
 
     return prisma.paymentMethodModel.update({
@@ -193,8 +282,15 @@ class PaymentService {
       where: { id: paymentMethodId },
     });
 
-    if (!paymentMethod || paymentMethod.userId !== userId) {
-      throw new Error('Payment method not found or does not belong to user');
+    if (!paymentMethod) {
+      throw new NotFoundError('Payment method', paymentMethodId);
+    }
+
+    if (paymentMethod.userId !== userId) {
+      throw new ValidationError('Payment method does not belong to user', {
+        paymentMethodId,
+        userId,
+      });
     }
 
     // Unset all other default payment methods
@@ -234,9 +330,22 @@ class PaymentService {
         status: refund.status,
       };
     } catch (error) {
-      console.error('[Payment] Error processing refund:', error);
-      throw new Error(
-        error instanceof Error ? error.message : 'Refund processing failed'
+      logger.error('[Payment] Error processing refund', error instanceof Error ? error : new Error(String(error)), {
+        paymentIntentId,
+        amount,
+      });
+
+      if (error instanceof Stripe.errors.StripeError) {
+        throw new PaymentError(
+          `Refund failed: ${error.message}`,
+          false,
+          { code: error.code }
+        );
+      }
+
+      throw new PaymentError(
+        error instanceof Error ? error.message : 'Refund processing failed',
+        false
       );
     }
   }
@@ -255,7 +364,7 @@ class PaymentService {
     });
 
     if (!invoice) {
-      throw new Error('Invoice not found');
+      throw new NotFoundError('Invoice', invoiceId);
     }
 
     try {
@@ -283,7 +392,16 @@ class PaymentService {
       logger.error('[Payment] Error generating invoice PDF', error instanceof Error ? error : new Error(String(error)), {
         invoiceId,
       });
-      throw new Error('Failed to generate invoice PDF');
+
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+
+      throw new FileOperationError(
+        'generate',
+        'Failed to generate invoice PDF',
+        { invoiceId }
+      );
     }
   }
 
@@ -301,11 +419,11 @@ class PaymentService {
     });
 
     if (!invoice) {
-      throw new Error('Invoice not found');
+      throw new NotFoundError('Invoice', invoiceId);
     }
 
     if (!invoice.customer?.email) {
-      throw new Error('Customer email not found');
+      throw new ValidationError('Customer email not found', { invoiceId });
     }
 
     try {
@@ -351,12 +469,14 @@ class PaymentService {
       });
 
       // Clean up PDF file after sending
-      try {
-        fs.unlinkSync(pdfPath);
-        logger.debug('[Payment] Cleaned up temporary PDF file', { pdfPath });
-      } catch (cleanupError) {
-        logger.warn('[Payment] Failed to clean up PDF file', { pdfPath });
-      }
+      await tryOptional(
+        async () => {
+          fs.unlinkSync(pdfPath);
+          logger.debug('[Payment] Cleaned up temporary PDF file', { pdfPath });
+        },
+        undefined,
+        false
+      );
 
       return updatedInvoice;
     } catch (error) {
@@ -365,8 +485,15 @@ class PaymentService {
         invoiceNumber: invoice.invoiceNumber,
         customerEmail: invoice.customer?.email,
       });
-      throw new Error(
-        error instanceof Error ? error.message : 'Failed to send invoice email'
+
+      if (error instanceof NotFoundError || error instanceof ValidationError || error instanceof FileOperationError) {
+        throw error;
+      }
+
+      throw new ExternalServiceError(
+        'Email',
+        error instanceof Error ? error.message : 'Failed to send invoice email',
+        true
       );
     }
   }
@@ -412,12 +539,15 @@ class PaymentService {
     });
 
     if (!billing) {
-      throw new Error('Billing record not found');
+      throw new NotFoundError('Billing record', billingId);
     }
 
     const paymentMethod = billing.subscription.user.paymentMethods[0];
     if (!paymentMethod) {
-      throw new Error('No payment method available');
+      throw new ValidationError('No payment method available for retry', {
+        billingId,
+        userId: billing.subscription.userId,
+      });
     }
 
     return this.processPayment({
@@ -848,7 +978,7 @@ class PaymentService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new NotFoundError('User', userId);
     }
 
     const customer = await this.getOrCreateStripeCustomer(user);

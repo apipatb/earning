@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { rbacService, CreateRoleInput, CreatePermissionInput, AssignRoleInput } from '../services/rbac.service';
 import { RoleName, PermissionAction } from '@prisma/client';
 import { AuthRequest } from '../middleware/rbac.middleware';
+import { logger } from '../utils/logger';
 
 /**
  * RBAC Controller
@@ -21,7 +22,7 @@ export class RBACController {
         data: roles,
       });
     } catch (error) {
-      console.error('Get roles error:', error);
+      logger.error('Get roles error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error fetching roles',
@@ -51,7 +52,7 @@ export class RBACController {
         data: role,
       });
     } catch (error) {
-      console.error('Get role error:', error);
+      logger.error('Get role error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error fetching role',
@@ -98,7 +99,7 @@ export class RBACController {
         data: role,
       });
     } catch (error: any) {
-      console.error('Create role error:', error);
+      logger.error('Create role error', error as Error);
 
       // Handle unique constraint violation
       if (error.code === 'P2002') {
@@ -136,7 +137,7 @@ export class RBACController {
         data: role,
       });
     } catch (error: any) {
-      console.error('Update role error:', error);
+      logger.error('Update role error', error as Error);
 
       if (error.message === 'Cannot modify system roles') {
         return res.status(403).json({
@@ -167,7 +168,7 @@ export class RBACController {
         message: 'Role deleted successfully',
       });
     } catch (error: any) {
-      console.error('Delete role error:', error);
+      logger.error('Delete role error', error as Error);
 
       if (error.message.includes('Cannot delete system roles')) {
         return res.status(403).json({
@@ -207,7 +208,7 @@ export class RBACController {
         data: permissions,
       });
     } catch (error) {
-      console.error('Get permissions error:', error);
+      logger.error('Get permissions error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error fetching permissions',
@@ -255,7 +256,7 @@ export class RBACController {
         data: permission,
       });
     } catch (error: any) {
-      console.error('Create permission error:', error);
+      logger.error('Create permission error', error as Error);
 
       // Handle unique constraint violation
       if (error.code === 'P2002') {
@@ -292,7 +293,7 @@ export class RBACController {
         data: permission,
       });
     } catch (error) {
-      console.error('Update permission error:', error);
+      logger.error('Update permission error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error updating permission',
@@ -315,7 +316,7 @@ export class RBACController {
         message: 'Permission deleted successfully',
       });
     } catch (error) {
-      console.error('Delete permission error:', error);
+      logger.error('Delete permission error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error deleting permission',
@@ -346,7 +347,7 @@ export class RBACController {
         message: 'Permissions assigned successfully',
       });
     } catch (error) {
-      console.error('Assign permissions error:', error);
+      logger.error('Assign permissions error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error assigning permissions',
@@ -377,7 +378,7 @@ export class RBACController {
         message: 'Permissions removed successfully',
       });
     } catch (error) {
-      console.error('Remove permissions error:', error);
+      logger.error('Remove permissions error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error removing permissions',
@@ -400,7 +401,7 @@ export class RBACController {
         data: userRoles,
       });
     } catch (error) {
-      console.error('Get user roles error:', error);
+      logger.error('Get user roles error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error fetching user roles',
@@ -423,7 +424,7 @@ export class RBACController {
         data: permissions,
       });
     } catch (error) {
-      console.error('Get user permissions error:', error);
+      logger.error('Get user permissions error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error fetching user permissions',
@@ -459,7 +460,7 @@ export class RBACController {
         },
       });
     } catch (error) {
-      console.error('Get current user permissions error:', error);
+      logger.error('Get current user permissions error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error fetching permissions',
@@ -500,7 +501,7 @@ export class RBACController {
         data: userRole,
       });
     } catch (error: any) {
-      console.error('Assign role error:', error);
+      logger.error('Assign role error', error as Error);
 
       // Handle unique constraint violation (user already has this role)
       if (error.code === 'P2002') {
@@ -532,7 +533,7 @@ export class RBACController {
         message: 'Role revoked successfully',
       });
     } catch (error) {
-      console.error('Revoke role error:', error);
+      logger.error('Revoke role error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error revoking role',
@@ -571,7 +572,7 @@ export class RBACController {
         data: result,
       });
     } catch (error) {
-      console.error('Bulk assign roles error:', error);
+      logger.error('Bulk assign roles error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error bulk assigning roles',
@@ -594,7 +595,7 @@ export class RBACController {
         data: users,
       });
     } catch (error) {
-      console.error('Get users by role error:', error);
+      logger.error('Get users by role error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error fetching users',
@@ -620,7 +621,7 @@ export class RBACController {
         },
       });
     } catch (error) {
-      console.error('Initialize roles error:', error);
+      logger.error('Initialize roles error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error initializing roles and permissions',
@@ -663,7 +664,7 @@ export class RBACController {
         },
       });
     } catch (error) {
-      console.error('Check permission error:', error);
+      logger.error('Check permission error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking permission',
@@ -695,7 +696,7 @@ export class RBACController {
         },
       });
     } catch (error) {
-      console.error('Check ownership error:', error);
+      logger.error('Check ownership error', error as Error);
       return res.status(500).json({
         success: false,
         message: 'Error checking resource ownership',

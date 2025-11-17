@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../types';
 import { quotaService } from '../services/quota.service';
+import { logger } from '../utils/logger';
 
 /**
  * Sliding window rate limiter middleware
@@ -106,13 +107,13 @@ export const rateLimitMiddleware = (options: RateLimitOptions = {}) => {
           const isError = res.statusCode >= 400;
           await quotaService.trackUsage(userId, endpoint, method, finalResponseTime, isError);
         } catch (error) {
-          console.error('[RateLimit] Error tracking usage:', error);
+          logger.error('[RateLimit] Error tracking usage', error as Error);
         }
       });
 
       next();
     } catch (error) {
-      console.error('[RateLimit] Error in rate limit middleware:', error);
+      logger.error('[RateLimit] Error in rate limit middleware', error as Error);
       // Graceful degradation - allow request to proceed if rate limiting fails
       next();
     }
@@ -266,6 +267,6 @@ export const ipRateLimiter = (options: {
 export const cleanupRateLimitRecords = () => {
   setInterval(() => {
     // This would clean up in-memory records for per-endpoint limiters
-    console.log('[RateLimit] Cleaning up expired rate limit records');
+    logger.info('[RateLimit] Cleaning up expired rate limit records');
   }, 60 * 60 * 1000); // Every hour
 };

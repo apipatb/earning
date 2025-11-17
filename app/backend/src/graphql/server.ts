@@ -8,6 +8,7 @@ import { rateLimitMiddleware } from './middleware/rate-limit.middleware';
 import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/lib/use/ws';
 import { Server } from 'http';
+import { logger } from '../utils/logger';
 
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const IS_DEVELOPMENT = NODE_ENV === 'development';
@@ -77,10 +78,10 @@ export const setupWebSocketServer = (httpServer: Server) => {
         return { user: null };
       },
       onConnect: async (ctx: any) => {
-        console.log('WebSocket client connected');
+        logger.info('WebSocket client connected');
       },
       onDisconnect() {
-        console.log('WebSocket client disconnected');
+        logger.info('WebSocket client disconnected');
       },
     },
     wsServer

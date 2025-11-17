@@ -3,23 +3,7 @@ import { z } from 'zod';
 import { AuthRequest } from '../types';
 import { WebhookService } from '../services/webhook.service';
 import { logger } from '../utils/logger';
-
-// Local enum definition (pending Prisma migration)
-enum WebhookEventType {
-  EARNING_CREATED = 'EARNING_CREATED',
-  EARNING_UPDATED = 'EARNING_UPDATED',
-  EARNING_DELETED = 'EARNING_DELETED',
-  INVOICE_CREATED = 'INVOICE_CREATED',
-  INVOICE_SENT = 'INVOICE_SENT',
-  INVOICE_PAID = 'INVOICE_PAID',
-  INVOICE_OVERDUE = 'INVOICE_OVERDUE',
-  SALE_CREATED = 'SALE_CREATED',
-  SALE_UPDATED = 'SALE_UPDATED',
-  PRODUCT_LOW_STOCK = 'PRODUCT_LOW_STOCK',
-  CUSTOMER_CREATED = 'CUSTOMER_CREATED',
-  EXPENSE_CREATED = 'EXPENSE_CREATED',
-  GOAL_COMPLETED = 'GOAL_COMPLETED',
-}
+import { WebhookEventType } from '@prisma/client';
 import { parseLimitParam, parseOffsetParam } from '../utils/validation';
 
 // Validation schemas

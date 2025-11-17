@@ -1,8 +1,18 @@
 import { PrismaClient, SubscriptionStatus, BillingStatus, BillingCycle } from '@prisma/client';
 import cron from 'node-cron';
 import { paymentService } from './payment.service';
+import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
+
+// Cache for usage data to avoid excessive queries
+interface UsageCache {
+  data: number;
+  timestamp: number;
+}
+
+const usageCache = new Map<string, UsageCache>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 interface CreateSubscriptionInput {
   userId: string;
@@ -30,13 +40,13 @@ class SubscriptionService {
   initializeBillingCron() {
     // Run every day at 1 AM
     cron.schedule('0 1 * * *', async () => {
-      console.log('[Subscription] Running daily billing check...');
+      logger.info('[Subscription] Running daily billing check');
       await this.processRecurringBilling();
     });
 
     // Run dunning process every 6 hours
     cron.schedule('0 */6 * * *', async () => {
-      console.log('[Subscription] Running dunning process...');
+      logger.info('[Subscription] Running dunning process');
       await this.processDunning();
     });
   }
@@ -77,8 +87,9 @@ class SubscriptionService {
       ? new Date(startDate.getTime() + effectiveTrialDays * 24 * 60 * 60 * 1000)
       : null;
 
+    const periodStartDate = trialEndsAt || startDate;
     const currentPeriodEnd = this.calculatePeriodEnd(
-      trialEndsAt || startDate,
+      periodStartDate,
       plan.billingCycle
     );
 
@@ -89,6 +100,7 @@ class SubscriptionService {
         planId,
         status: effectiveTrialDays > 0 ? SubscriptionStatus.TRIALING : SubscriptionStatus.ACTIVE,
         startDate,
+        currentPeriodStart: periodStartDate,
         currentPeriodEnd,
         trialEndsAt,
       },
@@ -277,13 +289,13 @@ class SubscriptionService {
       },
     });
 
-    console.log(`[Subscription] Found ${subscriptions.length} subscriptions to bill`);
+    logger.info(`[Subscription] Found ${subscriptions.length} subscriptions to bill`);
 
     for (const subscription of subscriptions) {
       try {
         await this.renewSubscription(subscription);
       } catch (error) {
-        console.error(`[Subscription] Failed to renew subscription ${subscription.id}:`, error);
+        logger.error(`[Subscription] Failed to renew subscription ${subscription.id}`, error as Error);
       }
     }
   }
@@ -312,8 +324,9 @@ class SubscriptionService {
       );
 
       // Update subscription
+      const newPeriodStart = subscription.currentPeriodEnd;
       const newPeriodEnd = this.calculatePeriodEnd(
-        subscription.currentPeriodEnd,
+        newPeriodStart,
         subscription.plan.billingCycle
       );
 
@@ -321,12 +334,13 @@ class SubscriptionService {
         where: { id: subscription.id },
         data: {
           status: SubscriptionStatus.ACTIVE,
+          currentPeriodStart: newPeriodStart,
           currentPeriodEnd: newPeriodEnd,
           trialEndsAt: null,
         },
       });
 
-      console.log(`[Subscription] Successfully renewed subscription ${subscription.id}`);
+      logger.info(`[Subscription] Successfully renewed subscription ${subscription.id}`);
     } catch (error) {
       // Payment failed, mark as PAST_DUE
       await prisma.subscription.update({
@@ -365,13 +379,13 @@ class SubscriptionService {
       },
     });
 
-    console.log(`[Dunning] Found ${failedBillings.length} failed payments to retry`);
+    logger.info(`[Dunning] Found ${failedBillings.length} failed payments to retry`);
 
     for (const billing of failedBillings) {
       try {
         await this.retryPayment(billing);
       } catch (error) {
-        console.error(`[Dunning] Failed to retry payment for billing ${billing.id}:`, error);
+        logger.error(`[Dunning] Failed to retry payment for billing ${billing.id}`, error as Error);
       }
     }
   }
@@ -413,7 +427,7 @@ class SubscriptionService {
         data: { status: SubscriptionStatus.ACTIVE },
       });
 
-      console.log(`[Dunning] Successfully retried payment for billing ${billing.id}`);
+      logger.info(`[Dunning] Successfully retried payment for billing ${billing.id}`);
     } catch (error) {
       // Calculate next retry time (exponential backoff)
       const nextRetryHours = Math.pow(2, billing.retryCount + 1);
@@ -549,6 +563,7 @@ class SubscriptionService {
   async getSubscriptionUsage(subscriptionId: string, metricName: string) {
     const subscription = await prisma.subscription.findUnique({
       where: { id: subscriptionId },
+      include: { plan: true },
     });
 
     if (!subscription) {
@@ -556,8 +571,12 @@ class SubscriptionService {
     }
 
     // Get the current billing period
-    const currentPeriodStart = subscription.currentPeriodStart;
     const currentPeriodEnd = subscription.currentPeriodEnd;
+    // Use stored currentPeriodStart if available, otherwise calculate it
+    const currentPeriodStart = subscription.currentPeriodStart || this.calculatePeriodStart(
+      currentPeriodEnd,
+      subscription.plan.billingCycle
+    );
 
     // Calculate real usage based on metric type
     let usage = 0;
@@ -606,7 +625,7 @@ class SubscriptionService {
           break;
       }
     } catch (error) {
-      console.error(`Failed to calculate usage for ${metricName}:`, error);
+      logger.error(`Failed to calculate usage for ${metricName}`, error as Error);
     }
 
     return {
@@ -624,9 +643,48 @@ class SubscriptionService {
    * Helper methods to calculate real usage from database
    */
   private async getApiCallCount(userId: string, startDate: Date, endDate: Date): Promise<number> {
-    // This would require an AuditLog or RequestLog table
-    // For now, return 0 as it requires schema changes
-    return 0;
+    const cacheKey = `api_calls:${userId}:${startDate.toISOString()}:${endDate.toISOString()}`;
+
+    // Check cache first
+    const cached = this.getFromCache(cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
+
+    try {
+      // Query AuditLog table for API calls in the given period
+      const count = await prisma.auditLog.count({
+        where: {
+          userId,
+          timestamp: {
+            gte: startDate,
+            lte: endDate,
+          },
+          // Filter for API-related actions
+          // You can customize this based on your action naming convention
+          action: {
+            in: [
+              'API_REQUEST',
+              'API_CALL',
+              'GET_REQUEST',
+              'POST_REQUEST',
+              'PUT_REQUEST',
+              'DELETE_REQUEST',
+              'PATCH_REQUEST',
+            ],
+          },
+        },
+      });
+
+      // Cache the result
+      this.setCache(cacheKey, count);
+
+      return count;
+    } catch (error) {
+      console.error(`[Subscription] Failed to get API call count for user ${userId}:`, error);
+      // Return 0 on error to prevent breaking the subscription flow
+      return 0;
+    }
   }
 
   private async getWhatsAppMessageCount(userId: string, startDate: Date, endDate: Date): Promise<number> {
@@ -650,9 +708,43 @@ class SubscriptionService {
   }
 
   private async getStorageUsage(userId: string): Promise<number> {
-    // Calculate total file storage in MB
-    // This would require querying File table and summing file sizes
-    return 0;
+    const cacheKey = `storage:${userId}`;
+
+    // Check cache first
+    const cached = this.getFromCache(cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
+
+    try {
+      // Query FileUpload table and sum file sizes
+      const result = await prisma.fileUpload.aggregate({
+        where: {
+          userId,
+          // Only count files that are not expired
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: new Date() } },
+          ],
+        },
+        _sum: {
+          fileSize: true,
+        },
+      });
+
+      // Convert from bytes to MB (fileSize is stored in bytes as BigInt)
+      const bytesUsed = result._sum.fileSize ? Number(result._sum.fileSize) : 0;
+      const megabytesUsed = Math.ceil(bytesUsed / (1024 * 1024));
+
+      // Cache the result
+      this.setCache(cacheKey, megabytesUsed);
+
+      return megabytesUsed;
+    } catch (error) {
+      console.error(`[Subscription] Failed to get storage usage for user ${userId}:`, error);
+      // Return 0 on error to prevent breaking the subscription flow
+      return 0;
+    }
   }
 
   private async getTeamMemberCount(userId: string): Promise<number> {
@@ -722,30 +814,42 @@ class SubscriptionService {
       }
 
       // Log usage event
-      console.log(`[Usage] Recorded ${quantity} ${metricName} for subscription ${subscriptionId}`, {
+      logger.info(`[Usage] Recorded ${quantity} ${metricName} for subscription ${subscriptionId}`, {
         userId: subscription.userId,
         timestamp: new Date(),
         metadata,
       });
 
-      // In a production system, you would:
-      // 1. Store usage in a UsageRecord table
-      // 2. Aggregate usage for billing
-      // 3. Trigger alerts if usage exceeds limits
-      // 4. Update usage metrics in real-time
+      // Store usage in UsageRecord table for tracking and billing purposes
+      await prisma.usageRecord.create({
+        data: {
+          subscriptionId,
+          userId: subscription.userId,
+          metricName,
+          quantity,
+          timestamp: new Date(),
+          metadata: metadata ? JSON.stringify(metadata) : null,
+        },
+      });
 
-      // Example: Create usage record (requires UsageRecord model)
-      // await prisma.usageRecord.create({
-      //   data: {
-      //     subscriptionId,
-      //     metricName,
-      //     quantity,
-      //     timestamp: new Date(),
-      //     metadata: metadata ? JSON.stringify(metadata) : null,
-      //   },
-      // });
+      // Clear cache for this user to ensure fresh data on next query
+      this.clearUserCache(subscription.userId);
+
+      // Check if usage exceeds limits and trigger alerts
+      const usage = await this.getSubscriptionUsage(subscriptionId, metricName);
+      if (this.isOverLimit(usage.usage, usage.limit)) {
+        console.warn(`[Usage] User ${subscription.userId} has exceeded limit for ${metricName}`);
+        // In production, you would:
+        // - Send email notification
+        // - Create alert/notification in system
+        // - Trigger webhook
+        // - Block further usage (optional)
+      } else if (this.isNearLimit(usage.usage, usage.limit)) {
+        console.warn(`[Usage] User ${subscription.userId} is near limit for ${metricName} (${usage.percentage}%)`);
+        // Send warning notification
+      }
     } catch (error) {
-      console.error('Failed to record usage:', error);
+      logger.error('Failed to record usage', error as Error);
       throw error;
     }
   }
@@ -772,7 +876,7 @@ class SubscriptionService {
 
       return activeSubscription !== null;
     } catch (error) {
-      console.error(`[Subscription] Error checking active subscription for user ${userId}:`, error);
+      logger.error(`[Subscription] Error checking active subscription for user ${userId}`, error as Error);
       throw error;
     }
   }
@@ -798,9 +902,127 @@ class SubscriptionService {
         },
       });
     } catch (error) {
-      console.error(`[Subscription] Error getting active subscription for user ${userId}:`, error);
+      logger.error(`[Subscription] Error getting active subscription for user ${userId}`, error as Error);
       throw error;
     }
+  }
+
+  /**
+   * Calculate usage percentage
+   * Returns the percentage of limit used (0-100)
+   */
+  getUsagePercentage(usage: number, limit: number): number {
+    if (limit === 0) {
+      return 0;
+    }
+    return Math.min(100, Math.round((usage / limit) * 100));
+  }
+
+  /**
+   * Check if usage is near limit
+   * Returns true if usage is at or above the threshold percentage
+   * @param usage Current usage value
+   * @param limit Maximum allowed usage
+   * @param threshold Percentage threshold (default 80%)
+   */
+  isNearLimit(usage: number, limit: number, threshold: number = 80): boolean {
+    const percentage = this.getUsagePercentage(usage, limit);
+    return percentage >= threshold;
+  }
+
+  /**
+   * Check if usage exceeds limit
+   */
+  isOverLimit(usage: number, limit: number): boolean {
+    return usage >= limit;
+  }
+
+  /**
+   * Get usage status with helpful metadata
+   */
+  getUsageStatus(usage: number, limit: number) {
+    const percentage = this.getUsagePercentage(usage, limit);
+    const remaining = Math.max(0, limit - usage);
+    const isNearLimit = this.isNearLimit(usage, limit);
+    const isOverLimit = this.isOverLimit(usage, limit);
+
+    return {
+      usage,
+      limit,
+      remaining,
+      percentage,
+      isNearLimit,
+      isOverLimit,
+      status: isOverLimit ? 'EXCEEDED' : isNearLimit ? 'WARNING' : 'OK',
+    };
+  }
+
+  /**
+   * Cache helper methods
+   */
+  private getFromCache(key: string): number | null {
+    const cached = usageCache.get(key);
+    if (!cached) {
+      return null;
+    }
+
+    // Check if cache is still valid (within TTL)
+    const now = Date.now();
+    if (now - cached.timestamp > CACHE_TTL) {
+      // Cache expired, remove it
+      usageCache.delete(key);
+      return null;
+    }
+
+    return cached.data;
+  }
+
+  private setCache(key: string, data: number): void {
+    usageCache.set(key, {
+      data,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Clear usage cache for a specific user
+   * Useful when usage changes (e.g., after file upload, API call)
+   */
+  clearUserCache(userId: string): void {
+    const keysToDelete: string[] = [];
+
+    for (const key of usageCache.keys()) {
+      if (key.includes(userId)) {
+        keysToDelete.push(key);
+      }
+    }
+
+    for (const key of keysToDelete) {
+      usageCache.delete(key);
+    }
+  }
+
+  /**
+   * Clear all usage cache
+   */
+  clearAllCache(): void {
+    usageCache.clear();
+  }
+
+  /**
+   * Calculate period start date based on period end and billing cycle
+   * Helper method since the schema doesn't have currentPeriodStart
+   */
+  private calculatePeriodStart(periodEnd: Date, billingCycle: BillingCycle): Date {
+    const periodStart = new Date(periodEnd);
+
+    if (billingCycle === BillingCycle.MONTHLY) {
+      periodStart.setMonth(periodStart.getMonth() - 1);
+    } else if (billingCycle === BillingCycle.YEARLY) {
+      periodStart.setFullYear(periodStart.getFullYear() - 1);
+    }
+
+    return periodStart;
   }
 }
 
