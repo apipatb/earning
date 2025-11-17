@@ -9,6 +9,7 @@ import {
   sendTestWebhook,
   updateWebhookStatus,
 } from '../controllers/webhook.controller';
+import { webhookLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 
@@ -21,9 +22,9 @@ router.get('/', getUserWebhooks);
 router.get('/:id', getWebhookById);
 router.delete('/:id', deleteWebhook);
 
-// Webhook logs and testing
+// Webhook logs and testing - apply webhook rate limiting (200 per 15 minutes)
 router.get('/:id/logs', getWebhookLogs);
-router.post('/:id/test', sendTestWebhook);
+router.post('/:id/test', webhookLimiter, sendTestWebhook);
 
 // Webhook status management
 router.patch('/:id/status', updateWebhookStatus);

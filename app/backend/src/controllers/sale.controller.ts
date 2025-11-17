@@ -5,6 +5,9 @@ import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam, validateSaleTotalAmount } from '../utils/validation';
 import { logger } from '../utils/logger';
 import { WebhookService } from '../services/webhook.service';
+import { calculateDateRange } from '../utils/dateRange';
+import { buildSaleWhere } from '../utils/dbBuilders';
+import { ALL_SALE_STATUSES, SALE_STATUS } from '../constants/enums';
 
 const saleSchema = z.object({
   productId: z.string().uuid('Invalid product ID'),
@@ -14,42 +17,38 @@ const saleSchema = z.object({
   saleDate: z.string().datetime().or(z.string().date()).transform((val) => new Date(val)),
   customer: z.string().max(255).optional(),
   notes: z.string().max(1000).optional(),
-  status: z.enum(['completed', 'pending', 'cancelled']).default('completed'),
+  status: z.enum([SALE_STATUS.COMPLETED, SALE_STATUS.PENDING, SALE_STATUS.CANCELLED] as const).default(SALE_STATUS.COMPLETED),
 });
 
 export const getAllSales = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { startDate, endDate, productId, status, limit, offset } = req.query;
+    const { startDate: startDateParam, endDate: endDateParam, productId, status, limit, offset } = req.query;
 
     const parsedLimit = parseLimitParam(limit as string | undefined, 50);
     const parsedOffset = parseOffsetParam(offset as string | undefined);
 
-    const where: any = { userId };
+    // Parse dates
+    const startDate = startDateParam ? parseDateParam(startDateParam as string) || undefined : undefined;
+    const endDate = endDateParam ? parseDateParam(endDateParam as string) || undefined : undefined;
 
-    if (startDate && endDate) {
-      const start = parseDateParam(startDate as string);
-      const end = parseDateParam(endDate as string);
-      if (start && end) {
-        where.saleDate = {
-          gte: start,
-          lte: end,
-        };
-      }
-    }
-
-    if (productId) {
-      where.productId = productId;
-    }
-
+    // Parse status
+    let validStatus: string | undefined;
     if (status) {
-      const validStatus = parseEnumParam(
+      validStatus = parseEnumParam(
         status as string,
-        ['completed', 'pending', 'cancelled'] as const,
-        'completed'
+        ALL_SALE_STATUSES,
+        SALE_STATUS.COMPLETED
       );
-      where.status = validStatus;
     }
+
+    // Use type-safe query builder
+    const where = buildSaleWhere(userId, {
+      startDate,
+      endDate,
+      productId: productId as string | undefined,
+      status: validStatus,
+    });
 
     const sales = await prisma.sale.findMany({
       where,
@@ -110,15 +109,15 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Verify product ownership
+    // Verify product exists, belongs to user, AND is active
     const product = await prisma.product.findFirst({
-      where: { id: data.productId, userId },
+      where: { id: data.productId, userId, isActive: true },
     });
 
     if (!product) {
-      return res.status(404).json({
-        error: 'Not Found',
-        message: 'Product not found',
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Product is not available for sales',
       });
     }
 
@@ -208,16 +207,16 @@ export const updateSale = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Verify product ownership if productId is being updated
+    // Verify product exists, belongs to user, AND is active if productId is being updated
     if (data.productId) {
       const product = await prisma.product.findFirst({
-        where: { id: data.productId, userId },
+        where: { id: data.productId, userId, isActive: true },
       });
 
       if (!product) {
-        return res.status(404).json({
-          error: 'Not Found',
-          message: 'Product not found',
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'Product is not available for sales',
         });
       }
     }
@@ -329,19 +328,8 @@ export const getSalesSummary = async (req: AuthRequest, res: Response) => {
     const userId = req.user!.id;
     const { period = 'month' } = req.query;
 
-    let startDate: Date;
-    const endDate = new Date();
-
-    switch (period) {
-      case 'week':
-        startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case 'year':
-        startDate = new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000);
-        break;
-      default: // month
-        startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-    }
+    // Calculate date range using centralized utility
+    const { startDate, endDate } = calculateDateRange(period as 'today' | 'week' | 'month' | 'year');
 
     const where = {
       userId,
@@ -349,7 +337,7 @@ export const getSalesSummary = async (req: AuthRequest, res: Response) => {
         gte: startDate,
         lte: endDate,
       },
-      status: 'completed' as const,
+      status: SALE_STATUS.COMPLETED,
     };
 
     // Use database-level aggregation instead of loading all sales

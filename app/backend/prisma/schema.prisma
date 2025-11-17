@@ -240,6 +240,7 @@ model Earning {
 
   @@index([userId, date(sort: Desc)])
   @@index([platformId, date(sort: Desc)])
+  @@index([platformId, createdAt(sort: Desc)])
   @@map("earnings")
 }
 

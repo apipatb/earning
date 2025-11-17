@@ -7,6 +7,7 @@ import {
   deleteAccount,
 } from '../controllers/user.controller';
 import { updateUserLanguage } from '../controllers/i18n.controller';
+import { passwordResetLimiter, strictLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 
@@ -14,8 +15,10 @@ router.use(authenticate);
 
 router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
-router.post('/change-password', changePassword);
+// Apply strict rate limiting to password changes (3 per hour)
+router.post('/change-password', passwordResetLimiter, changePassword);
 router.post('/language', updateUserLanguage);
-router.delete('/account', deleteAccount);
+// Apply strict rate limiting to account deletion (10 per hour)
+router.delete('/account', strictLimiter, deleteAccount);
 
 export default router;

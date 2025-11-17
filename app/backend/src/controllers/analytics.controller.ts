@@ -3,6 +3,7 @@ import { AuthRequest, AnalyticsSummary, PlatformBreakdown, DailyBreakdown } from
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { validatePeriodParam } from '../utils/validation';
+import { calculateDateRange } from '../utils/dateRange';
 
 export const getSummary = async (req: AuthRequest, res: Response) => {
   try {
@@ -20,31 +21,12 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Calculate date range
-    let startDate: Date;
-    let endDate: Date = new Date();
-
-    if (start_date && end_date) {
-      startDate = new Date(start_date as string);
-      endDate = new Date(end_date as string);
-    } else {
-      const now = new Date();
-      switch (validatedPeriod) {
-        case 'today':
-          startDate = new Date(now.setHours(0, 0, 0, 0));
-          endDate = new Date(now.setHours(23, 59, 59, 999));
-          break;
-        case 'week':
-          startDate = new Date(now.setDate(now.getDate() - 7));
-          break;
-        case 'month':
-          startDate = new Date(now.setMonth(now.getMonth() - 1));
-          break;
-        case 'year':
-          startDate = new Date(now.setFullYear(now.getFullYear() - 1));
-          break;
-      }
-    }
+    // Calculate date range using centralized utility
+    const { startDate, endDate } = calculateDateRange(
+      validatedPeriod,
+      start_date as string | undefined,
+      end_date as string | undefined
+    );
 
     // Get earnings in date range (limit to most recent 1000 for performance)
     const earnings = await prisma.earning.findMany({

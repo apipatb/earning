@@ -168,6 +168,40 @@ app.use(sentryUserContextMiddleware);
 // i18n middleware for multi-language support
 app.use(i18nMiddleware);
 
+// Performance monitoring: Log slow API requests
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  // Capture the original end function
+  const originalEnd = res.end;
+
+  // Override res.end to log after response is sent
+  res.end = function(...args: any[]) {
+    const duration = Date.now() - start;
+
+    // Log slow requests (>1000ms)
+    if (duration > 1000) {
+      logger.warn(`[SLOW API] ${req.method} ${req.path}: ${duration}ms`, {
+        method: req.method,
+        path: req.path,
+        query: req.query,
+        duration,
+        statusCode: res.statusCode,
+      });
+    } else if (process.env.LOG_ALL_REQUESTS === 'true') {
+      logger.debug(`[API] ${req.method} ${req.path}: ${duration}ms`);
+    }
+
+    // Set performance header
+    res.setHeader('X-Response-Time', `${duration}ms`);
+
+    // Call the original end function
+    return originalEnd.apply(res, args);
+  };
+
+  next();
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

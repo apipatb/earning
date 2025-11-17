@@ -11,6 +11,7 @@ import {
   createFolder,
   getFolders,
 } from '../controllers/file.controller';
+import { uploadLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 
@@ -25,8 +26,8 @@ const upload = multer({
 // All routes require authentication
 router.use(authenticate);
 
-// File routes
-router.post('/upload', upload.single('file'), uploadFile);
+// File routes with upload rate limiting (10 uploads per hour)
+router.post('/upload', uploadLimiter, upload.single('file'), uploadFile);
 router.get('/', getFiles);
 router.get('/shared-with-me', getSharedFiles);
 router.get('/:id/download', getDownloadUrl);

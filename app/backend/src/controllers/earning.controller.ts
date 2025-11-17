@@ -5,6 +5,7 @@ import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam } from '../utils/validation';
 import { logger } from '../utils/logger';
 import { WebhookService } from '../services/webhook.service';
+import { buildEarningWhere } from '../utils/dbBuilders';
 
 const earningSchema = z.object({
   platformId: z.string().uuid(),
@@ -22,23 +23,16 @@ export const getAllEarnings = async (req: AuthRequest, res: Response) => {
     const parsedLimit = parseLimitParam(limit as string | undefined);
     const parsedOffset = parseOffsetParam(offset as string | undefined);
 
-    const where: any = { userId };
+    // Parse dates
+    const startDate = start_date ? parseDateParam(start_date as string) || undefined : undefined;
+    const endDate = end_date ? parseDateParam(end_date as string) || undefined : undefined;
 
-    if (start_date && end_date) {
-      const startDate = parseDateParam(start_date as string);
-      const endDate = parseDateParam(end_date as string);
-
-      if (startDate && endDate) {
-        where.date = {
-          gte: startDate,
-          lte: endDate,
-        };
-      }
-    }
-
-    if (platform_id) {
-      where.platformId = platform_id;
-    }
+    // Use type-safe query builder
+    const where = buildEarningWhere(userId, {
+      startDate,
+      endDate,
+      platformId: platform_id as string | undefined,
+    });
 
     const [earnings, total] = await Promise.all([
       prisma.earning.findMany({

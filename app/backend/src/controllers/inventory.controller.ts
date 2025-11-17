@@ -4,11 +4,12 @@ import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
 import { logger } from '../utils/logger';
+import { ALL_INVENTORY_LOG_TYPES, INVENTORY_LOG_TYPE } from '../constants/enums';
 
 const inventoryLogSchema = z.object({
   productId: z.string().uuid('Invalid product ID'),
-  quantityChange: z.number().nonzero('Quantity change cannot be zero'),
-  type: z.enum(['purchase', 'sale', 'adjustment', 'damage', 'return']),
+  quantityChange: z.number().refine((val) => val !== 0, { message: 'Quantity change cannot be zero' }),
+  type: z.enum([INVENTORY_LOG_TYPE.PURCHASE, INVENTORY_LOG_TYPE.SALE, INVENTORY_LOG_TYPE.ADJUSTMENT, INVENTORY_LOG_TYPE.DAMAGE, INVENTORY_LOG_TYPE.RETURN] as const),
   notes: z.string().max(1000).optional(),
 });
 

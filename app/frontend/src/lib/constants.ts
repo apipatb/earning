@@ -202,7 +202,7 @@ export const DATE_FORMATS = {
 export const TIME_FORMATS = {
   SHORT: 'HH:mm',
   LONG: 'HH:mm:ss',
-  12_HOUR: 'hh:mm a',
+  TWELVE_HOUR: 'hh:mm a',
 } as const;
 
 /**

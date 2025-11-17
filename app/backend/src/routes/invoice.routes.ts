@@ -9,6 +9,7 @@ import {
   getInvoiceSummary,
   getOverdueInvoices,
 } from '../controllers/invoice.controller';
+import { paymentLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 
@@ -18,9 +19,10 @@ router.use(authenticate);
 router.get('/', getAllInvoices);
 router.get('/summary', getInvoiceSummary);
 router.get('/overdue', getOverdueInvoices);
-router.post('/', createInvoice);
-router.put('/:id', updateInvoice);
-router.patch('/:id/mark-paid', markInvoicePaid);
+// Apply payment rate limiting to invoice create/update operations (20 per hour)
+router.post('/', paymentLimiter, createInvoice);
+router.put('/:id', paymentLimiter, updateInvoice);
+router.patch('/:id/mark-paid', paymentLimiter, markInvoicePaid);
 router.delete('/:id', deleteInvoice);
 
 export default router;

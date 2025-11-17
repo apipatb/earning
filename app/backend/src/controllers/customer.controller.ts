@@ -4,6 +4,7 @@ import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam, validateSearchParam, validateEnumParam } from '../utils/validation';
 import { logger } from '../utils/logger';
+import { buildCustomerWhere } from '../utils/dbBuilders';
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
@@ -48,17 +49,11 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
     const limit = parseLimitParam(limitParam as string | undefined);
     const offset = parseOffsetParam(offsetParam as string | undefined);
 
-    const where: any = { userId };
-    if (isActive !== undefined) {
-      where.isActive = isActive === 'true';
-    }
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+    // Use type-safe query builder
+    const where = buildCustomerWhere(userId, {
+      search,
+      isActive: isActive !== undefined ? isActive === 'true' : undefined,
+    });
 
     const orderBy: any = {};
     switch (sortBy) {

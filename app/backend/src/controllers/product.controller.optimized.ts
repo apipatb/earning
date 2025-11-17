@@ -50,36 +50,48 @@ export const getAllProducts = async (req: AuthRequest, res: Response) => {
       take: limit,
     });
 
-    // Use database-level aggregation for each product's sales
-    const productsWithStats = await Promise.all(
-      products.map(async (product) => {
-        const salesStats = await prisma.sale.aggregate({
-          where: { productId: product.id },
-          _count: true,
-          _sum: {
-            totalAmount: true,
-            quantity: true,
-          },
-        });
+    // OPTIMIZATION FIX: Use single grouped query instead of N+1 queries
+    // Get all sales stats for these products in one query using groupBy
+    const productIds = products.map((p) => p.id);
+    const salesByProduct = productIds.length > 0 ? await prisma.sale.groupBy({
+      by: ['productId'],
+      where: { productId: { in: productIds } },
+      _count: true,
+      _sum: {
+        totalAmount: true,
+        quantity: true,
+      },
+    }) : [];
 
-        return {
-          id: product.id,
-          name: product.name,
-          description: product.description,
-          price: Number(product.price),
-          category: product.category,
-          sku: product.sku,
-          isActive: product.isActive,
-          createdAt: product.createdAt,
-          updatedAt: product.updatedAt,
-          stats: {
-            total_sales: salesStats._count,
-            total_revenue: Number(salesStats._sum.totalAmount || 0),
-            total_quantity: Number(salesStats._sum.quantity || 0),
-          },
-        };
-      })
+    // Create a map for quick lookup
+    const salesStatsMap = new Map(
+      salesByProduct.map((stat) => [
+        stat.productId,
+        {
+          total_sales: stat._count,
+          total_revenue: Number(stat._sum.totalAmount || 0),
+          total_quantity: Number(stat._sum.quantity || 0),
+        },
+      ])
     );
+
+    // Combine products with their stats (synchronous mapping, no N+1)
+    const productsWithStats = products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: Number(product.price),
+      category: product.category,
+      sku: product.sku,
+      isActive: product.isActive,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+      stats: salesStatsMap.get(product.id) || {
+        total_sales: 0,
+        total_revenue: 0,
+        total_quantity: 0,
+      },
+    }));
 
     const hasMore = offset + limit < total;
 
@@ -166,10 +178,9 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       data,
     });
 
-    // Invalidate product list cache and individual product cache
+    // Invalidate product list cache for this user
     cache.invalidatePattern(`${CacheKeys.products(userId)}:`);
-    cache.invalidate(CacheKeys.product(userId, productId));
-    logger.debug(`[Cache] Invalidated product cache for user ${userId}, product ${productId}`);
+    logger.debug(`[Cache] Invalidated products cache for user ${userId}`);
 
     res.json({ product: updated });
   } catch (error) {
@@ -202,10 +213,9 @@ export const deleteProduct = async (req: AuthRequest, res: Response) => {
       where: { id: productId },
     });
 
-    // Invalidate product list cache and individual product cache
+    // Invalidate product list cache for this user
     cache.invalidatePattern(`${CacheKeys.products(userId)}:`);
-    cache.invalidate(CacheKeys.product(userId, productId));
-    logger.debug(`[Cache] Invalidated product cache for user ${userId}, product ${productId}`);
+    logger.debug(`[Cache] Invalidated products cache for user ${userId}`);
 
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {

@@ -4,7 +4,6 @@ import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { parseLimitParam, parseOffsetParam } from '../utils/validation';
-import { cache, CacheKeys, CacheTTL } from '../utils/cache';
 
 const platformSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -22,18 +21,6 @@ export const getAllPlatforms = async (req: AuthRequest, res: Response) => {
     const limit = parseLimitParam(limitParam);
     const offset = parseOffsetParam(offsetParam);
 
-    // Create cache key including query parameters
-    const cacheKey = `${CacheKeys.platforms(userId)}:${limit}:${offset}`;
-
-    // Check cache first
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      logger.debug(`[Cache] Platforms cache hit for user ${userId}`);
-      res.set('X-Cache', 'HIT');
-      res.set('Cache-Control', `public, max-age=${CacheTTL.FIFTEEN_MINUTES / 1000}`);
-      return res.json(cached);
-    }
-
     const where = { userId };
 
     // Get total count for pagination
@@ -50,57 +37,63 @@ export const getAllPlatforms = async (req: AuthRequest, res: Response) => {
     const recentDate = new Date();
     recentDate.setDate(recentDate.getDate() - 90);
 
-    // Use database-level aggregation for each platform's earnings (recent only)
-    const platformsWithStats = await Promise.all(
-      platforms.map(async (platform) => {
-        const earningsStats = await prisma.earning.aggregate({
-          where: {
-            platformId: platform.id,
-            date: { gte: recentDate },
-          },
-          _sum: {
-            amount: true,
-            hours: true,
-          },
-        });
+    // OPTIMIZATION FIX: Use single grouped query instead of N+1 queries
+    // Get all earnings stats for these platforms in one query using groupBy
+    const platformIds = platforms.map((p) => p.id);
+    const earningsByPlatform = platformIds.length > 0 ? await prisma.earning.groupBy({
+      by: ['platformId'],
+      where: {
+        platformId: { in: platformIds },
+        date: { gte: recentDate },
+      },
+      _sum: {
+        amount: true,
+        hours: true,
+      },
+    }) : [];
 
-        const totalEarnings = Number(earningsStats._sum.amount || 0);
-        const totalHours = Number(earningsStats._sum.hours || 0);
+    // Create a map for quick lookup
+    const earningsStatsMap = new Map(
+      earningsByPlatform.map((stat) => {
+        const totalEarnings = Number(stat._sum.amount || 0);
+        const totalHours = Number(stat._sum.hours || 0);
         const avgHourlyRate = totalHours > 0 ? totalEarnings / totalHours : 0;
 
-        return {
-          id: platform.id,
-          name: platform.name,
-          category: platform.category,
-          color: platform.color,
-          expectedRate: platform.expectedRate ? Number(platform.expectedRate) : null,
-          isActive: platform.isActive,
-          stats: {
+        return [
+          stat.platformId,
+          {
             total_earnings: totalEarnings,
             total_hours: totalHours,
             avg_hourly_rate: avgHourlyRate,
           },
-        };
+        ];
       })
     );
 
+    // Combine platforms with their stats (synchronous mapping, no N+1)
+    const platformsWithStats = platforms.map((platform) => ({
+      id: platform.id,
+      name: platform.name,
+      category: platform.category,
+      color: platform.color,
+      expectedRate: platform.expectedRate ? Number(platform.expectedRate) : null,
+      isActive: platform.isActive,
+      stats: earningsStatsMap.get(platform.id) || {
+        total_earnings: 0,
+        total_hours: 0,
+        avg_hourly_rate: 0,
+      },
+    }));
+
     const hasMore = offset + limit < total;
 
-    const response = {
+    res.json({
       data: platformsWithStats,
       total,
       limit,
       offset,
       hasMore,
-    };
-
-    // Cache the response for 15 minutes
-    cache.set(cacheKey, response, CacheTTL.FIFTEEN_MINUTES);
-    logger.debug(`[Cache] Platforms cached for user ${userId}`);
-
-    res.set('X-Cache', 'MISS');
-    res.set('Cache-Control', `public, max-age=${CacheTTL.FIFTEEN_MINUTES / 1000}`);
-    res.json(response);
+    });
   } catch (error) {
     logger.error('Get platforms error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
@@ -124,10 +117,6 @@ export const createPlatform = async (req: AuthRequest, res: Response) => {
         expectedRate: data.expectedRate,
       },
     });
-
-    // Invalidate platform list cache for this user
-    cache.invalidatePattern(`${CacheKeys.platforms(userId)}:`);
-    logger.debug(`[Cache] Invalidated platforms cache for user ${userId}`);
 
     res.status(201).json({ platform });
   } catch (error) {
@@ -168,11 +157,6 @@ export const updatePlatform = async (req: AuthRequest, res: Response) => {
       data,
     });
 
-    // Invalidate platform list cache and individual platform cache
-    cache.invalidatePattern(`${CacheKeys.platforms(userId)}:`);
-    cache.invalidate(CacheKeys.platform(userId, platformId));
-    logger.debug(`[Cache] Invalidated platform cache for user ${userId}, platform ${platformId}`);
-
     res.json({ platform: updated });
   } catch (error) {
     logger.error('Update platform error:', error instanceof Error ? error : new Error(String(error)));
@@ -203,11 +187,6 @@ export const deletePlatform = async (req: AuthRequest, res: Response) => {
     await prisma.platform.delete({
       where: { id: platformId },
     });
-
-    // Invalidate platform list cache and individual platform cache
-    cache.invalidatePattern(`${CacheKeys.platforms(userId)}:`);
-    cache.invalidate(CacheKeys.platform(userId, platformId));
-    logger.debug(`[Cache] Invalidated platform cache for user ${userId}, platform ${platformId}`);
 
     res.json({ message: 'Platform deleted successfully' });
   } catch (error) {

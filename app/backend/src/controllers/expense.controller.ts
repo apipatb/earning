@@ -4,6 +4,8 @@ import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
 import { logger } from '../utils/logger';
+import { calculateDateRange } from '../utils/dateRange';
+import { buildExpenseWhere } from '../utils/dbBuilders';
 
 const expenseSchema = z.object({
   category: z.string().min(1).max(100),
@@ -19,28 +21,19 @@ const expenseSchema = z.object({
 export const getAllExpenses = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { startDate, endDate, category, isTaxDeductible, limit, offset } = req.query;
+    const { startDate: startDateParam, endDate: endDateParam, category, isTaxDeductible, limit, offset } = req.query;
 
-    const where: any = { userId };
+    // Parse dates
+    const startDate = startDateParam ? parseDateParam(startDateParam as string) || undefined : undefined;
+    const endDate = endDateParam ? parseDateParam(endDateParam as string) || undefined : undefined;
 
-    if (startDate && endDate) {
-      const start = parseDateParam(startDate as string);
-      const end = parseDateParam(endDate as string);
-      if (start && end) {
-        where.expenseDate = {
-          gte: start,
-          lte: end,
-        };
-      }
-    }
-
-    if (category) {
-      where.category = category;
-    }
-
-    if (isTaxDeductible !== undefined) {
-      where.isTaxDeductible = isTaxDeductible === 'true';
-    }
+    // Use type-safe query builder
+    const where = buildExpenseWhere(userId, {
+      startDate,
+      endDate,
+      category: category as string | undefined,
+      isTaxDeductible: isTaxDeductible !== undefined ? isTaxDeductible === 'true' : undefined,
+    });
 
     const parsedLimit = parseLimitParam(limit as string | undefined, 50);
     const parsedOffset = parseOffsetParam(offset as string | undefined);
@@ -182,40 +175,12 @@ export const getExpenseSummary = async (req: AuthRequest, res: Response) => {
     const userId = req.user!.id;
     const { period = 'month', startDate: startDateParam, endDate: endDateParam, limit: limitParam, offset: offsetParam } = req.query;
 
-    let startDate: Date;
-    let endDate: Date = new Date();
-
-    // Use custom date range if provided, otherwise use period
-    if (startDateParam && endDateParam) {
-      const parsedStart = parseDateParam(startDateParam as string);
-      const parsedEnd = parseDateParam(endDateParam as string);
-
-      if (!parsedStart || !parsedEnd) {
-        return res.status(400).json({
-          error: 'Validation Error',
-          message: 'Invalid date format. Use ISO 8601 format (YYYY-MM-DD).',
-        });
-      }
-
-      startDate = parsedStart;
-      endDate = parsedEnd;
-    } else {
-      // Use proper date calculations based on period
-      switch (period) {
-        case 'week':
-          startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case 'year':
-          startDate = new Date(endDate);
-          startDate.setFullYear(startDate.getFullYear() - 1);
-          break;
-        default:
-          // Month: First day of current month
-          startDate = new Date(endDate);
-          startDate.setDate(1);
-          startDate.setHours(0, 0, 0, 0);
-      }
-    }
+    // Calculate date range using centralized utility
+    const { startDate, endDate } = calculateDateRange(
+      period as 'today' | 'week' | 'month' | 'year',
+      startDateParam as string | undefined,
+      endDateParam as string | undefined
+    );
 
     // Parse pagination parameters
     const limit = parseLimitParam(limitParam);
@@ -309,19 +274,8 @@ export const getProfitMargin = async (req: AuthRequest, res: Response) => {
     const userId = req.user!.id;
     const { period = 'month' } = req.query;
 
-    let startDate: Date;
-    const endDate = new Date();
-
-    switch (period) {
-      case 'week':
-        startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case 'year':
-        startDate = new Date(endDate.getTime() - 365 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-    }
+    // Calculate date range using centralized utility
+    const { startDate, endDate } = calculateDateRange(period as 'today' | 'week' | 'month' | 'year');
 
     // Use database-level aggregation instead of loading all records
     const [salesStats, expensesStats] = await Promise.all([

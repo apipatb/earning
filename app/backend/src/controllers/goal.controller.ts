@@ -71,6 +71,27 @@ export const createGoal = async (req: AuthRequest, res: Response) => {
     const userId = req.user!.id;
     const data = createGoalSchema.parse(req.body);
 
+    // Validate target amount is positive (additional check beyond schema)
+    if (data.targetAmount <= 0) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Goal target amount must be greater than zero',
+      });
+    }
+
+    // Validate deadline is in the future if provided
+    if (data.deadline) {
+      const deadlineDate = new Date(data.deadline);
+      const now = new Date();
+
+      if (deadlineDate <= now) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'Goal deadline must be in the future',
+        });
+      }
+    }
+
     const goal = await prisma.goal.create({
       data: {
         userId,
@@ -105,6 +126,25 @@ export const updateGoal = async (req: AuthRequest, res: Response) => {
 
     if (!existingGoal) {
       return res.status(404).json({ error: 'Goal not found' });
+    }
+
+    // Validate target amount is positive if being updated
+    if (data.targetAmount !== undefined && data.targetAmount <= 0) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Goal target amount must be greater than zero',
+      });
+    }
+
+    // Validate currentAmount <= targetAmount
+    const finalTargetAmount = data.targetAmount !== undefined ? data.targetAmount : Number(existingGoal.targetAmount);
+    const finalCurrentAmount = data.currentAmount !== undefined ? data.currentAmount : Number(existingGoal.currentAmount);
+
+    if (finalCurrentAmount > finalTargetAmount) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Current amount cannot exceed target amount',
+      });
     }
 
     const updateData: any = {};

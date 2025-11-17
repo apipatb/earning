@@ -186,9 +186,11 @@ function App() {
             <Route
               index
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Dashboard />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Dashboard />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
@@ -202,49 +204,61 @@ function App() {
             <Route
               path="earnings"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Earnings />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Earnings />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="products"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Products />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Products />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="sales"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Sales />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Sales />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="inventory"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Inventory />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Inventory />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="customers"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Customers />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Customers />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="customer-segmentation"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <CustomerSegmentation />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <CustomerSegmentation />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
@@ -258,9 +272,11 @@ function App() {
             <Route
               path="expenses"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Expenses />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Expenses />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
@@ -282,81 +298,101 @@ function App() {
             <Route
               path="recurring"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <RecurringEarnings />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <RecurringEarnings />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="time-tracking"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <TimeTracking />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <TimeTracking />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="clients"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <ClientManagement />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <ClientManagement />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="goals"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Goals />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Goals />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="budget"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <BudgetPlanning />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <BudgetPlanning />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="analytics"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Analytics />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Analytics />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="reports"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Reports />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Reports />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="invoices"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Invoices />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Invoices />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="tax-calculator"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <TaxCalculator />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <TaxCalculator />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
             <Route
               path="settings"
               element={
-                <Suspense fallback={<PageLoader />}>
-                  <Settings />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <Settings />
+                  </Suspense>
+                </ErrorBoundary>
               }
             />
           </Route>

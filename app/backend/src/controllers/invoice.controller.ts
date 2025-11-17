@@ -5,6 +5,9 @@ import prisma from '../lib/prisma';
 import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam, validateEnumParam } from '../utils/validation';
 import { logger } from '../utils/logger';
 import { WebhookService } from '../services/webhook.service';
+import { buildInvoiceWhere } from '../utils/dbBuilders';
+import { ALL_INVOICE_STATUSES, INVOICE_STATUS } from '../constants/enums';
+import { cache, CacheKeys, CacheTTL } from '../utils/cache';
 
 const invoiceLineItemSchema = z.object({
   description: z.string().min(1).max(1000),
@@ -22,7 +25,7 @@ const invoiceSchema = z.object({
   totalAmount: z.number().positive(),
   invoiceDate: z.string().datetime().or(z.string().date()).transform((val) => new Date(val)),
   dueDate: z.string().datetime().or(z.string().date()).transform((val) => new Date(val)),
-  status: z.enum(['draft', 'sent', 'viewed', 'paid', 'overdue', 'cancelled']).default('draft'),
+  status: z.enum([INVOICE_STATUS.DRAFT, INVOICE_STATUS.SENT, INVOICE_STATUS.VIEWED, INVOICE_STATUS.PAID, INVOICE_STATUS.OVERDUE, INVOICE_STATUS.CANCELLED] as const).default(INVOICE_STATUS.DRAFT),
   paymentMethod: z.string().max(50).optional(),
   notes: z.string().optional(),
   terms: z.string().optional(),
@@ -32,24 +35,17 @@ const invoiceSchema = z.object({
 export const getAllInvoices = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { startDate, endDate, status: statusParam, customerId, limit, offset } = req.query;
+    const { startDate: startDateParam, endDate: endDateParam, status: statusParam, customerId, limit, offset } = req.query;
 
-    const where: any = { userId };
-
-    if (startDate && endDate) {
-      const start = parseDateParam(startDate as string);
-      const end = parseDateParam(endDate as string);
-      if (start && end) {
-        where.invoiceDate = { gte: start, lte: end };
-      }
-    }
+    // Parse dates
+    const startDate = startDateParam ? parseDateParam(startDateParam as string) || undefined : undefined;
+    const endDate = endDateParam ? parseDateParam(endDateParam as string) || undefined : undefined;
 
     // Validate status parameter if provided
+    let validStatus: string | undefined;
     if (statusParam) {
       try {
-        const allowedStatuses = ['draft', 'sent', 'viewed', 'paid', 'overdue', 'cancelled'] as const;
-        const validStatus = validateEnumParam(statusParam as string, allowedStatuses, 'status');
-        where.status = validStatus;
+        validStatus = validateEnumParam(statusParam as string, ALL_INVOICE_STATUSES, 'status');
       } catch (error) {
         return res.status(400).json({
           error: 'Validation Error',
@@ -58,12 +54,28 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    if (customerId) {
-      where.customerId = customerId;
-    }
-
     const parsedLimit = parseLimitParam(limit as string | undefined, 50);
     const parsedOffset = parseOffsetParam(offset as string | undefined);
+
+    // Create cache key including query parameters
+    const cacheKey = `${CacheKeys.invoices(userId)}:${startDateParam}:${endDateParam}:${statusParam}:${customerId}:${parsedLimit}:${parsedOffset}`;
+
+    // Check cache first
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      logger.debug(`[Cache] Invoices cache hit for user ${userId}`);
+      res.set('X-Cache', 'HIT');
+      res.set('Cache-Control', `public, max-age=${CacheTTL.FIFTEEN_MINUTES / 1000}`);
+      return res.json(cached);
+    }
+
+    // Use type-safe query builder
+    const where = buildInvoiceWhere(userId, {
+      startDate,
+      endDate,
+      status: validStatus,
+      customerId: customerId as string | undefined,
+    });
 
     const invoices = await prisma.invoice.findMany({
       where,
@@ -100,7 +112,15 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
       createdAt: inv.createdAt,
     }));
 
-    res.json({ invoices: formatted, total, limit: parsedLimit, offset: parsedOffset });
+    const response = { invoices: formatted, total, limit: parsedLimit, offset: parsedOffset };
+
+    // Cache the response for 15 minutes
+    cache.set(cacheKey, response, CacheTTL.FIFTEEN_MINUTES);
+    logger.debug(`[Cache] Invoices cached for user ${userId}`);
+
+    res.set('X-Cache', 'MISS');
+    res.set('Cache-Control', `public, max-age=${CacheTTL.FIFTEEN_MINUTES / 1000}`);
+    res.json(response);
   } catch (error) {
     logger.error('Get invoices error:', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
@@ -114,6 +134,26 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const data = invoiceSchema.parse(req.body);
+
+    // Validate total amount is positive
+    if (data.totalAmount <= 0) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Invoice total amount must be greater than zero',
+      });
+    }
+
+    // Check invoice number uniqueness per user
+    const existingInvoice = await prisma.invoice.findFirst({
+      where: { userId, invoiceNumber: data.invoiceNumber },
+    });
+
+    if (existingInvoice) {
+      return res.status(409).json({
+        error: 'Conflict',
+        message: `Invoice number "${data.invoiceNumber}" already exists for this user`,
+      });
+    }
 
     // Verify customer ownership if provided
     if (data.customerId) {
@@ -155,6 +195,10 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
       dueDate: invoice.dueDate.toISOString(),
       createdAt: invoice.createdAt.toISOString(),
     });
+
+    // Invalidate invoice cache for this user
+    cache.invalidatePattern(`${CacheKeys.invoices(userId)}:`);
+    logger.debug(`[Cache] Invalidated invoices cache for user ${userId}`);
 
     res.status(201).json({
       invoice: {
@@ -239,6 +283,11 @@ export const updateInvoice = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Invalidate invoice cache for this user
+    cache.invalidatePattern(`${CacheKeys.invoices(userId)}:`);
+    cache.invalidate(CacheKeys.invoice(userId, invoiceId));
+    logger.debug(`[Cache] Invalidated invoice cache for user ${userId}, invoice ${invoiceId}`);
+
     res.json({
       invoice: {
         ...updated,
@@ -297,6 +346,11 @@ export const markInvoicePaid = async (req: AuthRequest, res: Response) => {
       paymentMethod: updated.paymentMethod,
     });
 
+    // Invalidate invoice cache for this user
+    cache.invalidatePattern(`${CacheKeys.invoices(userId)}:`);
+    cache.invalidate(CacheKeys.invoice(userId, invoiceId));
+    logger.debug(`[Cache] Invalidated invoice cache for user ${userId}, invoice ${invoiceId}`);
+
     res.json({ invoice: updated });
   } catch (error) {
     logger.error('Mark invoice paid error:', error instanceof Error ? error : new Error(String(error)));
@@ -327,6 +381,11 @@ export const deleteInvoice = async (req: AuthRequest, res: Response) => {
       where: { id: invoiceId },
     });
 
+    // Invalidate invoice cache for this user
+    cache.invalidatePattern(`${CacheKeys.invoices(userId)}:`);
+    cache.invalidate(CacheKeys.invoice(userId, invoiceId));
+    logger.debug(`[Cache] Invalidated invoice cache for user ${userId}, invoice ${invoiceId}`);
+
     res.json({ message: 'Invoice deleted successfully' });
   } catch (error) {
     logger.error('Delete invoice error:', error instanceof Error ? error : new Error(String(error)));
@@ -354,7 +413,7 @@ export const getInvoiceSummary = async (req: AuthRequest, res: Response) => {
         _sum: { totalAmount: true },
       }),
       prisma.invoice.aggregate({
-        where: { userId, status: { in: ['draft', 'sent', 'viewed'] } },
+        where: { userId, status: { in: [INVOICE_STATUS.DRAFT, INVOICE_STATUS.SENT, INVOICE_STATUS.VIEWED] } },
         _count: true,
         _sum: { totalAmount: true },
       }),
