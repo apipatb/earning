@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
-import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
+import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam, validateSaleTotalAmount } from '../utils/validation';
 import { logger } from '../utils/logger';
 import { WebhookService } from '../services/webhook.service';
 
@@ -99,6 +99,16 @@ export const createSale = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const data = saleSchema.parse(req.body);
+
+    // Validate quantity * unitPrice = totalAmount
+    try {
+      validateSaleTotalAmount(data.quantity, data.unitPrice, data.totalAmount);
+    } catch (error) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: error instanceof Error ? error.message : 'Invalid sale calculation',
+      });
+    }
 
     // Verify product ownership
     const product = await prisma.product.findFirst({
@@ -212,6 +222,23 @@ export const updateSale = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Validate quantity * unitPrice = totalAmount if all three are being updated
+    if (data.quantity !== undefined || data.unitPrice !== undefined || data.totalAmount !== undefined) {
+      // Use provided values or fall back to existing sale values
+      const quantity = data.quantity ?? Number(sale.quantity);
+      const unitPrice = data.unitPrice ?? Number(sale.unitPrice);
+      const totalAmount = data.totalAmount ?? Number(sale.totalAmount);
+
+      try {
+        validateSaleTotalAmount(quantity, unitPrice, totalAmount);
+      } catch (error) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: error instanceof Error ? error.message : 'Invalid sale calculation',
+        });
+      }
+    }
+
     const updated = await prisma.sale.update({
       where: { id: saleId },
       data,
@@ -316,42 +343,56 @@ export const getSalesSummary = async (req: AuthRequest, res: Response) => {
         startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Get total sales in period
-    const sales = await prisma.sale.findMany({
-      where: {
-        userId,
-        saleDate: {
-          gte: startDate,
-          lte: endDate,
+    const where = {
+      userId,
+      saleDate: {
+        gte: startDate,
+        lte: endDate,
+      },
+      status: 'completed' as const,
+    };
+
+    // Use database-level aggregation instead of loading all sales
+    const [totalStats, groupedByProduct] = await Promise.all([
+      prisma.sale.aggregate({
+        where,
+        _count: true,
+        _sum: {
+          totalAmount: true,
+          quantity: true,
         },
-        status: 'completed',
-      },
-      include: {
-        product: true,
-      },
+      }),
+      prisma.sale.groupBy({
+        by: ['productId'],
+        where,
+        _count: true,
+        _sum: {
+          totalAmount: true,
+          quantity: true,
+        },
+      }),
+    ]);
+
+    const totalRevenue = Number(totalStats._sum.totalAmount || 0);
+    const totalQuantity = Number(totalStats._sum.quantity || 0);
+    const totalSales = totalStats._count;
+
+    // Get product names for grouped results
+    const productIds = groupedByProduct.map((g) => g.productId);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true },
     });
 
-    const totalRevenue = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
-    const totalQuantity = sales.reduce((sum, s) => sum + Number(s.quantity), 0);
-    const totalSales = sales.length;
+    const productNameMap = new Map(products.map((p) => [p.id, p.name]));
 
-    // Group by product
-    const byProduct = new Map<string, any>();
-    sales.forEach((sale) => {
-      if (!byProduct.has(sale.productId)) {
-        byProduct.set(sale.productId, {
-          productId: sale.productId,
-          productName: sale.product.name,
-          sales: 0,
-          quantity: 0,
-          revenue: 0,
-        });
-      }
-      const product = byProduct.get(sale.productId);
-      product.sales += 1;
-      product.quantity += Number(sale.quantity);
-      product.revenue += Number(sale.totalAmount);
-    });
+    const byProduct = groupedByProduct.map((group) => ({
+      productId: group.productId,
+      productName: productNameMap.get(group.productId) || 'Unknown',
+      sales: group._count,
+      quantity: Number(group._sum.quantity || 0),
+      revenue: Number(group._sum.totalAmount || 0),
+    }));
 
     res.json({
       period,
@@ -361,7 +402,7 @@ export const getSalesSummary = async (req: AuthRequest, res: Response) => {
         total_revenue: totalRevenue,
         average_sale: totalSales > 0 ? totalRevenue / totalSales : 0,
       },
-      by_product: Array.from(byProduct.values()),
+      by_product: byProduct,
       start_date: startDate,
       end_date: endDate,
     });

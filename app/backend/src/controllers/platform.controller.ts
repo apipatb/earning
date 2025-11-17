@@ -28,47 +28,57 @@ export const getAllPlatforms = async (req: AuthRequest, res: Response) => {
 
     const platforms = await prisma.platform.findMany({
       where,
-      include: {
-        earnings: {
-          select: {
-            amount: true,
-            hours: true,
-          },
-        },
-      },
       skip: offset,
       take: limit,
       orderBy: { createdAt: 'desc' },
     });
 
-    // Calculate stats for each platform
-    const platformsWithStats = platforms.map((platform) => {
-      const totalEarnings = platform.earnings.reduce((sum, e) => sum + Number(e.amount), 0);
-      const totalHours = platform.earnings.reduce((sum, e) => sum + Number(e.hours || 0), 0);
-      const avgHourlyRate = totalHours > 0 ? totalEarnings / totalHours : 0;
+    // Calculate date for recent earnings (last 90 days)
+    const recentDate = new Date();
+    recentDate.setDate(recentDate.getDate() - 90);
 
-      return {
-        id: platform.id,
-        name: platform.name,
-        category: platform.category,
-        color: platform.color,
-        expectedRate: platform.expectedRate ? Number(platform.expectedRate) : null,
-        isActive: platform.isActive,
-        stats: {
-          total_earnings: totalEarnings,
-          total_hours: totalHours,
-          avg_hourly_rate: avgHourlyRate,
-        },
-      };
-    });
+    // Use database-level aggregation for each platform's earnings (recent only)
+    const platformsWithStats = await Promise.all(
+      platforms.map(async (platform) => {
+        const earningsStats = await prisma.earning.aggregate({
+          where: {
+            platformId: platform.id,
+            date: { gte: recentDate },
+          },
+          _sum: {
+            amount: true,
+            hours: true,
+          },
+        });
+
+        const totalEarnings = Number(earningsStats._sum.amount || 0);
+        const totalHours = Number(earningsStats._sum.hours || 0);
+        const avgHourlyRate = totalHours > 0 ? totalEarnings / totalHours : 0;
+
+        return {
+          id: platform.id,
+          name: platform.name,
+          category: platform.category,
+          color: platform.color,
+          expectedRate: platform.expectedRate ? Number(platform.expectedRate) : null,
+          isActive: platform.isActive,
+          stats: {
+            total_earnings: totalEarnings,
+            total_hours: totalHours,
+            avg_hourly_rate: avgHourlyRate,
+          },
+        };
+      })
+    );
+
+    const hasMore = offset + limit < total;
 
     res.json({
-      platforms: platformsWithStats,
-      pagination: {
-        total,
-        limit,
-        offset,
-      }
+      data: platformsWithStats,
+      total,
+      limit,
+      offset,
+      hasMore,
     });
   } catch (error) {
     logger.error('Get platforms error:', error instanceof Error ? error : new Error(String(error)));

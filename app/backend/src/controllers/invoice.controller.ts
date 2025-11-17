@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
-import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
+import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam, validateEnumParam } from '../utils/validation';
 import { logger } from '../utils/logger';
 import { WebhookService } from '../services/webhook.service';
 
@@ -32,7 +32,7 @@ const invoiceSchema = z.object({
 export const getAllInvoices = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { startDate, endDate, status, customerId, limit, offset } = req.query;
+    const { startDate, endDate, status: statusParam, customerId, limit, offset } = req.query;
 
     const where: any = { userId };
 
@@ -44,11 +44,17 @@ export const getAllInvoices = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Validate and parse status parameter if provided
-    if (status) {
-      const validStatus = parseEnumParam(status as string, ['draft', 'sent', 'viewed', 'paid', 'overdue', 'cancelled']);
-      if (validStatus) {
+    // Validate status parameter if provided
+    if (statusParam) {
+      try {
+        const allowedStatuses = ['draft', 'sent', 'viewed', 'paid', 'overdue', 'cancelled'] as const;
+        const validStatus = validateEnumParam(statusParam as string, allowedStatuses, 'status');
         where.status = validStatus;
+      } catch (error) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: error instanceof Error ? error.message : 'Invalid status parameter',
+        });
       }
     }
 
@@ -335,22 +341,37 @@ export const getInvoiceSummary = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
-    const invoices = await prisma.invoice.findMany({
-      where: { userId },
-    });
+    // Use database-level aggregation instead of loading all invoices
+    const [totalStats, paidStats, pendingStats, overdueStats] = await Promise.all([
+      prisma.invoice.aggregate({
+        where: { userId },
+        _count: true,
+        _sum: { totalAmount: true },
+      }),
+      prisma.invoice.aggregate({
+        where: { userId, status: 'paid' },
+        _count: true,
+        _sum: { totalAmount: true },
+      }),
+      prisma.invoice.aggregate({
+        where: { userId, status: { in: ['draft', 'sent', 'viewed'] } },
+        _count: true,
+        _sum: { totalAmount: true },
+      }),
+      prisma.invoice.aggregate({
+        where: { userId, status: 'overdue' },
+        _count: true,
+      }),
+    ]);
 
     const summary = {
-      total_invoices: invoices.length,
-      paid: invoices.filter((i) => i.status === 'paid').length,
-      pending: invoices.filter((i) => ['draft', 'sent', 'viewed'].includes(i.status)).length,
-      overdue: invoices.filter((i) => i.status === 'overdue').length,
-      total_amount: invoices.reduce((sum, i) => sum + Number(i.totalAmount), 0),
-      paid_amount: invoices
-        .filter((i) => i.status === 'paid')
-        .reduce((sum, i) => sum + Number(i.totalAmount), 0),
-      pending_amount: invoices
-        .filter((i) => ['draft', 'sent', 'viewed', 'overdue'].includes(i.status))
-        .reduce((sum, i) => sum + Number(i.totalAmount), 0),
+      total_invoices: totalStats._count,
+      paid: paidStats._count,
+      pending: pendingStats._count,
+      overdue: overdueStats._count,
+      total_amount: Number(totalStats._sum.totalAmount || 0),
+      paid_amount: Number(paidStats._sum.totalAmount || 0),
+      pending_amount: Number(pendingStats._sum.totalAmount || 0),
     };
 
     res.json({ summary });

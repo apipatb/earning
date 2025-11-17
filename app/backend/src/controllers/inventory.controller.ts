@@ -33,18 +33,49 @@ export const getInventory = async (req: AuthRequest, res: Response) => {
     // Get total count for pagination
     const total = await prisma.product.count({ where });
 
+    // Fetch products without including inventoryLogs to reduce memory usage
     const products = await prisma.product.findMany({
       where,
-      include: {
-        inventoryLogs: {
-          select: { quantityChange: true, type: true, createdAt: true },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-        },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        quantity: true,
+        reorderPoint: true,
+        price: true,
+        supplierName: true,
+        supplierCost: true,
       },
       orderBy: { quantity: 'asc' },
       skip: offset,
       take: limit,
+    });
+
+    // Fetch recent activity logs for all products in a single optimized query
+    const productIds = products.map((p) => p.id);
+    const recentLogs = await prisma.inventoryLog.findMany({
+      where: {
+        productId: { in: productIds },
+      },
+      select: { productId: true, quantityChange: true, type: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: productIds.length * 3, // Get top 3 for each product
+    });
+
+    // Group logs by productId (more efficient than N+1 queries)
+    const logsByProduct = new Map<string, any[]>();
+    recentLogs.forEach((log) => {
+      if (!logsByProduct.has(log.productId)) {
+        logsByProduct.set(log.productId, []);
+      }
+      const logs = logsByProduct.get(log.productId)!;
+      if (logs.length < 3) {
+        logs.push({
+          quantityChange: Number(log.quantityChange),
+          type: log.type,
+          createdAt: log.createdAt,
+        });
+      }
     });
 
     const inventory = products
@@ -58,25 +89,26 @@ export const getInventory = async (req: AuthRequest, res: Response) => {
         supplierName: product.supplierName,
         supplierCost: product.supplierCost ? Number(product.supplierCost) : null,
         isLowStock: Number(product.quantity) <= Number(product.reorderPoint),
-        recentActivity: product.inventoryLogs.slice(0, 3),
+        recentActivity: logsByProduct.get(product.id) || [],
       }))
       .filter((item) => (!showLowStock ? true : item.isLowStock));
 
     const lowStockCount = inventory.filter((item) => item.isLowStock).length;
     const totalValue = inventory.reduce((sum, item) => sum + item.quantity * item.price, 0);
 
+    const hasMore = offset + limit < total;
+
     res.json({
-      inventory,
+      data: inventory,
       summary: {
         total_items: inventory.length,
         low_stock_count: lowStockCount,
         total_inventory_value: totalValue,
       },
-      pagination: {
-        total,
-        limit,
-        offset,
-      }
+      total,
+      limit,
+      offset,
+      hasMore,
     });
   } catch (error) {
     logger.error('Get inventory error:', error instanceof Error ? error : new Error(String(error)));

@@ -180,45 +180,95 @@ export const deleteExpense = async (req: AuthRequest, res: Response) => {
 export const getExpenseSummary = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { period = 'month' } = req.query;
+    const { period = 'month', startDate: startDateParam, endDate: endDateParam, limit: limitParam, offset: offsetParam } = req.query;
 
     let startDate: Date;
-    const endDate = new Date();
+    let endDate: Date = new Date();
 
-    // Use proper date calculations instead of fixed days
-    switch (period) {
-      case 'week':
-        startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case 'year':
-        startDate = new Date(endDate);
-        startDate.setFullYear(startDate.getFullYear() - 1);
-        break;
-      default:
-        // Month: First day of current month
-        startDate = new Date(endDate);
-        startDate.setDate(1);
-        startDate.setHours(0, 0, 0, 0);
+    // Use custom date range if provided, otherwise use period
+    if (startDateParam && endDateParam) {
+      const parsedStart = parseDateParam(startDateParam as string);
+      const parsedEnd = parseDateParam(endDateParam as string);
+
+      if (!parsedStart || !parsedEnd) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'Invalid date format. Use ISO 8601 format (YYYY-MM-DD).',
+        });
+      }
+
+      startDate = parsedStart;
+      endDate = parsedEnd;
+    } else {
+      // Use proper date calculations based on period
+      switch (period) {
+        case 'week':
+          startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'year':
+          startDate = new Date(endDate);
+          startDate.setFullYear(startDate.getFullYear() - 1);
+          break;
+        default:
+          // Month: First day of current month
+          startDate = new Date(endDate);
+          startDate.setDate(1);
+          startDate.setHours(0, 0, 0, 0);
+      }
     }
 
-    const expenses = await prisma.expense.findMany({
-      where: {
-        userId,
-        expenseDate: { gte: startDate, lte: endDate },
-      },
-    });
+    // Parse pagination parameters
+    const limit = parseLimitParam(limitParam);
+    const offset = parseOffsetParam(offsetParam);
 
-    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
-    const taxDeductible = expenses
-      .filter((e) => e.isTaxDeductible)
-      .reduce((sum, e) => sum + Number(e.amount), 0);
+    const where = {
+      userId,
+      expenseDate: { gte: startDate, lte: endDate },
+    };
 
-    // Group by category
-    const byCategory = new Map<string, number>();
-    expenses.forEach((e) => {
-      const current = byCategory.get(e.category) || 0;
-      byCategory.set(e.category, current + Number(e.amount));
-    });
+    // Use database-level aggregation and grouping for summary stats
+    const [totalStats, taxDeductibleStats, groupedByCategory, total, expenses] = await Promise.all([
+      prisma.expense.aggregate({
+        where,
+        _count: true,
+        _sum: { amount: true },
+      }),
+      prisma.expense.aggregate({
+        where: { ...where, isTaxDeductible: true },
+        _sum: { amount: true },
+      }),
+      prisma.expense.groupBy({
+        by: ['category'],
+        where,
+        _sum: { amount: true },
+      }),
+      prisma.expense.count({ where }),
+      prisma.expense.findMany({
+        where,
+        orderBy: { expenseDate: 'desc' },
+        skip: offset,
+        take: limit,
+        select: {
+          id: true,
+          category: true,
+          description: true,
+          amount: true,
+          expenseDate: true,
+          vendor: true,
+          isTaxDeductible: true,
+        },
+      }),
+    ]);
+
+    const totalExpenses = Number(totalStats._sum.amount || 0);
+    const taxDeductible = Number(taxDeductibleStats._sum.amount || 0);
+
+    const byCategory = groupedByCategory.map((group) => ({
+      category: group.category,
+      amount: Number(group._sum.amount || 0),
+    }));
+
+    const hasMore = offset + limit < total;
 
     res.json({
       period,
@@ -226,11 +276,24 @@ export const getExpenseSummary = async (req: AuthRequest, res: Response) => {
         total_expenses: totalExpenses,
         tax_deductible: taxDeductible,
         non_deductible: totalExpenses - taxDeductible,
-        expense_count: expenses.length,
+        expense_count: totalStats._count,
       },
-      by_category: Array.from(byCategory.entries()).map(([category, amount]) => ({ category, amount })),
+      by_category: byCategory,
+      data: expenses.map((e) => ({
+        id: e.id,
+        category: e.category,
+        description: e.description,
+        amount: Number(e.amount),
+        expenseDate: e.expenseDate,
+        vendor: e.vendor,
+        isTaxDeductible: e.isTaxDeductible,
+      })),
       start_date: startDate,
       end_date: endDate,
+      total,
+      limit,
+      offset,
+      hasMore,
     });
   } catch (error) {
     logger.error('Get expense summary error:', error instanceof Error ? error : new Error(String(error)));
@@ -260,24 +323,29 @@ export const getProfitMargin = async (req: AuthRequest, res: Response) => {
         startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    const [sales, expenses] = await Promise.all([
-      prisma.sale.findMany({
+    // Use database-level aggregation instead of loading all records
+    const [salesStats, expensesStats] = await Promise.all([
+      prisma.sale.aggregate({
         where: {
           userId,
           saleDate: { gte: startDate, lte: endDate },
           status: 'completed',
         },
+        _count: true,
+        _sum: { totalAmount: true },
       }),
-      prisma.expense.findMany({
+      prisma.expense.aggregate({
         where: {
           userId,
           expenseDate: { gte: startDate, lte: endDate },
         },
+        _count: true,
+        _sum: { amount: true },
       }),
     ]);
 
-    const revenue = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
-    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+    const revenue = Number(salesStats._sum.totalAmount || 0);
+    const totalExpenses = Number(expensesStats._sum.amount || 0);
     const profit = revenue - totalExpenses;
     const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -288,8 +356,8 @@ export const getProfitMargin = async (req: AuthRequest, res: Response) => {
         expenses: totalExpenses,
         profit,
         profit_margin_percent: profitMargin.toFixed(2),
-        sales_count: sales.length,
-        expense_count: expenses.length,
+        sales_count: salesStats._count,
+        expense_count: expensesStats._count,
       },
       start_date: startDate,
       end_date: endDate,

@@ -32,50 +32,50 @@ export const getAllProducts = async (req: AuthRequest, res: Response) => {
 
     const products = await prisma.product.findMany({
       where,
-      include: {
-        sales: {
-          select: {
-            quantity: true,
-            totalAmount: true,
-          },
-        },
-      },
       orderBy: { createdAt: 'desc' },
       skip: offset,
       take: limit,
     });
 
-    // Calculate stats for each product
-    const productsWithStats = products.map((product) => {
-      const totalSales = product.sales.length;
-      const totalRevenue = product.sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
-      const totalQuantity = product.sales.reduce((sum, s) => sum + Number(s.quantity), 0);
+    // Use database-level aggregation for each product's sales
+    const productsWithStats = await Promise.all(
+      products.map(async (product) => {
+        const salesStats = await prisma.sale.aggregate({
+          where: { productId: product.id },
+          _count: true,
+          _sum: {
+            totalAmount: true,
+            quantity: true,
+          },
+        });
 
-      return {
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        price: Number(product.price),
-        category: product.category,
-        sku: product.sku,
-        isActive: product.isActive,
-        createdAt: product.createdAt,
-        updatedAt: product.updatedAt,
-        stats: {
-          total_sales: totalSales,
-          total_revenue: totalRevenue,
-          total_quantity: totalQuantity,
-        },
-      };
-    });
+        return {
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          price: Number(product.price),
+          category: product.category,
+          sku: product.sku,
+          isActive: product.isActive,
+          createdAt: product.createdAt,
+          updatedAt: product.updatedAt,
+          stats: {
+            total_sales: salesStats._count,
+            total_revenue: Number(salesStats._sum.totalAmount || 0),
+            total_quantity: Number(salesStats._sum.quantity || 0),
+          },
+        };
+      })
+    );
+
+    const hasMore = offset + limit < total;
 
     res.json({
-      products: productsWithStats,
-      pagination: {
-        total,
-        limit,
-        offset,
-      }
+      data: productsWithStats,
+      total,
+      limit,
+      offset,
+      hasMore,
     });
   } catch (error) {
     logger.error('Get products error:', error instanceof Error ? error : new Error(String(error)));

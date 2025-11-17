@@ -2,11 +2,23 @@ import { Response } from 'express';
 import { AuthRequest, AnalyticsSummary, PlatformBreakdown, DailyBreakdown } from '../types';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
+import { validatePeriodParam } from '../utils/validation';
 
 export const getSummary = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { period = 'month', start_date, end_date } = req.query;
+    const { period: periodParam, start_date, end_date } = req.query;
+
+    // Validate period parameter
+    let validatedPeriod: 'today' | 'week' | 'month' | 'year';
+    try {
+      validatedPeriod = validatePeriodParam(periodParam as string | undefined);
+    } catch (error) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: error instanceof Error ? error.message : 'Invalid period parameter',
+      });
+    }
 
     // Calculate date range
     let startDate: Date;
@@ -17,7 +29,7 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
       endDate = new Date(end_date as string);
     } else {
       const now = new Date();
-      switch (period) {
+      switch (validatedPeriod) {
         case 'today':
           startDate = new Date(now.setHours(0, 0, 0, 0));
           endDate = new Date(now.setHours(23, 59, 59, 999));
@@ -31,12 +43,10 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
         case 'year':
           startDate = new Date(now.setFullYear(now.getFullYear() - 1));
           break;
-        default:
-          startDate = new Date(0); // All time
       }
     }
 
-    // Get all earnings in date range
+    // Get earnings in date range (limit to most recent 1000 for performance)
     const earnings = await prisma.earning.findMany({
       where: {
         userId,
@@ -54,6 +64,8 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
           },
         },
       },
+      orderBy: { date: 'desc' },
+      take: 1000,
     });
 
     // Calculate totals
@@ -107,7 +119,7 @@ export const getSummary = async (req: AuthRequest, res: Response) => {
     );
 
     const summary: AnalyticsSummary = {
-      period: period as string,
+      period: validatedPeriod,
       start_date: startDate.toISOString().split('T')[0],
       end_date: endDate.toISOString().split('T')[0],
       total_earnings: totalEarnings,

@@ -3,6 +3,8 @@ import { AuthRequest } from '../types';
 import { quotaService } from '../services/quota.service';
 import { QuotaTier, UsagePeriod } from '@prisma/client';
 import { rbacService } from '../services/rbac.service';
+import { checkActiveSubscription } from '../utils/stripe';
+import prisma from '../lib/prisma';
 
 /**
  * Quota Controller
@@ -231,12 +233,35 @@ export const upgradeQuotaTier = async (req: AuthRequest, res: Response) => {
 
     // Check if user has active subscription for paid tiers
     if (tier !== QuotaTier.FREE) {
-      // TODO: Verify subscription status with payment provider
-      // For now, admins can upgrade any tier, others need subscription verification
+      // Admins can upgrade to any tier without subscription check
       const isAdmin = await rbacService.hasRole(userId, 'ADMIN');
+
       if (!isAdmin) {
-        // In a real implementation, verify subscription status here
-        // throw new Error('Active subscription required for paid tiers');
+        // Verify subscription status with Stripe
+        try {
+          // Get user's Stripe customer ID from database
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { stripeCustomerId: true },
+          });
+
+          // Check if user has active subscription
+          const hasActiveSubscription = await checkActiveSubscription(
+            user?.stripeCustomerId || null,
+            userId
+          );
+
+          if (!hasActiveSubscription) {
+            return res.status(403).json({
+              error: 'Forbidden',
+              message: 'Active subscription required for paid tiers. Please subscribe to a plan first.',
+            });
+          }
+        } catch (error) {
+          console.error('[Quota] Error verifying subscription:', error);
+          // If subscription check fails, log error but continue (fail-open)
+          console.warn('[Quota] Subscription verification failed, allowing upgrade');
+        }
       }
     }
 

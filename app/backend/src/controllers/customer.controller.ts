@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../types';
 import prisma from '../lib/prisma';
-import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam } from '../utils/validation';
+import { parseLimitParam, parseOffsetParam, parseDateParam, parseEnumParam, validateSearchParam, validateEnumParam } from '../utils/validation';
 import { logger } from '../utils/logger';
 
 const customerSchema = z.object({
@@ -19,11 +19,34 @@ const customerSchema = z.object({
 export const getAllCustomers = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { isActive, search, sortBy = 'name', limit: limitParam, offset: offsetParam } = req.query;
+    const { isActive, search: searchParam, sortBy: sortByParam = 'name', limit: limitParam, offset: offsetParam } = req.query;
+
+    // Validate sortBy parameter
+    let sortBy: string;
+    try {
+      const allowedSortValues = ['name', 'ltv', 'recent', 'purchases'] as const;
+      sortBy = sortByParam ? validateEnumParam(sortByParam as string, allowedSortValues, 'sortBy') : 'name';
+    } catch (error) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: error instanceof Error ? error.message : 'Invalid sortBy parameter',
+      });
+    }
+
+    // Validate search parameter
+    let search: string | undefined;
+    try {
+      search = validateSearchParam(searchParam as string | undefined, 200);
+    } catch (error) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: error instanceof Error ? error.message : 'Invalid search parameter',
+      });
+    }
 
     // Parse pagination parameters with safe defaults
-    const limit = parseLimitParam(limitParam);
-    const offset = parseOffsetParam(offsetParam);
+    const limit = parseLimitParam(limitParam as string | undefined);
+    const offset = parseOffsetParam(offsetParam as string | undefined);
 
     const where: any = { userId };
     if (isActive !== undefined) {
@@ -31,9 +54,9 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
     }
     if (search) {
       where.OR = [
-        { name: { contains: search as string, mode: 'insensitive' } },
-        { email: { contains: search as string, mode: 'insensitive' } },
-        { phone: { contains: search as string, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -81,13 +104,14 @@ export const getAllCustomers = async (req: AuthRequest, res: Response) => {
       createdAt: customer.createdAt,
     }));
 
+    const hasMore = offset + limit < total;
+
     res.json({
-      customers: customersWithLTV,
-      pagination: {
-        total,
-        limit,
-        offset,
-      }
+      data: customersWithLTV,
+      total,
+      limit,
+      offset,
+      hasMore,
     });
   } catch (error) {
     logger.error('Get customers error:', error instanceof Error ? error : new Error(String(error)));

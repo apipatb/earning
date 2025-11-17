@@ -259,3 +259,88 @@ export interface ProfitMargin {
   grossProfit: number;
   profitMargin: number; // percentage
 }
+
+// ============================================
+// GENERIC API RESPONSE WRAPPER
+// ============================================
+
+/**
+ * Generic API response wrapper for consistent response formatting
+ */
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+// ============================================
+// CONTROLLER-SPECIFIC RESPONSE TYPES
+// ============================================
+
+// Customer Responses
+export type GetCustomersResponse = PaginatedResponse<CustomerResponse>;
+export type GetCustomerResponse = ApiResponse<CustomerResponse>;
+export type CreateCustomerResponse = ApiResponse<CustomerResponse>;
+export type UpdateCustomerResponse = ApiResponse<CustomerResponse>;
+export type DeleteCustomerResponse = ApiResponse<{ id: string }>;
+
+// Product Responses
+export type GetProductsResponse = PaginatedResponse<ProductResponse>;
+export type GetProductResponse = ApiResponse<ProductResponse>;
+export type CreateProductResponse = ApiResponse<ProductResponse>;
+export type UpdateProductResponse = ApiResponse<ProductResponse>;
+export type DeleteProductResponse = ApiResponse<{ id: string }>;
+
+// Earning Responses
+export type GetEarningsResponse = PaginatedResponse<EarningResponse>;
+export type GetEarningResponse = ApiResponse<EarningResponse>;
+export type CreateEarningResponse = ApiResponse<EarningResponse>;
+export type UpdateEarningResponse = ApiResponse<EarningResponse>;
+export type DeleteEarningResponse = ApiResponse<{ id: string }>;
+
+// Expense Responses
+export type GetExpensesResponse = PaginatedResponse<ExpenseResponse>;
+export type GetExpenseResponse = ApiResponse<ExpenseResponse>;
+export type CreateExpenseResponse = ApiResponse<ExpenseResponse>;
+export type UpdateExpenseResponse = ApiResponse<ExpenseResponse>;
+export type DeleteExpenseResponse = ApiResponse<{ id: string }>;
+
+// Invoice Responses
+export type GetInvoicesResponse = PaginatedResponse<InvoiceResponse>;
+export type GetInvoiceResponse = ApiResponse<InvoiceResponse>;
+export type CreateInvoiceResponse = ApiResponse<InvoiceResponse>;
+export type UpdateInvoiceResponse = ApiResponse<InvoiceResponse>;
+export type DeleteInvoiceResponse = ApiResponse<{ id: string }>;
+
+// Goal Responses
+export type GetGoalsResponse = PaginatedResponse<GoalResponse>;
+export type GetGoalResponse = ApiResponse<GoalResponse>;
+export type CreateGoalResponse = ApiResponse<GoalResponse>;
+export type UpdateGoalResponse = ApiResponse<GoalResponse>;
+export type DeleteGoalResponse = ApiResponse<{ id: string }>;
+
+// Platform Responses
+export type GetPlatformsResponse = PaginatedResponse<PlatformResponse>;
+export type GetPlatformResponse = ApiResponse<PlatformResponse>;
+export type CreatePlatformResponse = ApiResponse<PlatformResponse>;
+export type UpdatePlatformResponse = ApiResponse<PlatformResponse>;
+export type DeletePlatformResponse = ApiResponse<{ id: string }>;
+
+// Sale Responses
+export type GetSalesResponse = PaginatedResponse<SaleResponse>;
+export type GetSaleResponse = ApiResponse<SaleResponse>;
+export type CreateSaleResponse = ApiResponse<SaleResponse>;
+export type UpdateSaleResponse = ApiResponse<SaleResponse>;
+export type DeleteSaleResponse = ApiResponse<{ id: string }>;
+
+// Inventory Log Responses
+export type GetInventoryLogsResponse = PaginatedResponse<InventoryLogResponse>;
+export type GetInventoryLogResponse = ApiResponse<InventoryLogResponse>;
+export type CreateInventoryLogResponse = ApiResponse<InventoryLogResponse>;
+
+// Analytics Responses
+export type GetAnalyticsSummaryResponse = ApiResponse<AnalyticsSummary>;
+export type GetSalesSummaryResponse = ApiResponse<SalesSummary>;
+export type GetExpenseSummaryResponse = ApiResponse<ExpenseSummary>;
+export type GetProfitMarginResponse = ApiResponse<ProfitMargin>;
